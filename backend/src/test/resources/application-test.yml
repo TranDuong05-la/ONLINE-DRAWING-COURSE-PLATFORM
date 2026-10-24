@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=false
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+  mail:
+    host: localhost
+    port: 25
+    username: test
+    password: test
+
+app:
+  jwt:
+    secret: dGVzdC1zZWNyZXQta2V5LWZvci1hcnQtYWNhZGVteS1hcGktdGVzdGluZy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=
+    access-expiration-ms: 900000
+    refresh-expiration-ms: 604800000
+  frontend-url: http://localhost:3000

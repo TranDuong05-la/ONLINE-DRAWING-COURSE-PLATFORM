@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chứng nhận hoàn thành khóa học - Art Academy</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f3f4f6;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: #1f2937;
+            -webkit-font-smoothing: antialiased;
+        }
+        .wrapper {
+            width: 100%;
+            background-color: #f3f4f6;
+            padding: 40px 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e5e7eb;
+        }
+        .header {
+            background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+            padding: 36px 30px;
+            text-align: center;
+            color: #ffffff;
+        }
+        .badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            backdrop-filter: blur(4px);
+        }
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+            font-weight: 800;
+        }
+        .header p {
+            margin: 0;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        .content {
+            padding: 36px 32px;
+        }
+        .greeting {
+            font-size: 17px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+        .message {
+            font-size: 15px;
+            line-height: 1.65;
+            color: #4b5563;
+            margin-bottom: 24px;
+        }
+        .cert-card {
+            background: linear-gradient(135deg, #f0fdf4 0%, #f0fdfa 100%);
+            border: 2px solid #86efac;
+            border-radius: 14px;
+            padding: 24px;
+            margin: 24px 0;
+            text-align: left;
+        }
+        .cert-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #166534;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .cert-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px dashed #bbf7d0;
+            font-size: 14px;
+        }
+        .cert-row:last-child {
+            border-bottom: none;
+        }
+        .cert-label {
+            color: #4b5563;
+        }
+        .cert-value {
+            font-weight: 600;
+            color: #14532d;
+            text-align: right;
+        }
+        .cta-container {
+            text-align: center;
+            margin: 32px 0 20px 0;
+        }
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: #ffffff !important;
+            text-decoration: none;
+            padding: 14px 34px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 15px;
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.35);
+        }
+        .footer {
+            background-color: #f9fafb;
+            padding: 28px 32px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+        .footer a {
+            color: #059669;
+            text-decoration: none;
+        }
+        .divider {
+            height: 1px;
+            background-color: #e5e7eb;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <!-- Header -->
+            <div class="header">
+                <div class="badge">🏆 CHỨNG NHẬN TỐT NGHIỆP</div>
+                <h1>Chúc mừng bạn đã hoàn thành khóa học!</h1>
+                <p>Thành quả xứng đáng cho sự nỗ lực và đam mê sáng tạo</p>
+            </div>
+
+            <!-- Content -->
+            <div class="content">
+                <div class="greeting">
+                    Chúc mừng <span th:text="${fullName != null ? fullName : 'Học viên'}" style="color: #059669;">Bạn</span>,
+                </div>
+
+                <div class="message">
+                    Ban Giảng Huấn Art Academy xin chúc mừng bạn đã xuất sắc hoàn thành tất cả bài giảng và bài tập thực hành. Chứng nhận điện tử chính thức của bạn đã được khởi tạo thành công:
+                </div>
+
+                <!-- Certificate Card -->
+                <div class="cert-card">
+                    <div class="cert-title">THÔNG TIN CHỨNG NHẬN</div>
+                    <div class="cert-row">
+                        <span class="cert-label">Học viên:</span>
+                        <span class="cert-value" th:text="${fullName}">Nguyễn Văn A</span>
+                    </div>
+                    <div class="cert-row">
+                        <span class="cert-label">Khóa học:</span>
+                        <span class="cert-value" th:text="${courseName}">Hội họa Cơ bản &amp; Nâng cao</span>
+                    </div>
+                    <div class="cert-row">
+                        <span class="cert-label">Mã chứng nhận:</span>
+                        <span class="cert-value" th:text="${certificateCode != null ? certificateCode : 'ART-CERT-2026'}">ART-CERT-2026</span>
+                    </div>
+                    <div class="cert-row" th:if="${issueDate != null}">
+                        <span class="cert-label">Ngày cấp:</span>
+                        <span class="cert-value" th:text="${issueDate}">24/10/2026</span>
+                    </div>
+                </div>
+
+                <!-- CTA Button -->
+                <div class="cta-container">
+                    <a th:href="${certificateUrl != null ? certificateUrl : 'http://localhost:3000'}" class="cta-button" target="_blank">
+                        Xem &amp; Tải chứng chỉ
+                    </a>
+                </div>
+
+                <div class="message" style="font-size: 13px; color: #6b7280; text-align: center; margin-top: 20px;">
+                    Bạn có thể đính kèm mã chứng chỉ này vào portfolio hoặc hồ sơ cá nhân để minh chứng cho năng lực hội họa của mình.
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="footer">
+                <strong>Học Viện Nghệ Thuật Art Academy</strong><br>
+                Hotline hỗ trợ: 1900 6868 • Email: <a href="mailto:support@artacademy.com">support@artacademy.com</a><br>
+                <div class="divider"></div>
+                © 2026 Art Academy. Mọi quyền được bảo lưu.
+            </div>
+        </div>
+    </div>
+</body>
+</html>
