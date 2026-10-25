@@ -44,10 +44,7 @@ import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.http.*;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 
 import java.util.Collections;
 import java.util.Optional;
@@ -70,6 +67,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final GoogleTokenInfoClient googleTokenInfoClient;
     private final Map<String, OtpData> passwordResetOtpCache = new ConcurrentHashMap<>();
 
     public static class OtpData {
@@ -96,7 +94,8 @@ public class AuthService {
                        EmailService emailService,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
-                       AuthenticationManager authenticationManager) {
+                       AuthenticationManager authenticationManager,
+                       GoogleTokenInfoClient googleTokenInfoClient) {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.userProfileRepository = userProfileRepository;
@@ -104,6 +103,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
+        this.googleTokenInfoClient = googleTokenInfoClient;
     }
 
     // ==========================================
@@ -331,10 +331,8 @@ public class AuthService {
 
         // Secondary verification via Google's tokeninfo endpoint (validates cryptographically against Google servers)
         try {
-            RestTemplate restTemplate = new RestTemplate();
-            String tokenInfoUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idTokenString.trim();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> tokenInfo = restTemplate.getForObject(tokenInfoUrl, Map.class);
+            Map<String, Object> tokenInfo = googleTokenInfoClient.fetch(idTokenString.trim());
+
             if (tokenInfo != null) {
                 String aud = (String) tokenInfo.get("aud");
                 if (aud == null || !aud.equals(targetClientId)) {
