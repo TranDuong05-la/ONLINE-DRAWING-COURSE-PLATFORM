@@ -44,46 +44,48 @@ public final class CartApplicationService {
     }
 
     public CartState load() {
-        Integer userId = userId();
+        return load(userId());
+    }
+
+    private CartState load(Integer userId) {
         return reads.execute(status -> carts.findByUserId(userId).map(mapper::toState)
                 .orElseGet(() -> empty(userId)));
     }
 
     public CartState add(CartItemType type, Integer itemId, int quantity) {
-        var incoming = new CartItem<>(type, itemId, quantity);
-        return mutate(true, (record, domain) -> {
-            // Adapt the existing domain policy to validate the resulting quantity,
-            // including accumulation, without changing the Phase 1 rules.
-            var policy = new CartService<Integer, Integer>((user, item) -> {
-                int resulting = item.getQuantity();
-                if (type == CartItemType.PRODUCT) {
-                    int existing = domain.getItems().stream().filter(i -> i.getItemType() == type
-                            && i.getItemId().equals(itemId)).mapToInt(CartItem::getQuantity).findFirst().orElse(0);
-                    resulting = Math.addExact(existing, resulting);
-                }
-                catalog.requirePurchasable(user, new CartItem<>(type, itemId, resulting));
-            });
-            policy.add(domain, record.getUserId(), incoming);
-        });
+        var preflightItem = new CartItem<>(type, itemId, quantity);
+        Integer user = userId();
+        catalog.requirePurchasable(user, preflightItem); // Never call catalog/provider code under the Cart row lock.
+        return mutate(user, true, (record, domain) ->
+                domain.add(new CartItem<>(type, itemId, quantity)));
     }
 
     public CartState update(Integer cartItemId, int quantity) {
-        return mutate(false, (record, domain) -> {
+        Integer user = userId();
+        CartState before = load(user); // This REQUIRES_NEW read completes before catalog validation.
+        CartState.Item snapshot = before.items().stream().filter(item -> item.cartItemId().equals(cartItemId))
+                .findFirst().orElseThrow(CartApplicationService::notFound);
+        var replacement = new CartItem<>(snapshot.itemType(), snapshot.itemId(), quantity);
+        catalog.requirePurchasable(user, replacement);
+        return mutate(user, false, (record, domain) -> {
             var row = ownedItem(record, cartItemId);
-            new CartService<>(catalog).update(domain, record.getUserId(),
-                    new CartItem<>(row.getItemType(), row.getItemId(), quantity));
+            if (row.getItemType() != replacement.getItemType() || !row.getItemId().equals(replacement.getItemId())) {
+                throw notFound();
+            }
+            domain.update(new CartItem<>(row.getItemType(), row.getItemId(), quantity));
         });
     }
 
     public CartState remove(Integer cartItemId) {
-        return mutate(false, (record, domain) -> {
+        Integer user = userId();
+        return mutate(user, false, (record, domain) -> {
             var row = ownedItem(record, cartItemId);
-            new CartService<>(catalog).remove(domain, record.getUserId(), row.getItemType(), row.getItemId());
+            domain.remove(row.getItemType(), row.getItemId());
         });
     }
 
     public CartState clear() {
-        return mutate(false, (record, domain) -> new CartService<>(catalog).clear(domain, record.getUserId()), true);
+        return mutate(userId(), false, (record, domain) -> domain.clear(), true);
     }
 
     private CartItemJpaEntity ownedItem(CartJpaEntity record, Integer id) {
@@ -95,13 +97,12 @@ public final class CartApplicationService {
         return row;
     }
 
-    private CartState mutate(boolean create, BiConsumer<CartJpaEntity, Cart<Integer, Integer>> action) {
-        return mutate(create, action, false);
+    private CartState mutate(Integer user, boolean create, BiConsumer<CartJpaEntity, Cart<Integer, Integer>> action) {
+        return mutate(user, create, action, false);
     }
 
-    private CartState mutate(boolean create, BiConsumer<CartJpaEntity, Cart<Integer, Integer>> action,
+    private CartState mutate(Integer user, boolean create, BiConsumer<CartJpaEntity, Cart<Integer, Integer>> action,
                              boolean missingIsEmpty) {
-        Integer user = userId();
         for (int attempt = 1; ; attempt++) {
             try {
                 return writes.execute(status -> {

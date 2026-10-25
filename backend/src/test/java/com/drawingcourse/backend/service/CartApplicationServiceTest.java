@@ -31,6 +31,7 @@ class CartApplicationServiceTest {
         when(transactions.getTransaction(any())).thenAnswer(i -> mock(TransactionStatus.class));
         record = new CartJpaEntity(10);
         ReflectionTestUtils.setField(record, "id", 1);
+        when(carts.findByUserId(10)).thenReturn(Optional.of(record));
         when(carts.findByUserIdForUpdate(10)).thenReturn(Optional.of(record));
         when(carts.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
     }
@@ -44,7 +45,7 @@ class CartApplicationServiceTest {
         assertThrows(NoSuchElementException.class, () -> service.remove(99));
         verify(carts, never()).saveAndFlush(any());
         verifyNoInteractions(items, catalog);
-        verify(transactions).getTransaction(argThat(d -> d.isReadOnly()
+        verify(transactions, times(2)).getTransaction(argThat(d -> d.isReadOnly()
                 && d.getIsolationLevel() == TransactionDefinition.ISOLATION_REPEATABLE_READ));
     }
 
@@ -56,7 +57,7 @@ class CartApplicationServiceTest {
         assertEquals(5, result.items().getFirst().quantity());
         assertEquals(99, result.items().getFirst().cartItemId());
         assertEquals(1, result.items().size());
-        verify(catalog).requirePurchasable(eq(10), argThat(i -> i.getQuantity() == 5));
+        verify(catalog).requirePurchasable(eq(10), argThat(i -> i.getQuantity() == 3));
         verify(transactions).getTransaction(argThat(d -> !d.isReadOnly()
                 && d.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRES_NEW));
         verify(transactions).commit(any());
@@ -67,6 +68,7 @@ class CartApplicationServiceTest {
         service.add(CartItemType.COURSE, 20, 1);
         assertEquals(1, record.getItems().size());
         assertEquals(1, record.getItems().getFirst().getQuantity());
+        ReflectionTestUtils.setField(record.getItems().getFirst(), "id", 99);
         assertThrows(IllegalArgumentException.class, () -> service.add(CartItemType.COURSE, 20, 2));
         var row = record.getItems().getFirst();
         when(items.findByIdAndCart_IdAndCart_UserId(99, 1, 10)).thenReturn(Optional.of(row));
@@ -78,6 +80,7 @@ class CartApplicationServiceTest {
         assertThrows(NoSuchElementException.class, () -> service.update(99, 1));
         assertThrows(NoSuchElementException.class, () -> service.remove(99));
         verify(carts, never()).saveAndFlush(any());
+        verify(items).findByIdAndCart_IdAndCart_UserId(99, 1, 10);
         verifyNoInteractions(catalog);
     }
 
@@ -93,12 +96,28 @@ class CartApplicationServiceTest {
         verifyNoInteractions(catalog);
     }
 
-    @Test void catalogFailureRollsBackBeforeSynchronizing() {
+    @Test void catalogFailureHappensBeforeStartingCartWriteTransaction() {
         doThrow(new IllegalArgumentException("Unavailable")).when(catalog).requirePurchasable(any(), any());
         assertThrows(IllegalArgumentException.class, () -> service.add(CartItemType.PRODUCT, 20, 1));
         assertTrue(record.getItems().isEmpty());
-        verify(transactions).rollback(any());
+        verifyNoInteractions(transactions);
         verify(carts, never()).saveAndFlush(any());
+    }
+
+    @Test void catalogPreflightCompletesBeforeCartLockAndDeletionNeedsNoCatalog() {
+        var order = inOrder(catalog, transactions, carts);
+        service.add(CartItemType.PRODUCT, 20, 1);
+        order.verify(catalog).requirePurchasable(eq(10), any());
+        order.verify(transactions).getTransaction(any());
+        order.verify(carts).findByUserIdForUpdate(10);
+        record.addItem(CartItemType.PRODUCT, 30, 1);
+        var row = record.getItems().getLast();
+        ReflectionTestUtils.setField(row, "id", 88);
+        when(items.findByIdAndCart_IdAndCart_UserId(88, 1, 10)).thenReturn(Optional.of(row));
+        clearInvocations(catalog);
+        service.remove(88);
+        service.clear();
+        verifyNoInteractions(catalog);
     }
 
     @Test void firstCartUniqueRaceRetriesInFreshTransaction() {
@@ -125,7 +144,7 @@ class CartApplicationServiceTest {
         when(carts.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("Other constraint"));
         assertThrows(DataIntegrityViolationException.class, () -> service.add(CartItemType.PRODUCT, 20, 1));
         verify(transactions, times(1)).getTransaction(any());
-        verifyNoInteractions(catalog);
+        verify(catalog).requirePurchasable(eq(10), any());
     }
 
     @Test void lockRetriesAreBounded() {
@@ -133,7 +152,7 @@ class CartApplicationServiceTest {
         assertThrows(PessimisticLockingFailureException.class, () -> service.add(CartItemType.PRODUCT, 20, 1));
         verify(transactions, times(3)).getTransaction(any());
         verify(transactions, times(3)).rollback(any());
-        verifyNoInteractions(catalog);
+        verify(catalog).requirePurchasable(eq(10), any());
     }
 
     @Test void createsFirstCartAndFlushesBeforeReturningSnapshot() {
@@ -167,7 +186,7 @@ class CartApplicationServiceTest {
         verify(transactions, times(3)).getTransaction(any());
         verify(transactions, times(3)).rollback(any());
         verify(transactions, never()).commit(any());
-        verifyNoInteractions(catalog);
+        verify(catalog).requirePurchasable(eq(10), any());
     }
 
     @Test void rejectsForeignRecordEvenIfRepositoryViolatesScopedContract() {

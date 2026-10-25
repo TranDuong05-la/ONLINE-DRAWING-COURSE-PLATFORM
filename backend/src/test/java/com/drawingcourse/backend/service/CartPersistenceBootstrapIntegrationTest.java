@@ -8,6 +8,7 @@ import com.drawingcourse.backend.repository.CartRepository;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -20,6 +21,7 @@ class CartPersistenceBootstrapIntegrationTest {
     @Autowired private CartRepository carts;
     @Autowired private CartItemRepository items;
     @Autowired private CartCurrentUser currentUser;
+    @Autowired private ApplicationContext applicationContext;
 
     @Test
     void cartEntitiesRepositoriesAndIdentityAdapterAreRegisteredOnIsolatedH2() {
@@ -28,5 +30,8 @@ class CartPersistenceBootstrapIntegrationTest {
         assertThat(carts).isNotNull();
         assertThat(items).isNotNull();
         assertThat(currentUser).isInstanceOf(AuthenticatedCartCurrentUser.class);
+        assertThat(applicationContext.getBeansOfType(CartApplicationService.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(CartAvailabilityProjector.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(CartCatalog.class)).isEmpty();
     }
 }

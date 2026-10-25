@@ -83,11 +83,11 @@ class CartServiceTest {
     void requestValidationEnforcesRequiredFieldsAndCourseQuantity() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
-            assertFalse(validator.validate(new CartItemRequest(null, " ", null)).isEmpty());
-            assertFalse(validator.validate(new CartItemRequest(CartItemType.COURSE, "id", 2)).isEmpty());
+            assertFalse(validator.validate(new CartItemRequest(null, null, null)).isEmpty());
+            assertFalse(validator.validate(new CartItemRequest(CartItemType.COURSE, 1, 2)).isEmpty());
             assertFalse(validator.validate(new CartItemQuantityRequest(0)).isEmpty());
-            assertTrue(validator.validate(new CartItemRequest(CartItemType.PRODUCT, "id", 2)).isEmpty());
-            assertTrue(validator.validate(new CartItemRequest(CartItemType.COURSE, "id", 1)).isEmpty());
+            assertTrue(validator.validate(new CartItemRequest(CartItemType.PRODUCT, 1, 2)).isEmpty());
+            assertTrue(validator.validate(new CartItemRequest(CartItemType.COURSE, 1, 1)).isEmpty());
         }
     }
 
