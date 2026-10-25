@@ -34,7 +34,12 @@ class ApiConstants {
   // Address endpoints
   static const String addresses = '/api/users/me/addresses';
   static String addressDetail(int id) => '/api/users/me/addresses/$id';
-  static String addressSetDefault(int id) => '/api/users/me/addresses/$id/default';
+  static String addressSetDefault(int id) =>
+      '/api/users/me/addresses/$id/default';
+
+  // Read-only Order History endpoints
+  static const String orders = '/api/orders';
+  static String orderDetail(int id) => '$orders/$id';
 
   // Admin endpoints
   static const String adminUsers = '/api/admin/users';

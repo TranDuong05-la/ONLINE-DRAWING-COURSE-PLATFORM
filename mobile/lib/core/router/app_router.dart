@@ -1,4 +1,5 @@
 import 'package:go_router/go_router.dart';
+
 import '../../features/address/add_edit_address_screen.dart';
 import '../../features/address/address_list_screen.dart';
 import '../../features/admin/admin_user_detail_screen.dart';
@@ -7,6 +8,10 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/cart/cart_screen.dart';
 import '../../features/cart/mock_cart_repository.dart';
+import '../../features/order_history/data/api_order_history_repository.dart';
+import '../../features/order_history/data/order_history_repository.dart';
+import '../../features/order_history/order_detail_screen.dart';
+import '../../features/order_history/order_history_screen.dart';
 import '../../features/home/main_screen.dart';
 import '../../features/profile/change_password_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
@@ -16,7 +21,11 @@ import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 
 class AppRouter {
-  static GoRouter createRouter(AuthProvider authProvider) {
+  static GoRouter createRouter(
+    AuthProvider authProvider, {
+    OrderHistoryRepository? orderHistoryRepository,
+  }) {
+    final orders = orderHistoryRepository ?? ApiOrderHistoryRepository();
     return GoRouter(
       initialLocation: '/splash',
       refreshListenable: authProvider,
@@ -33,14 +42,25 @@ class AppRouter {
           path: '/register',
           builder: (context, state) => const RegisterScreen(),
         ),
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const MainScreen(),
-        ),
+        GoRoute(path: '/', builder: (context, state) => const MainScreen()),
         GoRoute(
           path: '/cart',
-          builder: (context, state) => CartScreen(
-            repository: MockCartRepository(),
+          builder: (context, state) =>
+              CartScreen(repository: MockCartRepository()),
+        ),
+        GoRoute(
+          path: '/orders',
+          builder: (context, state) => OrderHistoryScreen(
+            repository: orders,
+            onSessionExpired: authProvider.logout,
+          ),
+        ),
+        GoRoute(
+          path: '/orders/:orderId',
+          builder: (context, state) => OrderDetailScreen(
+            orderId: int.tryParse(state.pathParameters['orderId'] ?? ''),
+            repository: orders,
+            onSessionExpired: authProvider.logout,
           ),
         ),
         GoRoute(
