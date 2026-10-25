@@ -5,6 +5,8 @@ import '../../features/admin/admin_user_detail_screen.dart';
 import '../../features/admin/admin_user_list_screen.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
+import '../../features/cart/cart_screen.dart';
+import '../../features/cart/mock_cart_repository.dart';
 import '../../features/home/main_screen.dart';
 import '../../features/profile/change_password_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
@@ -34,6 +36,12 @@ class AppRouter {
         GoRoute(
           path: '/',
           builder: (context, state) => const MainScreen(),
+        ),
+        GoRoute(
+          path: '/cart',
+          builder: (context, state) => CartScreen(
+            repository: MockCartRepository(),
+          ),
         ),
         GoRoute(
           path: '/profile/edit',

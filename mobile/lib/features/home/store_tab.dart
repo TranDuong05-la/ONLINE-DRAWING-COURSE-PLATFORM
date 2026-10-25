@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 
@@ -55,6 +56,14 @@ class StoreTab extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Dụng cụ & Họa cụ'),
         elevation: 0,
+        actions: [
+          IconButton(
+            key: const ValueKey('open-demo-cart'),
+            tooltip: 'Open demo cart',
+            onPressed: () => context.push('/cart'),
+            icon: const Icon(Icons.shopping_cart_outlined),
+          ),
+        ],
       ),
       body: GridView.builder(
         padding: const EdgeInsets.all(16),
