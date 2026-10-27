@@ -6,6 +6,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -20,8 +21,10 @@ public class CartJpaEntity {
     private Integer id;
     @NotNull @Column(name = "user_id", nullable = false, updatable = false)
     private Integer userId;
+    @Convert(converter = CartUtcInstantConverter.class)
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+    @Convert(converter = CartUtcInstantConverter.class)
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
     @Getter(AccessLevel.NONE)
@@ -37,9 +40,9 @@ public class CartJpaEntity {
         items.add(new CartItemJpaEntity(this, type, itemId, quantity));
     }
     public void removeItem(CartItemJpaEntity item) { items.remove(item); }
-    public void touch() { updatedAt = Instant.now(); }
+    public void touch() { updatedAt = Instant.now().truncatedTo(ChronoUnit.MICROS); }
     @PrePersist
-    private void initializeTimestamps() { createdAt = Instant.now(); updatedAt = createdAt; }
+    private void initializeTimestamps() { createdAt = Instant.now().truncatedTo(ChronoUnit.MICROS); updatedAt = createdAt; }
     @PreUpdate
     private void updateTimestamp() { touch(); }
 }

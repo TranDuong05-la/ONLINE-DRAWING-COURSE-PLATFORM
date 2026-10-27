@@ -4,6 +4,8 @@ import com.artacademy.enums.AgeGroup;
 import com.artacademy.enums.ProfileType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
@@ -26,6 +28,7 @@ public class UserProfile {
     private User user;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "profile_type", nullable = false, length = 20)
     private ProfileType profileType;
 
@@ -36,6 +39,7 @@ public class UserProfile {
     private String avatarUrl;
 
     @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "age_group", length = 20)
     @Builder.Default
     private AgeGroup ageGroup = AgeGroup.ADULT;

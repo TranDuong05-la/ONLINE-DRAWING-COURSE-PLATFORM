@@ -21,6 +21,8 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
 
 import jakarta.persistence.EntityManagerFactory;
+import javax.sql.DataSource;
+import java.sql.Types;
 import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +32,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ApplicationBootstrapIntegrationTest {
     @Autowired private org.springframework.context.ApplicationContext context;
     @Autowired private EntityManagerFactory entityManagerFactory;
+    @Autowired private DataSource dataSource;
     @Autowired private UserRepository users;
     @Autowired private UserAddressRepository addresses;
     @Autowired private UserProfileRepository profiles;
@@ -53,6 +56,21 @@ class ApplicationBootstrapIntegrationTest {
         assertThat(metamodel.entity(User.class)).isNotNull();
         assertThat(metamodel.entity(UserAddress.class)).isNotNull();
         assertThat(metamodel.entity(UserProfile.class)).isNotNull();
+    }
+
+    @Test
+    void authEnumsAreStoredAsVarcharColumnsInGeneratedH2Schema() throws Exception {
+        assertThat(columnJdbcType("USERS", "ROLE")).isEqualTo(Types.VARCHAR);
+        assertThat(columnJdbcType("USER_PROFILES", "PROFILE_TYPE")).isEqualTo(Types.VARCHAR);
+        assertThat(columnJdbcType("USER_PROFILES", "AGE_GROUP")).isEqualTo(Types.VARCHAR);
+    }
+
+    private int columnJdbcType(String table, String column) throws Exception {
+        try (var connection = dataSource.getConnection();
+             var columns = connection.getMetaData().getColumns(null, null, table, column)) {
+            assertThat(columns.next()).as(table + "." + column + " must exist").isTrue();
+            return columns.getInt("DATA_TYPE");
+        }
     }
 
     @Test
