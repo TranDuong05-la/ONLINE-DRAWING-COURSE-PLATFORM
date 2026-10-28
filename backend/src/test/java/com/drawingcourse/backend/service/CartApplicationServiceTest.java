@@ -39,8 +39,12 @@ class CartApplicationServiceTest {
     @Test void missingReadsAndClearDoNotCreateRows() {
         when(carts.findByUserId(10)).thenReturn(Optional.empty());
         when(carts.findByUserIdForUpdate(10)).thenReturn(Optional.empty());
-        assertNull(service.load().cartId());
-        assertTrue(service.clear().items().isEmpty());
+        var missing = service.load();
+        assertNull(missing.cartId());
+        assertEquals(0L, missing.revision());
+        var cleared = service.clear();
+        assertTrue(cleared.items().isEmpty());
+        assertEquals(0L, cleared.revision());
         assertThrows(NoSuchElementException.class, () -> service.update(99, 1));
         assertThrows(NoSuchElementException.class, () -> service.remove(99));
         verify(carts, never()).saveAndFlush(any());
@@ -57,6 +61,7 @@ class CartApplicationServiceTest {
         assertEquals(5, result.items().getFirst().quantity());
         assertEquals(99, result.items().getFirst().cartItemId());
         assertEquals(1, result.items().size());
+        assertEquals(1L, result.revision());
         verify(catalog).requirePurchasable(eq(10), argThat(i -> i.getQuantity() == 3));
         verify(transactions).getTransaction(argThat(d -> !d.isReadOnly()
                 && d.getPropagationBehavior() == TransactionDefinition.PROPAGATION_REQUIRES_NEW));
@@ -64,15 +69,53 @@ class CartApplicationServiceTest {
     }
 
     @Test void coursesAreIdempotentAndRejectQuantityTwo() {
-        service.add(CartItemType.COURSE, 20, 1);
-        service.add(CartItemType.COURSE, 20, 1);
+        var first = service.add(CartItemType.COURSE, 20, 1);
+        assertEquals(1L, first.revision());
+        clearInvocations(catalog);
+        var duplicate = service.add(CartItemType.COURSE, 20, 1);
+        assertEquals(1L, duplicate.revision());
         assertEquals(1, record.getItems().size());
         assertEquals(1, record.getItems().getFirst().getQuantity());
+        verifyNoInteractions(catalog);
         ReflectionTestUtils.setField(record.getItems().getFirst(), "id", 99);
         assertThrows(IllegalArgumentException.class, () -> service.add(CartItemType.COURSE, 20, 2));
         var row = record.getItems().getFirst();
         when(items.findByIdAndCart_IdAndCart_UserId(99, 1, 10)).thenReturn(Optional.of(row));
         assertThrows(IllegalArgumentException.class, () -> service.update(99, 2));
+    }
+
+    @Test void successfulContentMutationsIncrementOnceAndNoopsDoNotIncrement() {
+        record.addItem(CartItemType.PRODUCT, 20, 2);
+        var row = record.getItems().getFirst();
+        ReflectionTestUtils.setField(row, "id", 99);
+        assertEquals(0L, service.load().revision());
+        when(items.findByIdAndCart_IdAndCart_UserId(99, 1, 10)).thenReturn(Optional.of(row));
+        assertEquals(1L, service.update(99, 4).revision());
+        assertEquals(1L, service.update(99, 4).revision());
+        assertEquals(2L, service.remove(99).revision());
+        assertEquals(2L, service.clear().revision());
+    }
+
+    @Test void failedMutationDoesNotAdvanceRevision() {
+        record.addItem(CartItemType.COURSE, 20, 1);
+        var row = record.getItems().getFirst();
+        ReflectionTestUtils.setField(row, "id", 99);
+        when(items.findByIdAndCart_IdAndCart_UserId(99, 1, 10)).thenReturn(Optional.of(row));
+        assertThrows(IllegalArgumentException.class, () -> service.update(99, 2));
+        assertEquals(0L, service.load().revision());
+        assertEquals(1, record.getItems().size());
+    }
+
+    @Test void genuinelyNewCourseIsPreflightedBeforeWriteAndRemovedDuplicateIsRevalidated() {
+        record.addItem(CartItemType.COURSE, 20, 1);
+        var existing = record.getItems().getFirst();
+        ReflectionTestUtils.setField(existing, "id", 99);
+        when(carts.findByUserIdForUpdate(10)).thenAnswer(invocation -> {
+            record.removeItem(existing);
+            return Optional.of(record);
+        });
+        service.add(CartItemType.COURSE, 20, 1);
+        verify(catalog).requirePurchasable(eq(10), argThat(item -> item.getItemType() == CartItemType.COURSE));
     }
 
     @Test void itemAccessIsScopedAndForeignItemsAreHidden() {

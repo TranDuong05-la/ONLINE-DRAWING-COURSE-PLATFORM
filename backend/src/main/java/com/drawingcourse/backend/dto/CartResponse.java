@@ -5,13 +5,13 @@ import java.util.List;
 import java.util.Objects;
 
 /** A current, trusted catalog projection. The subtotal is informational, never a checkout quote. */
-public record CartResponse(Integer cartId, List<Item> items, long subtotalVnd, String currency,
+public record CartResponse(Integer cartId, long revision, List<Item> items, long subtotalVnd, String currency,
                            boolean hasUnavailableItems, boolean canCheckout,
                            List<AvailabilityWarning> availabilityWarnings) {
     public CartResponse {
         items = List.copyOf(items);
         availabilityWarnings = List.copyOf(availabilityWarnings);
-        if (cartId != null && cartId <= 0 || subtotalVnd < 0 || !"VND".equals(currency)) {
+        if (cartId != null && cartId <= 0 || revision < 0 || subtotalVnd < 0 || !"VND".equals(currency)) {
             throw new IllegalArgumentException("Cart totals must be non-negative VND");
         }
         long calculatedSubtotal = 0;

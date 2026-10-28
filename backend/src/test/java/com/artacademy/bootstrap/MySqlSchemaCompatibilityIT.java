@@ -71,7 +71,7 @@ class MySqlSchemaCompatibilityIT {
         assertThat(environment.getProperty("spring.flyway.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("spring.flyway.clean-disabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("spring.flyway.validate-on-migrate", Boolean.class)).isTrue();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = TRUE AND version IN ('1','2','3','4','5')", Integer.class)).isEqualTo(5);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = TRUE AND version IN ('1','2','3','4','5','6')", Integer.class)).isEqualTo(6);
     }
 
     @Test
@@ -82,6 +82,8 @@ class MySqlSchemaCompatibilityIT {
         assertColumn("orders", "total_vnd", Types.BIGINT, null);
         assertColumn("orders", "created_at", Types.TIMESTAMP, 6);
         assertColumn("payment_attempts", "expires_at", Types.TIMESTAMP, 6);
+        assertColumn("carts", "revision", Types.BIGINT, null);
+        assertThat(jdbc.queryForObject("SELECT COLUMN_DEFAULT FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='carts' AND COLUMN_NAME='revision'", String.class)).isEqualTo("0");
         assertThat(columnCollation("users", "email")).isEqualTo("utf8mb4_0900_as_ci");
         assertThat(columnCollation("vouchers", "code")).isEqualTo("utf8mb4_bin");
         assertThat(columnCollation("payment_attempts", "merchant_reference")).isEqualTo("utf8mb4_bin");
@@ -95,6 +97,9 @@ class MySqlSchemaCompatibilityIT {
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
         int cartId = insertCart(userId);
+        assertThat(jdbc.queryForObject("SELECT revision FROM carts WHERE id=?", Long.class, cartId)).isZero();
+        assertCheckConstraintViolation(() -> jdbc.update("UPDATE carts SET revision=-1 WHERE id=?", cartId),
+                "ck_carts_revision_nonnegative");
         assertThatThrownBy(() -> insertCartItem(Integer.MAX_VALUE, "PRODUCT", 11, 1))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertCheckConstraintViolation(() -> insertCartItem(cartId, "COURSE", 9, 2), "ck_cart_items_values");

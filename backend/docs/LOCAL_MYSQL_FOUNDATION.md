@@ -1,6 +1,6 @@
 ﻿# Local MySQL foundation (verified)
 
-Five ordered Flyway migrations define the currently integrated Auth + Cart + Order + Voucher + Payment model. V1–V5 were applied to `drawing_course_dev`; MySQL compatibility was separately verified against the disposable `drawing_course_it` database. Never rerun these migrations manually or against an existing/shared database.
+Five ordered Flyway migrations (V1–V5) define the already-applied Auth + Cart + Order + Voucher + Payment schema. They were applied to `drawing_course_dev`; MySQL compatibility was separately verified against the disposable `drawing_course_it` database. Phase D-Cart-2 prepares V6 but it has not been applied. Never rerun migrations manually or against an existing/shared database.
 
 ## Migration order
 
@@ -11,6 +11,10 @@ Five ordered Flyway migrations define the currently integrated Auth + Cart + Ord
 5. `V5__payment_audit.sql`: payment_attempts, payment_events, payment_event_conflicts.
 
 No Course, Product, Enrollment, Inventory, Checkout, payment_transactions, Refund, Shipment, or outbox tables are included. `voucher_claims` remains the sole voucher claim ledger; payment retries are separate rows in payment_attempts.
+
+## Pending Cart revision migration
+
+Phase D-Cart-2 prepares `V6__cart_revision.sql`, which adds only the server-owned `carts.revision BIGINT NOT NULL DEFAULT 0` column and its nonnegative CHECK constraint. V1–V5 are unchanged. V6 has not been applied or verified on MySQL; apply and validate it only through a separately approved migration run. The default backfills existing Cart rows to revision 0.
 
 ## Auth enum storage
 

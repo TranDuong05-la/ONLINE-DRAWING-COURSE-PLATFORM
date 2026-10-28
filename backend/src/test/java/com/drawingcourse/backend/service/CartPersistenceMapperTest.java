@@ -8,6 +8,10 @@ import static org.junit.jupiter.api.Assertions.*;
 class CartPersistenceMapperTest {
     private final CartPersistenceMapper mapper = new CartPersistenceMapper();
 
+    @Test void newCartRevisionStartsAtZero() {
+        assertEquals(0L, new CartJpaEntity(10).getRevision());
+    }
+
     @Test void roundTripPreservesRowIdentityAndSeparatesTypes() {
         var record = new CartJpaEntity(10);
         record.addItem(CartItemType.PRODUCT, 20, 2);
@@ -17,7 +21,8 @@ class CartPersistenceMapperTest {
         var domain = mapper.toDomain(record);
         domain.add(new CartItem<>(CartItemType.PRODUCT, 20, 3));
         domain.add(new CartItem<>(CartItemType.COURSE, 20, 1));
-        mapper.synchronize(domain, record);
+        assertTrue(mapper.synchronize(domain, record));
+        record.incrementRevision();
         assertSame(original, record.getItems().getFirst());
         assertEquals(99, original.getId());
         assertEquals(5, original.getQuantity());
@@ -32,14 +37,28 @@ class CartPersistenceMapperTest {
         var domain = mapper.toDomain(record);
         domain.clear();
         domain.add(new CartItem<>(CartItemType.PRODUCT, 21, 1));
-        mapper.synchronize(domain, record);
+        assertTrue(mapper.synchronize(domain, record));
+        record.incrementRevision();
         assertEquals(1, record.getItems().size());
         assertEquals(21, record.getItems().getFirst().getItemId());
         assertSame(record, record.getItems().getFirst().getCart());
         assertNotNull(record.getUpdatedAt());
         domain.clear();
-        mapper.synchronize(domain, record);
+        assertTrue(mapper.synchronize(domain, record));
+        record.incrementRevision();
         assertTrue(record.getItems().isEmpty());
+    }
+
+    @Test void synchronizationReportsNoopWithoutChangingRevision() {
+        var record = new CartJpaEntity(10);
+        record.addItem(CartItemType.PRODUCT, 20, 2);
+        var domain = mapper.toDomain(record);
+        assertFalse(mapper.synchronize(domain, record));
+        assertEquals(0L, record.getRevision());
+        domain.add(new CartItem<>(CartItemType.PRODUCT, 20, 1));
+        assertTrue(mapper.synchronize(domain, record));
+        record.incrementRevision();
+        assertEquals(1L, record.getRevision());
     }
 
     @Test void rejectsOwnerMismatchAndInvalidPersistenceValues() {

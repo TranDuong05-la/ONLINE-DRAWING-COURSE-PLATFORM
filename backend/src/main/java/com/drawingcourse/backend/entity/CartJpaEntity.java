@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Objects;
 
 @Entity
+@org.hibernate.annotations.Check(name = "ck_carts_revision_nonnegative", constraints = "revision >= 0")
 @Table(name = "carts", uniqueConstraints = @UniqueConstraint(name = "uk_carts_user", columnNames = "user_id"))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -21,6 +22,9 @@ public class CartJpaEntity {
     private Integer id;
     @NotNull @Column(name = "user_id", nullable = false, updatable = false)
     private Integer userId;
+    /** Server-owned content revision; advanced only while holding the Cart row lock. */
+    @Column(name = "revision", nullable = false)
+    private long revision;
     @Convert(converter = CartUtcInstantConverter.class)
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -33,6 +37,10 @@ public class CartJpaEntity {
 
     public CartJpaEntity(Integer userId) { this.userId = Objects.requireNonNull(userId); }
     public List<CartItemJpaEntity> getItems() { return Collections.unmodifiableList(items); }
+    public void incrementRevision() {
+        revision = Math.addExact(revision, 1L);
+        touch();
+    }
     public void addItem(CartItemType type, Integer itemId, int quantity) {
         if (items.stream().anyMatch(i -> i.getItemType() == type && i.getItemId().equals(itemId))) {
             throw new IllegalArgumentException("Duplicate cart item");

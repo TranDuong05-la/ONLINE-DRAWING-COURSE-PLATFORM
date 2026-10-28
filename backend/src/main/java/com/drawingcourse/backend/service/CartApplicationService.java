@@ -55,9 +55,32 @@ public final class CartApplicationService {
     public CartState add(CartItemType type, Integer itemId, int quantity) {
         var preflightItem = new CartItem<>(type, itemId, quantity);
         Integer user = userId();
+        if (type == CartItemType.COURSE && contains(load(user), type, itemId)) {
+            try {
+                return existingCourseDuplicate(user, type, itemId);
+            } catch (CourseRemovedDuringDuplicateCheck ignored) {
+                // The line disappeared after the read. Treat this as a genuinely new add and
+                // validate ownership/pending purchase before acquiring the Cart write lock.
+            }
+        }
         catalog.requirePurchasable(user, preflightItem); // Never call catalog/provider code under the Cart row lock.
         return mutate(user, true, (record, domain) ->
                 domain.add(new CartItem<>(type, itemId, quantity)));
+    }
+
+    private CartState existingCourseDuplicate(Integer user, CartItemType type, Integer itemId) {
+        return writes.execute(status -> {
+            var record = carts.findByUserIdForUpdate(user)
+                    .orElseThrow(CourseRemovedDuringDuplicateCheck::new);
+            boolean stillPresent = record.getItems().stream()
+                    .anyMatch(row -> row.getItemType() == type && row.getItemId().equals(itemId));
+            if (!stillPresent) throw new CourseRemovedDuringDuplicateCheck();
+            return mapper.toState(record);
+        });
+    }
+
+    private static boolean contains(CartState state, CartItemType type, Integer itemId) {
+        return state.items().stream().anyMatch(item -> item.itemType() == type && item.itemId().equals(itemId));
     }
 
     public CartState update(Integer cartItemId, int quantity) {
@@ -115,7 +138,9 @@ public final class CartApplicationService {
                     if (!user.equals(record.getUserId())) { throw new SecurityException("Cart owner mismatch"); }
                     var domain = mapper.toDomain(record);
                     action.accept(record, domain);
-                    mapper.synchronize(domain, record);
+                    boolean changed = mapper.synchronize(domain, record);
+                    if (changed) record.incrementRevision();
+                    else return mapper.toState(record);
                     carts.saveAndFlush(record);
                     return mapper.toState(record);
                 });
@@ -132,7 +157,7 @@ public final class CartApplicationService {
             for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
                 if (cause instanceof ConstraintViolationException violation) {
                     String name = violation.getConstraintName();
-                    if (name != null && (name.equals("uk_carts_user") || name.endsWith(".uk_carts_user"))) {
+                    if (name != null && name.toLowerCase(java.util.Locale.ROOT).contains("uk_carts_user")) {
                         throw new FirstCartRace(failure);
                     }
                 }
@@ -146,8 +171,9 @@ public final class CartApplicationService {
         if (id == null) { throw new SecurityException("Authentication required"); }
         return id;
     }
-    private static CartState empty(Integer user) { return new CartState(null, user, List.of()); }
+    private static CartState empty(Integer user) { return new CartState(null, user, 0L, List.of()); }
     private static NoSuchElementException notFound() { return new NoSuchElementException("Cart item not found"); }
+    private static final class CourseRemovedDuringDuplicateCheck extends RuntimeException { }
     private static final class FirstCartRace extends RuntimeException {
         FirstCartRace(Throwable cause) { super("Concurrent cart creation", cause); }
     }

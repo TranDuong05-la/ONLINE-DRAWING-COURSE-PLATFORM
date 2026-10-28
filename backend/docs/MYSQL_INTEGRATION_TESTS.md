@@ -41,3 +41,5 @@ The suite verifies schema startup with Flyway plus Hibernate validation, InnoDB 
 ## Verification record
 
 The isolated `drawing_course_it` target on MySQL 8.0.46 completed all five integration tests successfully. The suite verified schema validation, foreign keys, unique and CHECK constraints, enum/VND column types, collations, and UTC `DATETIME(6)` round trips under `Asia/Ho_Chi_Minh`. This target is separate from `drawing_course_dev`; the tests must continue to use only `drawing_course_it`. The normal `mvnw test` and `mvnw compile` commands use the isolated H2 test profile and do not need MySQL credentials.
+
+That five-test result verified the V1–V5 schema before the Cart revision was added. The current opt-in test source expects migrations V1–V6 and checks the V6 Cart revision column/default/CHECK. V6 has not been applied or verified on MySQL; a separately approved `mysql-it` run against the isolated target is required before claiming that compatibility.

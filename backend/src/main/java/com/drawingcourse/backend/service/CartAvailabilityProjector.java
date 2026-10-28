@@ -52,7 +52,7 @@ public final class CartAvailabilityProjector {
             }
         }
         boolean unavailable = !warnings.isEmpty();
-        return new CartResponse(cart.cartId(), projected, subtotal, "VND", unavailable,
+        return new CartResponse(cart.cartId(), cart.revision(), projected, subtotal, "VND", unavailable,
                 !projected.isEmpty() && !unavailable, warnings);
     }
 
