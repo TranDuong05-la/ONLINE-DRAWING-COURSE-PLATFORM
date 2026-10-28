@@ -1,0 +1,17 @@
+package com.artacademy.payment.vnpay;
+
+/** Outcomes are audit classifications only; none authorize Order fulfillment. */
+public enum IpnClassification {
+    VALID_ON_TIME_SUCCESS,
+    VALID_FAILURE,
+    DUPLICATE_CALLBACK,
+    CONFLICTING_CALLBACK,
+    UNKNOWN_MERCHANT_REFERENCE,
+    AMOUNT_MISMATCH,
+    CURRENCY_MISMATCH,
+    EXPIRED_ORDER,
+    LATE_PROVIDER_SUCCESS,
+    INVALID_PROVIDER_TIMESTAMP,
+    UNKNOWN_OR_AMBIGUOUS_PAYMENT_STATUS,
+    OTHER_RECONCILIATION_REQUIRED
+}

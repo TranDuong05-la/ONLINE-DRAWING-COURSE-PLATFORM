@@ -43,6 +43,16 @@ spring:
           protocol: smtp
 
 app:
+  payment:
+    vnpay:
+      enabled: ${VNPAY_ENABLED:false}
+      payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      tmn-code: ${VNPAY_TMN_CODE:}
+      secret-key: ${VNPAY_SECRET_KEY:}
+      return-url: ${VNPAY_RETURN_URL:}
+      ipn-url: ${VNPAY_IPN_URL:}
+      api-version: ${VNPAY_API_VERSION:2.1.0}
+      command: ${VNPAY_COMMAND:pay}
   jwt:
     secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}

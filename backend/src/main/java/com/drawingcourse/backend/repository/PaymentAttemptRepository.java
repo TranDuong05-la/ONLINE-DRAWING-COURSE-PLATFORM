@@ -9,6 +9,18 @@ import java.util.Optional;
 import java.util.List;
 
 public interface PaymentAttemptRepository extends Repository<PaymentAttemptJpaEntity,Integer> {
+    interface PaymentAttemptRoute {
+        Integer getId();
+        Integer getOrderId();
+        Integer getUserId();
+        String getProvider();
+        String getMerchantReference();
+    }
+    @Query("select p.id as id, p.orderId as orderId, p.userId as userId, p.provider as provider, " +
+            "p.merchantReference as merchantReference from PaymentAttemptJpaEntity p " +
+            "where p.provider=:provider and p.merchantReference=:merchantReference")
+    Optional<PaymentAttemptRoute> findRouteByProviderAndMerchantReference(
+            @Param("provider") String provider, @Param("merchantReference") String merchantReference);
     Optional<PaymentAttemptJpaEntity> findByIdAndUserId(Integer id,Integer userId);
     Optional<PaymentAttemptJpaEntity> findByProviderAndMerchantReferenceAndUserId(String provider,String merchantReference,Integer userId);
     Optional<PaymentAttemptJpaEntity> findByProviderAndMerchantReference(String provider,String merchantReference);
