@@ -9,7 +9,8 @@ import java.util.Objects;
 
 /** Append-only, privacy-minimal evidence for a signature-verified event identity conflict. */
 @Entity @Table(name="payment_event_conflicts",uniqueConstraints=
-        @UniqueConstraint(name="uk_payment_event_conflict",columnNames={"first_event_id","conflicting_fingerprint"}),
+        {@UniqueConstraint(name="uk_payment_event_conflict",columnNames={"first_event_id","conflicting_fingerprint"}),
+         @UniqueConstraint(name="uk_payment_conflict_id_event_attempt_order",columnNames={"id","first_event_id","attempt_id","order_id"})},
         indexes=@Index(name="ix_payment_event_conflict_owner",columnList="user_id,order_id"))
 @Getter @NoArgsConstructor(access=AccessLevel.PROTECTED)
 public class PaymentEventConflictJpaEntity {

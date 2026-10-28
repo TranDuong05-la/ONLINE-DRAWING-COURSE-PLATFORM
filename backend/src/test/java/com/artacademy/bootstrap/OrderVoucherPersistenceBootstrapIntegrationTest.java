@@ -1,10 +1,13 @@
 package com.artacademy.bootstrap;
 
 import com.artacademy.ArtAcademyApplication;
+import com.artacademy.payment.vnpay.PaymentSessionApplicationService;
+import com.artacademy.payment.vnpay.VnPayIpnReconciliationService;
 import com.drawingcourse.backend.entity.*;
 import com.drawingcourse.backend.repository.*;
 import com.drawingcourse.backend.service.AuthenticatedOrderCurrentUser;
 import com.drawingcourse.backend.service.OrderPersistenceService;
+import com.drawingcourse.backend.service.checkout.CheckoutCoordinator;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,10 +45,11 @@ class OrderVoucherPersistenceBootstrapIntegrationTest {
         assertThat(voucherClaims).isNotNull();
         assertThat(context.getBean(AuthenticatedOrderCurrentUser.class)).isNotNull();
         assertThat(context.getBeansOfType(OrderPersistenceService.class)).isEmpty();
+        assertThat(context.getBeansOfType(CheckoutCoordinator.class)).isEmpty();
+        assertThat(context.getBeansOfType(PaymentSessionApplicationService.class)).isEmpty();
+        assertThat(context.getBeansOfType(VnPayIpnReconciliationService.class)).isEmpty();
+        assertThat(context.getBeansOfType(PaymentSettlementRepository.class)).hasSize(1);
+        assertThat(context.getBeansOfType(PaymentReconciliationCaseRepository.class)).hasSize(1);
         assertThat(context.getBeanNamesForType(ArtAcademyApplication.class)).containsExactly("artAcademyApplication");
-        assertThat(context.getBeanDefinitionNames()).noneMatch(name -> name.toLowerCase().contains("vnpay")
-                || name.toLowerCase().contains("paymentsettlement")
-                || name.toLowerCase().contains("checkoutorchestrator")
-                || name.toLowerCase().contains("voucherclaimapplication"));
     }
 }

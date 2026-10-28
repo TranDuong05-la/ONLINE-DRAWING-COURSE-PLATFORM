@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
+import com.drawingcourse.backend.service.OrderPersistenceMapper;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -17,6 +18,7 @@ import java.util.*;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderJpaEntity {
+    private static final OrderPersistenceMapper CONFIRMATION_MAPPER = new OrderPersistenceMapper();
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
     @Version @Column(nullable = false)
@@ -90,6 +92,16 @@ public class OrderJpaEntity {
     }
 
     public List<OrderItemJpaEntity> getItems() { return Collections.unmodifiableList(items); }
+
+    /** Apply the guarded domain transition to this managed row; caller owns the REQUIRED transaction and Order lock. */
+    public void confirmPayment(PaymentAttempt attempt, PaymentEventAudit evidence) {
+        if (id == null || attempt == null || !id.equals(attempt.orderId()))
+            throw new IllegalStateException("Persisted Order and payment attempt do not match");
+        var confirmed = CONFIRMATION_MAPPER.toDomain(this).confirmPayment(attempt, evidence);
+        status = confirmed.getStatus();
+        paymentStatus = confirmed.getPaymentStatus();
+    }
+
     /** Transition only the mutable workflow fields; all historical money/items/deadline snapshots stay fixed. */
     public void expireUnpaid(Instant at) {
         Objects.requireNonNull(at);

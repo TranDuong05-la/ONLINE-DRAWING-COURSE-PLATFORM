@@ -7,6 +7,8 @@ import com.drawingcourse.backend.repository.VoucherRepository;
 import com.drawingcourse.backend.repository.VoucherUserUsageRepository;
 import com.drawingcourse.backend.service.StoredOrder;
 import com.drawingcourse.backend.service.VoucherPersistenceMapper;
+import com.drawingcourse.backend.service.settlement.VoucherConsumptionPort;
+import com.drawingcourse.backend.service.expiration.VoucherExpirationReleasePort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -23,7 +25,8 @@ import java.util.function.Supplier;
  * cancellation/expiration, or verified-settlement transaction that owns the corresponding Order transition.
  */
 @Service
-public final class JpaVoucherReservationService implements VoucherReservationPort {
+public final class JpaVoucherReservationService implements VoucherReservationPort, VoucherConsumptionPort,
+        VoucherExpirationReleasePort {
     private final VoucherRepository vouchers;
     private final VoucherUserUsageRepository userUsage;
     private final VoucherClaimRepository claims;
@@ -161,6 +164,11 @@ public final class JpaVoucherReservationService implements VoucherReservationPor
             saveCountersFor(claim);
             return null;
         });
+    }
+
+    @Override
+    public void releaseVoucherForExpiredOrder(Integer userId, Integer orderId, Instant releasedAt) {
+        releaseForOrder(userId, orderId, VoucherClaim.ReleaseReason.EXPIRED, releasedAt);
     }
 
     @Override

@@ -114,6 +114,56 @@ public final class Order {
         return new Order(Objects.requireNonNull(snapshot, "snapshot"), createdAt, expiresAt);
     }
 
+    /**
+     * Returns the confirmed snapshot only from a previously persisted, APPLIED success audit.
+     * The caller must load that audit through the trusted reconciliation path after callback
+     * signature verification, load the Order under its write lock, and invoke this inside the same
+     * REQUIRED transaction that will persist the transition and later settlement effects. The
+     * persisted audit value itself is not a cryptographic proof.
+     */
+    public Order confirmPayment(PaymentAttempt attempt, PaymentEventAudit evidence) {
+        Objects.requireNonNull(attempt, "attempt");
+        Objects.requireNonNull(evidence, "evidence");
+        var event = evidence.event();
+        boolean validEvidence = evidence.id() != null
+                && evidence.attemptId().equals(attempt.id())
+                && evidence.orderId().equals(attempt.orderId())
+                && evidence.userId().equals(userId)
+                && evidence.observedOrderStatus() == OrderStatus.PENDING_PAYMENT
+                && evidence.disposition() == PaymentEventAudit.Disposition.APPLIED
+                && evidence.reason() == PaymentAttempt.ReviewReason.NONE
+                && evidence.afterStatus() == PaymentStatus.SUCCEEDED
+                && evidence.fingerprint().equals(event.fingerprint())
+                && event.outcome() == PaymentEvent.Outcome.SUCCEEDED
+                && event.provider().equals(attempt.provider())
+                && event.merchantReference().equals(attempt.merchantReference())
+                && Objects.equals(event.transactionReference(), attempt.transactionReference())
+                && event.currency().equals(attempt.currency())
+                && event.currency().equals(getCurrency())
+                && "vnpay-hmac-sha512;paydate=valid".equals(event.verificationReference())
+                && event.amountVnd() == attempt.expectedAmountVnd()
+                && event.amountVnd() == totalVnd
+                && attempt.expectedAmountVnd() == totalVnd
+                && attempt.orderCreatedAt().equals(createdAt)
+                && Objects.equals(attempt.expiresAt(), expiresAt)
+                && !event.occurredAt().isBefore(attempt.createdAt())
+                && !event.occurredAt().isAfter(event.receivedAt());
+        if (status != OrderStatus.PENDING_PAYMENT || expiresAt == null
+                || paymentStatus == PaymentStatus.SUCCEEDED || paymentStatus == PaymentStatus.UNKNOWN
+                || paymentStatus == PaymentStatus.CANCELLED || paymentStatus == PaymentStatus.EXPIRED
+                || attempt.id() == null || attempt.userId() == null || !attempt.userId().equals(userId)
+                || attempt.status() != PaymentStatus.SUCCEEDED
+                || attempt.reviewReason() != PaymentAttempt.ReviewReason.NONE
+                || attempt.succeededAt() == null || !attempt.succeededAt().equals(event.occurredAt())
+                || !event.occurredAt().isBefore(expiresAt) || !event.receivedAt().isBefore(expiresAt)
+                || !validEvidence) {
+            throw new IllegalStateException("Order cannot be confirmed from this payment evidence");
+        }
+        return restore(new Snapshot(userId, items, voucher, getCurrency(), OrderStatus.CONFIRMED,
+                PaymentStatus.SUCCEEDED, merchandiseSubtotalVnd, eligibleSubtotalVnd, discountVnd,
+                shippingFeeVnd, totalVnd), createdAt, expiresAt);
+    }
+
     /** Inputs must be assembled by trusted server integration, never bound from HTTP requests. */
     public static Order create(Integer userId, List<OrderLineSnapshot> lines, long shippingFeeVnd,
                                Optional<OrderVoucher> voucher) {

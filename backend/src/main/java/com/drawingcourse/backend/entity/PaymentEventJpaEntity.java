@@ -7,7 +7,9 @@ import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 
 /** Append-only event/decision snapshot. No setters, merge/update API or cascade deletion. */
-@Entity @Table(name="payment_events",uniqueConstraints=@UniqueConstraint(name="uk_payment_event",columnNames={"provider","event_reference"}),
+@Entity @Table(name="payment_events",uniqueConstraints={
+        @UniqueConstraint(name="uk_payment_event",columnNames={"provider","event_reference"}),
+        @UniqueConstraint(name="uk_payment_event_id_attempt_order",columnNames={"id","attempt_id","order_id"})},
         indexes=@Index(name="ix_payment_event_attempt_owner",columnList="attempt_id,user_id"))
 @Getter @NoArgsConstructor(access=AccessLevel.PROTECTED)
 public class PaymentEventJpaEntity {

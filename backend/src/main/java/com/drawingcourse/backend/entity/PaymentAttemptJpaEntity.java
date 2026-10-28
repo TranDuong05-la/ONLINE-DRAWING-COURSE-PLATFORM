@@ -8,7 +8,8 @@ import java.time.Instant;
 
 @Entity @Table(name="payment_attempts",uniqueConstraints={
         @UniqueConstraint(name="uk_payment_merchant",columnNames={"provider","merchant_reference"}),
-        @UniqueConstraint(name="uk_payment_transaction",columnNames={"provider","transaction_reference"})},
+        @UniqueConstraint(name="uk_payment_transaction",columnNames={"provider","transaction_reference"}),
+        @UniqueConstraint(name="uk_payment_attempt_id_order",columnNames={"id","order_id"})},
         indexes=@Index(name="ix_payment_order_owner",columnList="order_id,user_id"))
 @Getter @NoArgsConstructor(access=AccessLevel.PROTECTED)
 public class PaymentAttemptJpaEntity {

@@ -82,7 +82,7 @@ class MySqlSchemaCompatibilityIT {
         assertThat(environment.getProperty("spring.flyway.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("spring.flyway.clean-disabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("spring.flyway.validate-on-migrate", Boolean.class)).isTrue();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = TRUE AND version IN ('1','2','3','4','5','6')", Integer.class)).isEqualTo(6);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success = TRUE AND version IN ('1','2','3','4','5','6','7','8')", Integer.class)).isEqualTo(8);
     }
 
     @Test
@@ -99,6 +99,77 @@ class MySqlSchemaCompatibilityIT {
         assertThat(columnCollation("vouchers", "code")).isEqualTo("utf8mb4_bin");
         assertThat(columnCollation("payment_attempts", "merchant_reference")).isEqualTo("utf8mb4_bin");
         assertThat(columnCollation("payment_events", "event_reference")).isEqualTo("utf8mb4_bin");
+        assertV8Schema();
+    }
+
+    private void assertV8Schema() throws Exception {
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME IN ('payment_settlements','payment_reconciliation_cases')", Integer.class)).isEqualTo(2);
+        assertColumn("payment_settlements", "order_id", Types.INTEGER, null);
+        assertColumn("payment_settlements", "payment_attempt_id", Types.INTEGER, null);
+        assertColumn("payment_settlements", "payment_event_id", Types.INTEGER, null);
+        assertColumn("payment_settlements", "provider_paid_at", Types.TIMESTAMP, 6);
+        assertColumn("payment_settlements", "settled_at", Types.TIMESTAMP, 6);
+        assertColumn("payment_reconciliation_cases", "received_at", Types.TIMESTAMP, 6);
+        assertColumn("payment_reconciliation_cases", "provider_paid_at", Types.TIMESTAMP, 6);
+        assertThat(jdbc.queryForObject("SELECT IS_NULLABLE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payment_reconciliation_cases' AND COLUMN_NAME='order_id'", String.class)).isEqualTo("YES");
+        assertThat(jdbc.queryForObject("SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payment_reconciliation_cases' AND COLUMN_NAME='evidence_fingerprint'", Integer.class)).isEqualTo(67);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='payment_settlements' AND CONSTRAINT_TYPE='UNIQUE' AND CONSTRAINT_NAME IN ('uk_payment_settlement_order','uk_payment_settlement_attempt','uk_payment_settlement_event')", Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='payment_reconciliation_cases' AND CONSTRAINT_TYPE='UNIQUE' AND CONSTRAINT_NAME IN ('uk_payment_reconciliation_evidence','uk_payment_reconciliation_conflict')", Integer.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND ((TABLE_NAME='payment_attempts' AND CONSTRAINT_NAME='uk_payment_attempt_id_order') OR (TABLE_NAME='payment_events' AND CONSTRAINT_NAME='uk_payment_event_id_attempt_order') OR (TABLE_NAME='payment_event_conflicts' AND CONSTRAINT_NAME='uk_payment_conflict_id_event_attempt_order')) AND CONSTRAINT_TYPE='UNIQUE'", Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='payment_reconciliation_cases' AND CONSTRAINT_TYPE='CHECK' AND CONSTRAINT_NAME LIKE 'ck_payment_reconciliation_%'", Integer.class)).isEqualTo(8);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='payment_settlements' AND CONSTRAINT_TYPE='FOREIGN KEY' AND CONSTRAINT_NAME IN ('fk_payment_settlement_order','fk_payment_settlement_attempt_order','fk_payment_settlement_event_route')", Integer.class)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA=DATABASE() AND TABLE_NAME='payment_reconciliation_cases' AND CONSTRAINT_TYPE='FOREIGN KEY' AND CONSTRAINT_NAME IN ('fk_payment_reconciliation_attempt','fk_payment_reconciliation_order','fk_payment_reconciliation_event','fk_payment_reconciliation_conflict','fk_payment_reconciliation_event_route','fk_payment_reconciliation_conflict_route')", Integer.class)).isEqualTo(6);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payment_settlements' AND REFERENCED_TABLE_NAME IS NOT NULL", Integer.class)).isEqualTo(6);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payment_reconciliation_cases' AND REFERENCED_TABLE_NAME IS NOT NULL", Integer.class)).isEqualTo(11);
+        assertForeignKeyRoute("payment_settlements", "fk_payment_settlement_attempt_order", "payment_attempt_id>id,order_id>order_id");
+        assertForeignKeyRoute("payment_settlements", "fk_payment_settlement_event_route", "payment_event_id>id,payment_attempt_id>attempt_id,order_id>order_id");
+        assertForeignKeyRoute("payment_reconciliation_cases", "fk_payment_reconciliation_event_route", "payment_event_id>id,payment_attempt_id>attempt_id,order_id>order_id");
+        assertForeignKeyRoute("payment_reconciliation_cases", "fk_payment_reconciliation_conflict_route", "payment_event_conflict_id>id,payment_event_id>first_event_id,payment_attempt_id>attempt_id,order_id>order_id");
+        assertThat(columnCollation("payment_reconciliation_cases", "event_reference")).isEqualTo("utf8mb4_bin");
+        assertThat(columnCollation("payment_reconciliation_cases", "payload_sha256")).isEqualTo("ascii_bin");
+    }
+
+    private void assertForeignKeyRoute(String table, String constraint, String expectedPairs) {
+        String actualPairs = jdbc.queryForObject("SELECT GROUP_CONCAT(CONCAT(COLUMN_NAME,'>',REFERENCED_COLUMN_NAME) ORDER BY ORDINAL_POSITION SEPARATOR ',') " +
+                "FROM information_schema.KEY_COLUMN_USAGE WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND CONSTRAINT_NAME=? AND REFERENCED_TABLE_NAME IS NOT NULL",
+                String.class, table, constraint);
+        assertThat(actualPairs).as("foreign-key column order for %s", constraint).isEqualTo(expectedPairs);
+    }
+
+    @Test
+    void v8UnknownReconciliationCaseAllowsNullableRoutingAndEnforcesIdempotentIdentity() {
+        String provider = "vnpay";
+        String eventReference = "unknown-" + UUID.randomUUID();
+        String fingerprint = "v1:" + "a".repeat(64);
+        String payload = "b".repeat(64);
+        jdbc.update("INSERT INTO payment_reconciliation_cases(provider,event_reference,case_type,evidence_fingerprint,merchant_reference,amount_minor_units,provider_outcome,provider_timestamp_state,received_at,payload_sha256) VALUES (?,?,'UNKNOWN_MERCHANT_REFERENCE',?, ?,12300,'SUCCEEDED','MISSING',NOW(6),?)",
+                provider, eventReference, fingerprint, eventReference, payload);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_reconciliation_cases WHERE provider=? AND event_reference=?", Integer.class, provider, eventReference)).isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO payment_reconciliation_cases(provider,event_reference,case_type,evidence_fingerprint,merchant_reference,amount_minor_units,provider_outcome,provider_timestamp_state,received_at,payload_sha256) VALUES (?,?,'UNKNOWN_MERCHANT_REFERENCE',?, ?,12300,'SUCCEEDED','MISSING',NOW(6),?)",
+                provider, eventReference, fingerprint, eventReference, payload)).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void v8SettlementEnforcesCompositeRoutesAndOneSettlementPerOrderAttemptAndEvent() {
+        int userId = insertUser(unique("v8-settlement"));
+        Instant created = Instant.parse("2026-10-28T03:04:05.123456Z");
+        int orderId = insertOrder(userId, created);
+        int otherOrderId = insertOrder(userId, created.plusSeconds(1));
+        int attemptId = insertPaymentAttempt(orderId, userId, "settlement-" + UUID.randomUUID(), created);
+        String eventReference = "settlement-event-" + UUID.randomUUID();
+        insertPaymentEvent(attemptId, orderId, userId, eventReference, created.plusSeconds(2));
+        int eventId = jdbc.queryForObject("SELECT id FROM payment_events WHERE provider='vnpay' AND event_reference=?", Integer.class, eventReference);
+        LocalDateTime providerPaidAt = new PaymentUtcInstantConverter().convertToDatabaseColumn(created.plusSeconds(3));
+        LocalDateTime settledAt = new PaymentUtcInstantConverter().convertToDatabaseColumn(created.plusSeconds(4));
+
+        jdbc.update("INSERT INTO payment_settlements(order_id,payment_attempt_id,payment_event_id,provider_paid_at,settled_at) VALUES (?,?,?,?,?)",
+                orderId, attemptId, eventId, providerPaidAt, settledAt);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_settlements WHERE order_id=? AND payment_attempt_id=? AND payment_event_id=?", Integer.class,
+                orderId, attemptId, eventId)).isEqualTo(1);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO payment_settlements(order_id,payment_attempt_id,payment_event_id,provider_paid_at,settled_at) VALUES (?,?,?,?,?)",
+                orderId, attemptId, eventId, providerPaidAt, settledAt)).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("INSERT INTO payment_settlements(order_id,payment_attempt_id,payment_event_id,provider_paid_at,settled_at) VALUES (?,?,?,?,?)",
+                otherOrderId, attemptId, eventId, providerPaidAt, settledAt)).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 
     @Test
