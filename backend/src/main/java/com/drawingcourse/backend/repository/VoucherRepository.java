@@ -15,4 +15,8 @@ public interface VoucherRepository extends Repository<VoucherJpaEntity, Integer>
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select v from VoucherJpaEntity v where v.id = :id")
     Optional<VoucherJpaEntity> findByIdForUpdate(@Param("id") Integer id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select v from VoucherJpaEntity v where v.code = :code")
+    Optional<VoucherJpaEntity> findByCodeForUpdate(@Param("code") String code);
 }

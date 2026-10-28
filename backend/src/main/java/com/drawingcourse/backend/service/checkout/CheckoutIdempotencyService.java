@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
  * Durable Checkout request coordination only. Call from the Checkout transaction that also writes its Order.
  * This class is intentionally not a Spring component and has no Cart, catalog, payment, or reservation dependency.
  */
-public final class CheckoutIdempotencyService {
+public final class CheckoutIdempotencyService implements CheckoutIdempotencyPort {
     private static final Pattern FINGERPRINT = Pattern.compile("v1:[0-9a-f]{64}");
     private static final String CLAIM_CONSTRAINT = "uk_checkout_requests_user_key";
 
@@ -44,6 +44,7 @@ public final class CheckoutIdempotencyService {
     }
 
     /** The returned new claim is not durable until the caller commits its enclosing Checkout transaction. */
+    @Override
     public ClaimResult claim(Integer userId, String idempotencyKey, String fingerprint) {
         validate(userId, idempotencyKey, fingerprint);
         requireCallerTransaction();
@@ -68,6 +69,7 @@ public final class CheckoutIdempotencyService {
     }
 
     /** Completes a claim in the same transaction as the new Order insert. */
+    @Override
     public void complete(Integer userId, Integer requestId, Integer orderId) {
         if (userId == null || userId <= 0 || requestId == null || requestId <= 0 || orderId == null || orderId <= 0)
             throw new IllegalArgumentException("User, Checkout request and Order IDs must be positive");
