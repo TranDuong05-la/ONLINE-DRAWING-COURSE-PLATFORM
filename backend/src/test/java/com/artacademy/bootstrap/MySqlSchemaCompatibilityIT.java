@@ -2,6 +2,7 @@ package com.artacademy.bootstrap;
 
 import com.artacademy.ArtAcademyApplication;
 import com.drawingcourse.backend.entity.CartJpaEntity;
+import com.drawingcourse.backend.entity.CartItemType;
 import com.drawingcourse.backend.entity.Order;
 import com.drawingcourse.backend.entity.OrderItemType;
 import com.drawingcourse.backend.entity.OrderJpaEntity;
@@ -13,6 +14,10 @@ import com.drawingcourse.backend.entity.PaymentAttemptJpaEntity;
 import com.drawingcourse.backend.entity.PaymentUtcInstantConverter;
 import com.drawingcourse.backend.entity.Voucher;
 import com.drawingcourse.backend.entity.VoucherJpaEntity;
+import com.drawingcourse.backend.repository.CartItemRepository;
+import com.drawingcourse.backend.repository.CartRepository;
+import com.drawingcourse.backend.service.CartApplicationService;
+import com.drawingcourse.backend.service.CartCatalog;
 import com.drawingcourse.backend.entity.VoucherUtcInstantConverter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +31,7 @@ import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 import jakarta.persistence.EntityManager;
 
 import java.sql.PreparedStatement;
@@ -39,6 +45,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -58,6 +66,9 @@ class MySqlSchemaCompatibilityIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ConfigurableEnvironment environment;
     @Autowired private EntityManager entityManager;
+    @Autowired private CartRepository carts;
+    @Autowired private CartItemRepository cartItems;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @BeforeEach
     void requireExpectedTargetAndMigratedSchema() {
@@ -107,6 +118,48 @@ class MySqlSchemaCompatibilityIT {
 
         int orderId = insertOrder(userId, Instant.parse("2026-10-27T03:04:05.123456Z"));
         assertCheckConstraintViolation(() -> jdbc.update("INSERT INTO order_items(order_id, line_position, item_type, item_id, name_snapshot, quantity, unit_price_vnd, voucher_eligible, gross_amount_vnd, allocated_discount_vnd, net_amount_vnd) VALUES (?, 0, 'COURSE', 99, 'fixture', 2, 100, TRUE, 200, 0, 200)", orderId), "ck_order_items_values");
+    }
+
+    @Test
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void cartRevisionTracksCommittedMutationsNoopsRollbackAndConcurrentWrites() throws Exception {
+        int userId = insertUser(unique("cart-revision"));
+        try {
+            CartCatalog<Integer, Integer> testCatalog = (owner, item) -> { };
+            var service = new CartApplicationService(carts, cartItems, () -> userId, testCatalog, transactionManager);
+
+            assertThat(service.load().revision()).isZero();
+            assertThat(service.add(CartItemType.PRODUCT, 101, 1).revision()).isEqualTo(1L);
+            Integer productLineId = jdbc.queryForObject(
+                    "SELECT id FROM cart_items WHERE cart_id=(SELECT id FROM carts WHERE user_id=?) AND item_type='PRODUCT' AND item_id=101",
+                    Integer.class, userId);
+            assertThat(service.add(CartItemType.COURSE, 202, 1).revision()).isEqualTo(2L);
+            assertThat(service.add(CartItemType.COURSE, 202, 1).revision()).isEqualTo(2L);
+            assertThat(service.update(productLineId, 1).revision()).isEqualTo(2L);
+            assertThat(service.update(productLineId, 2).revision()).isEqualTo(3L);
+            assertThat(service.load().revision()).isEqualTo(3L);
+
+            int concurrentAdds = 4;
+            try (var pool = Executors.newFixedThreadPool(concurrentAdds)) {
+                var writes = java.util.stream.IntStream.range(0, concurrentAdds).mapToObj(index ->
+                        CompletableFuture.runAsync(() -> service.add(CartItemType.PRODUCT, 2100 + index, 1), pool))
+                        .toList();
+                CompletableFuture.allOf(writes.toArray(CompletableFuture[]::new)).join();
+            }
+            assertThat(service.load().revision()).isEqualTo(3L + concurrentAdds);
+
+            jdbc.update("UPDATE carts SET revision=? WHERE user_id=?", Long.MAX_VALUE, userId);
+            assertThatThrownBy(() -> service.add(CartItemType.PRODUCT, 9999, 1))
+                    .isInstanceOf(ArithmeticException.class);
+            assertThat(jdbc.queryForObject("SELECT revision FROM carts WHERE user_id=?", Long.class, userId))
+                    .isEqualTo(Long.MAX_VALUE);
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM cart_items WHERE cart_id=(SELECT id FROM carts WHERE user_id=?) AND item_id=9999",
+                    Integer.class, userId)).isZero();
+            assertThat(jdbc.queryForObject("SELECT quantity FROM cart_items WHERE id=?", Integer.class, productLineId))
+                    .isEqualTo(2);
+        } finally {
+            deleteCartRevisionFixture(userId);
+        }
     }
 
     @Test
@@ -230,6 +283,12 @@ class MySqlSchemaCompatibilityIT {
 
     private int insertCart(int userId) {
         return generated("INSERT INTO carts(user_id, created_at, updated_at) VALUES (?, NOW(6), NOW(6))", userId);
+    }
+
+    private void deleteCartRevisionFixture(int userId) {
+        jdbc.update("DELETE FROM cart_items WHERE cart_id IN (SELECT id FROM carts WHERE user_id=?)", userId);
+        jdbc.update("DELETE FROM carts WHERE user_id=?", userId);
+        jdbc.update("DELETE FROM users WHERE id=?", userId);
     }
 
     private void insertCartItem(int cartId, String itemType, int itemId, int quantity) {
