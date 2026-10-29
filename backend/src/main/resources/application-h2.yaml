@@ -1,0 +1,34 @@
+# Chạy thử nhanh KHÔNG cần cài MySQL:  --spring.profiles.active=h2
+# (hoặc IntelliJ: Run Configuration -> Active profiles = h2)
+# Dữ liệu nằm trong bộ nhớ nên mất khi tắt ứng dụng; mỗi lần chạy tạo lại bảng và nạp lại dữ liệu mẫu.
+spring:
+  datasource:
+    url: jdbc:h2:mem:artnest;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      # Ở MySQL schema do Flyway tạo (ddl-auto=validate); ở H2 trong bộ nhớ thì để Hibernate tự tạo bảng.
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+
+app:
+  jwt:
+    # Khóa ký JWT chỉ dùng khi dev ở profile h2 (application.yaml bắt buộc phải có JWT_SECRET, không có mặc định)
+    secret: ${JWT_SECRET:ZGV2LW9ubHktYXJ0bmVzdC1oMi1wcm9maWxlLWp3dC1zZWNyZXQta2V5LW1pbi0yNTYtYml0cy1sb25nLTIwMjY=}
+  seed:
+    # Khóa học / sản phẩm / combo mẫu
+    enabled: true
+    # Tài khoản mẫu để thử app (CHỈ dùng khi dev; mật khẩu thỏa quy tắc: chữ hoa + thường + số, >= 8 ký tự)
+    users:
+      enabled: true
+    # Lưu ý: ô đăng nhập của app chỉ nhận email có đuôi tên miền 2-4 ký tự (vd .vn, .com), nên không dùng đuôi .local
+    admin:
+      email: admin@artnest.vn
+      password: Admin@ArtNest2026
+    learner:
+      email: hocvien@artnest.vn
+      password: Hocvien@ArtNest2026

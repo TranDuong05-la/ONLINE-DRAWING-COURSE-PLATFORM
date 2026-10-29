@@ -245,6 +245,33 @@ class ApiClient {
     }
   }
 
+  // POST multipart/form-data (upload ảnh/video/PDF của phần khóa học).
+  // Video có thể rất nặng nên cho thời gian gửi dài; onProgress nhận giá trị 0..1.
+  Future<ApiResponse<T>> postMultipart<T>(
+    String path, {
+    required FormData formData,
+    void Function(double progress)? onProgress,
+    T Function(dynamic json)? fromJsonT,
+  }) async {
+    try {
+      final response = await _dio.post(
+        path,
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+          sendTimeout: const Duration(minutes: 10),
+          receiveTimeout: const Duration(minutes: 2),
+        ),
+        onSendProgress: (sent, total) {
+          if (total > 0) onProgress?.call(sent / total);
+        },
+      );
+      return _handleResponse<T>(response, fromJsonT);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
   ApiResponse<T> _handleResponse<T>(
     Response response,
     T Function(dynamic json)? fromJsonT,

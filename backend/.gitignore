@@ -20,3 +20,6 @@ logs/
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
+
+# File admin upload (ảnh bìa, video, PDF)
+uploads/

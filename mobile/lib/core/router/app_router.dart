@@ -4,6 +4,7 @@ import '../../features/address/address_list_screen.dart';
 import '../../features/admin/admin_user_detail_screen.dart';
 import '../../features/admin/admin_user_list_screen.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/course_admin/ui/course_admin_home_page.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/home/main_screen.dart';
 import '../../features/profile/change_password_screen.dart';
@@ -57,6 +58,12 @@ class AppRouter {
             final address = state.extra as AddressModel?;
             return AddEditAddressScreen(addressToEdit: address);
           },
+        ),
+        // Quản trị khóa học & combo (phần B). Đường dẫn bắt đầu bằng /admin nên đã được Admin guard bên dưới chặn
+        // với tài khoản không phải ADMIN; backend cũng chặn lại bằng JWT (/api/admin/** chỉ cho ADMIN).
+        GoRoute(
+          path: '/admin/courses',
+          builder: (context, state) => const CourseAdminHomePage(),
         ),
         GoRoute(
           path: '/admin/users',

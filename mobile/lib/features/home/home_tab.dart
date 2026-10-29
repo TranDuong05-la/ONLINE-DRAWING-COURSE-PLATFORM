@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/network/api_exceptions.dart';
+import '../../core/network/media_url.dart';
+import '../../core/utils/format.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/artnest_logo.dart';
+import '../course/data/course_repository.dart';
+import '../course/models/course_models.dart';
+import '../course/ui/course_detail_page.dart';
 
 class HomeTab extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -15,7 +21,88 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> {
-  final Set<String> _favoriteItems = {'Vẽ màu nước'};
+  final Set<String> _favoriteItems = {};
+
+  // Khóa học nổi bật: lấy 2 khóa mới nhất từ backend (GET /api/courses, công khai)
+  final CourseRepository _courseRepository = CourseRepository();
+  List<CourseSummary> _featured = [];
+  bool _loadingFeatured = true;
+  String? _featuredError;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFeatured();
+  }
+
+  Future<void> _loadFeatured() async {
+    setState(() {
+      _loadingFeatured = true;
+      _featuredError = null;
+    });
+    try {
+      final page = await _courseRepository.list(size: 2);
+      if (!mounted) return;
+      setState(() {
+        _featured = page.items;
+        _loadingFeatured = false;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _featuredError = e.displayMessage;
+        _loadingFeatured = false;
+      });
+    }
+  }
+
+  void _openCourse(int courseId) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => CourseDetailPage(courseId: courseId)));
+  }
+
+  /// Hàng 2 thẻ khóa học nổi bật: đang tải / lỗi (có nút thử lại) / chưa có khóa / danh sách.
+  Widget _buildFeaturedCourses() {
+    if (_loadingFeatured) {
+      return const SizedBox(height: 200, child: Center(child: CircularProgressIndicator()));
+    }
+    if (_featuredError != null) {
+      return Column(
+        children: [
+          Text(_featuredError!, textAlign: TextAlign.center),
+          TextButton(onPressed: _loadFeatured, child: const Text('Thử lại')),
+        ],
+      );
+    }
+    if (_featured.isEmpty) {
+      return Text(
+        'Chưa có khóa học nào được mở bán.',
+        style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textSecondary),
+      );
+    }
+    final colors = [AppColors.pastelPeach, AppColors.pastelLavender];
+    final cards = <Widget>[
+      for (var i = 0; i < _featured.length; i++)
+        Expanded(
+          child: _buildCourseCard(
+            course: _featured[i],
+            cardColor: colors[i % colors.length],
+            isFavorite: _favoriteItems.contains(_featured[i].title),
+            onToggleFavorite: () => _toggleFavorite(_featured[i].title),
+          ),
+        ),
+    ];
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < cards.length; i++) ...[
+          if (i > 0) const SizedBox(width: 14),
+          cards[i],
+        ],
+        // chỉ có 1 khóa thì chừa chỗ trống để thẻ không bị kéo giãn
+        if (cards.length == 1) const Expanded(child: SizedBox()),
+      ],
+    );
+  }
 
   void _toggleFavorite(String name) {
     setState(() {
@@ -347,39 +434,7 @@ class _HomeTabState extends State<HomeTab> {
                 ],
               ),
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildCourseCard(
-                      title: 'Vẽ màu nước',
-                      subtitle: 'Dành cho người mới',
-                      rating: '4.9',
-                      lessons: '8 buổi',
-                      price: '399.000đ',
-                      cardColor: AppColors.pastelPeach,
-                      icon: Icons.water_drop_rounded,
-                      iconColor: AppColors.accentPeach,
-                      isFavorite: _favoriteItems.contains('Vẽ màu nước'),
-                      onToggleFavorite: () => _toggleFavorite('Vẽ màu nước'),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _buildCourseCard(
-                      title: 'Vẽ căn bản',
-                      subtitle: 'Từ nét vẽ đầu tiên',
-                      rating: '4.9',
-                      lessons: '6 buổi',
-                      price: '299.000đ',
-                      cardColor: AppColors.pastelLavender,
-                      icon: Icons.edit_note_rounded,
-                      iconColor: const Color(0xFF8B5CF6),
-                      isFavorite: _favoriteItems.contains('Vẽ căn bản'),
-                      onToggleFavorite: () => _toggleFavorite('Vẽ căn bản'),
-                    ),
-                  ),
-                ],
-              ),
+              _buildFeaturedCourses(),
               const SizedBox(height: 28),
 
               // Section: "Góc họa cụ xinh"
@@ -550,15 +605,39 @@ class _HomeTabState extends State<HomeTab> {
     );
   }
 
+  /// Thẻ khóa học nổi bật lấy dữ liệu thật; bấm vào để mở trang chi tiết.
   Widget _buildCourseCard({
+    required CourseSummary course,
+    required Color cardColor,
+    required bool isFavorite,
+    required VoidCallback onToggleFavorite,
+  }) {
+    final title = course.title;
+    final subtitle = levelLabel(course.level);
+    final meta = '${course.lessonCount} bài';
+    final thumbnail = resolveMediaUrl(course.thumbnailUrl);
+    return GestureDetector(
+      onTap: () => _openCourse(course.id),
+      child: _buildCourseCardBody(
+        title: title,
+        subtitle: subtitle,
+        meta: meta,
+        course: course,
+        cardColor: cardColor,
+        thumbnailUrl: thumbnail,
+        isFavorite: isFavorite,
+        onToggleFavorite: onToggleFavorite,
+      ),
+    );
+  }
+
+  Widget _buildCourseCardBody({
     required String title,
     required String subtitle,
-    required String rating,
-    required String lessons,
-    required String price,
+    required String meta,
+    required CourseSummary course,
     required Color cardColor,
-    required IconData icon,
-    required Color iconColor,
+    required String thumbnailUrl,
     required bool isFavorite,
     required VoidCallback onToggleFavorite,
   }) {
@@ -589,8 +668,20 @@ class _HomeTabState extends State<HomeTab> {
             child: Stack(
               children: [
                 Center(
-                  child: Icon(icon, size: 48, color: iconColor.withOpacity(0.6)),
+                  child: Icon(Icons.palette_outlined, size: 48, color: AppColors.primary.withOpacity(0.45)),
                 ),
+                // Ảnh bìa (nếu có) phủ lên biểu tượng; lỗi tải ảnh thì vẫn thấy biểu tượng bên dưới
+                if (thumbnailUrl.isNotEmpty)
+                  Positioned.fill(
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+                      child: Image.network(
+                        thumbnailUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      ),
+                    ),
+                  ),
                 Positioned(
                   top: 8,
                   right: 8,
@@ -637,27 +728,60 @@ class _HomeTabState extends State<HomeTab> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    const Icon(Icons.star, size: 14, color: AppColors.accentYellow),
+                    const Icon(Icons.play_circle_outline, size: 14, color: AppColors.primaryMedium),
                     const SizedBox(width: 3),
-                    Text(
-                      '$rating • $lessons',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
+                    Flexible(
+                      child: Text(
+                        '$meta • ${formatDuration(course.totalDurationSeconds)}',
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 8),
+                // Giá thực bán (giá giảm nếu có); có giảm thì giá gốc gạch ngang bên dưới
                 Text(
-                  price,
+                  formatPrice(course.effectivePrice),
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 14,
                     fontWeight: FontWeight.w800,
                     color: AppColors.primary,
                   ),
                 ),
+                if (course.hasDiscount)
+                  Text(
+                    formatPrice(course.price),
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                      decoration: TextDecoration.lineThrough,
+                    ),
+                  ),
+                if (course.hasKits) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.card_giftcard, size: 13, color: AppColors.accentPeach),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          'Tặng kèm dụng cụ',
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.accentPeach,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

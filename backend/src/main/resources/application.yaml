@@ -24,6 +24,12 @@ spring:
         format_sql: true
     open-in-view: false
 
+  # Upload ảnh bìa / video / PDF của phần khóa học (giới hạn chi tiết từng loại kiểm tra trong code)
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
@@ -45,6 +51,15 @@ app:
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
   frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
+  # File upload của admin lưu trên ổ đĩa server (thư mục tính từ nơi chạy ứng dụng), phục vụ ở /uploads/**
+  upload:
+    dir: ${UPLOAD_DIR:uploads}
+  # Dữ liệu mẫu (khóa học, sản phẩm, combo) chỉ nạp khi bảng còn trống. Mặc định tắt; bật bằng SEED_ENABLED=true.
+  # Tài khoản mẫu (admin + học viên) chỉ dùng cho dev: bật ở profile h2, xem application-h2.yaml.
+  seed:
+    enabled: ${SEED_ENABLED:false}
+    users:
+      enabled: false
   google:
     client-id: ${GOOGLE_CLIENT_ID:4555221892-omq3ncgr2ib4frohuct3mhsv5rs02m1n.apps.googleusercontent.com}
 

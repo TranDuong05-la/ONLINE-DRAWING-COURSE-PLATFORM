@@ -4,7 +4,15 @@ class ApiConstants {
   // Automatically detect platform for default Base URL:
   // - Web (Chrome/Firefox/Edge) or Desktop: http://localhost:8080
   // - Android Emulator: http://10.0.2.2:8080
+  //
+  // Có thể ghi đè khi chạy mà không sửa code (ví dụ khi cổng 8080 đang bị chương trình khác dùng):
+  //   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8081
+  static const String _baseUrlOverride = String.fromEnvironment('API_BASE_URL');
+
   static String get defaultBaseUrl {
+    if (_baseUrlOverride.isNotEmpty) {
+      return _baseUrlOverride;
+    }
     if (kIsWeb) {
       return 'http://localhost:8080';
     }

@@ -110,7 +110,8 @@
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
-            <scope>test</scope>
+            <!-- runtime: dùng cho test và cho profile "h2" (chạy thử nhanh không cần MySQL) -->
+            <scope>runtime</scope>
         </dependency>
     </dependencies>
 
