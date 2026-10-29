@@ -7,6 +7,7 @@ import com.artacademy.service.CustomUserDetailsService;
 import com.artacademy.service.JwtService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
@@ -33,6 +34,14 @@ class SecurityAuthorizationIntegrationTest {
     @Autowired private UserRepository users;
     @Autowired private CustomUserDetailsService userDetailsService;
     @Autowired private JwtService jwtService;
+    @Autowired private ApplicationContext applicationContext;
+
+    @Test
+    void ipnBoundaryIsNotRegisteredOrPublicByDefault() throws Exception {
+        org.junit.jupiter.api.Assertions.assertTrue(applicationContext.getBeansOfType(
+                com.artacademy.payment.vnpay.VnPayIpnController.class).isEmpty());
+        mvc.perform(get("/api/payments/vnpay/ipn")).andExpect(status().isUnauthorized());
+    }
 
     @Test
     void missingAndMalformedTokensAreRejectedOnAuthenticatedRoutes() throws Exception {

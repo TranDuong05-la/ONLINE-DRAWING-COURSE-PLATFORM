@@ -13,7 +13,10 @@ public record PaymentEventAudit(Integer id, Integer attemptId, Integer orderId, 
         Objects.requireNonNull(event); Objects.requireNonNull(beforeStatus); Objects.requireNonNull(afterStatus);
         Objects.requireNonNull(disposition); Objects.requireNonNull(reason); Objects.requireNonNull(observedOrderStatus);
         if (fingerprint==null || !fingerprint.matches("v1:[a-f0-9]{64}")) throw new IllegalArgumentException("Invalid event fingerprint");
-        if ((disposition==Disposition.RECONCILIATION_REQUIRED) != (reason!=PaymentAttempt.ReviewReason.NONE))
+        boolean unknownOutcomeReview = disposition==Disposition.RECONCILIATION_REQUIRED
+                && reason==PaymentAttempt.ReviewReason.NONE && event.outcome()==PaymentEvent.Outcome.UNKNOWN;
+        if (!unknownOutcomeReview
+                && ((disposition==Disposition.RECONCILIATION_REQUIRED) != (reason!=PaymentAttempt.ReviewReason.NONE)))
             throw new IllegalArgumentException("Inconsistent event decision");
     }
 }

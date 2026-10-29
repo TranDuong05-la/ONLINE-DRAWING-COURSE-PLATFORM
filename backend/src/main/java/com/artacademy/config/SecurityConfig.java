@@ -20,6 +20,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -32,6 +34,10 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomUserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
+    @Value("${app.payment.vnpay.enabled:false}")
+    private boolean vnPayEnabled;
+    @Value("${app.payment.vnpay.ipn.enabled:false}")
+    private boolean vnPayIpnEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           CustomUserDetailsService userDetailsService,
@@ -75,7 +81,12 @@ public class SecurityConfig {
                                 ));
                         })
                 )
-                .authorizeHttpRequests(auth -> auth
+                .authorizeHttpRequests(auth -> {
+                    if (vnPayEnabled && vnPayIpnEnabled) {
+                        auth.requestMatchers(HttpMethod.GET, "/api/payments/vnpay/ipn")
+                                .permitAll();
+                    }
+                    auth
                         // Public auth endpoints
                         .requestMatchers(
                                 "/api/auth/register",
@@ -96,8 +107,8 @@ public class SecurityConfig {
                         // Admin endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // All other API endpoints require authentication
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated();
+                })
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

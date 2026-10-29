@@ -46,6 +46,8 @@ app:
   payment:
     vnpay:
       enabled: ${VNPAY_ENABLED:false}
+      ipn:
+        enabled: ${VNPAY_IPN_ENABLED:false}
       payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
       tmn-code: ${VNPAY_TMN_CODE:}
       secret-key: ${VNPAY_SECRET_KEY:}

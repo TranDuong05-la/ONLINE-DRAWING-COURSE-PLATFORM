@@ -9,6 +9,7 @@ import com.drawingcourse.backend.repository.OrderRepository;
 import com.drawingcourse.backend.repository.PaymentAttemptRepository;
 import com.drawingcourse.backend.repository.PaymentEventRepository;
 import com.drawingcourse.backend.repository.PaymentEventConflictRepository;
+import com.drawingcourse.backend.repository.PaymentReconciliationCaseRepository;
 import com.drawingcourse.backend.service.PaymentPersistenceMapper;
 import java.time.Clock;
 
@@ -39,9 +40,10 @@ class OptionalSandboxPaymentConfiguration {
     @Bean
     VnPayIpnReconciliationService vnPayIpnReconciliationService(VnPayProperties properties,
             PaymentAttemptRepository attempts, PaymentEventRepository events,
-            PaymentEventConflictRepository conflicts, OrderRepository orders,
-            VnPayCallbackVerifier verifier, Clock paymentSessionClock) {
-        return new VnPayIpnReconciliationService(properties, attempts, events, conflicts, orders,
-                verifier, paymentSessionClock);
+            PaymentEventConflictRepository conflicts, PaymentReconciliationCaseRepository cases,
+            OrderRepository orders, VnPayCallbackVerifier verifier, Clock paymentSessionClock,
+            org.springframework.transaction.PlatformTransactionManager transactionManager) {
+        return new VnPayIpnReconciliationService(properties, attempts, events, conflicts, cases, orders,
+                verifier, paymentSessionClock, transactionManager);
     }
 }

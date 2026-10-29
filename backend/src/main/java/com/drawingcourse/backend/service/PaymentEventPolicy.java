@@ -46,7 +46,8 @@ public final class PaymentEventPolicy {
         var result=new PaymentAttempt(attempt.id(),attempt.orderId(),attempt.userId(),attempt.provider(),attempt.merchantReference(),
                 attempt.expectedAmountVnd(),attempt.currency(),attempt.orderCreatedAt(),attempt.expiresAt(),attempt.createdAt(),
                 updated,status,transaction,succeeded,retainedReview);
-        var disposition=reason!=NONE?PaymentEventAudit.Disposition.RECONCILIATION_REQUIRED:
+        var disposition=reason!=NONE || event.outcome()==PaymentEvent.Outcome.UNKNOWN
+                ?PaymentEventAudit.Disposition.RECONCILIATION_REQUIRED:
                 status!=attempt.status()?PaymentEventAudit.Disposition.APPLIED:PaymentEventAudit.Disposition.IGNORED;
         var audit=new PaymentEventAudit(null,attempt.id(),attempt.orderId(),attempt.userId(),event,event.fingerprint(),
                 attempt.status(),status,disposition,reason,currentOrderStatus);
