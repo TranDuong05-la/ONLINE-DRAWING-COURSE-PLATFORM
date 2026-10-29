@@ -9,9 +9,9 @@ spring:
     import: optional:file:.env[.properties]
 
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/art_academy?createDatabaseIfNotExist=true&useSSL=false&serverTimezone=Asia/Ho_Chi_Minh&allowPublicKeyRetrieval=true}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:12345}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -25,7 +25,7 @@ spring:
     open-in-view: false
 
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
+    host: ${MAIL_HOST}
     port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
@@ -41,12 +41,11 @@ spring:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:my-super-secret-key-for-drawing-course-api-2026-very-long}
+    secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
-  frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
   google:
-    client-id: ${GOOGLE_CLIENT_ID:4555221892-omq3ncgr2ib4frohuct3mhsv5rs02m1n.apps.googleusercontent.com}
+    client-id: ${GOOGLE_CLIENT_ID:631102057997-3ebr6ea99bpulk4isu1g3if2jj2fp9si.apps.googleusercontent.com}
 
 springdoc:
   api-docs:

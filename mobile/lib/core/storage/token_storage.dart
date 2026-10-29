@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import '../utils/app_logger.dart';
 
 class TokenStorage {
   static const String _keyAccessToken = 'artnest_access_token';
@@ -24,7 +24,7 @@ class TokenStorage {
       await _storage.write(key: _keyAccessToken, value: accessToken);
       await _storage.write(key: _keyRefreshToken, value: refreshToken);
     } catch (e) {
-      debugPrint('TokenStorage saveTokens error: $e');
+      logDebug('TokenStorage saveTokens error: $e');
     }
   }
 
@@ -32,7 +32,7 @@ class TokenStorage {
     try {
       await _storage.write(key: _keyAccessToken, value: accessToken);
     } catch (e) {
-      debugPrint('TokenStorage saveAccessToken error: $e');
+      logDebug('TokenStorage saveAccessToken error: $e');
     }
   }
 
@@ -40,7 +40,7 @@ class TokenStorage {
     try {
       return await _storage.read(key: _keyAccessToken);
     } catch (e) {
-      debugPrint('TokenStorage getAccessToken error: $e');
+      logDebug('TokenStorage getAccessToken error: $e');
       // If keystore corruption happens, clear all to reset clean state
       try {
         await _storage.deleteAll();
@@ -53,7 +53,7 @@ class TokenStorage {
     try {
       return await _storage.read(key: _keyRefreshToken);
     } catch (e) {
-      debugPrint('TokenStorage getRefreshToken error: $e');
+      logDebug('TokenStorage getRefreshToken error: $e');
       return null;
     }
   }
@@ -63,7 +63,7 @@ class TokenStorage {
       await _storage.delete(key: _keyAccessToken);
       await _storage.delete(key: _keyRefreshToken);
     } catch (e) {
-      debugPrint('TokenStorage clearTokens error: $e');
+      logDebug('TokenStorage clearTokens error: $e');
     }
   }
 
@@ -76,7 +76,7 @@ class TokenStorage {
     try {
       await _storage.write(key: _keyBaseUrl, value: url);
     } catch (e) {
-      debugPrint('TokenStorage saveBaseUrl error: $e');
+      logDebug('TokenStorage saveBaseUrl error: $e');
     }
   }
 
@@ -84,7 +84,7 @@ class TokenStorage {
     try {
       return await _storage.read(key: _keyBaseUrl);
     } catch (e) {
-      debugPrint('TokenStorage getBaseUrl error: $e');
+      logDebug('TokenStorage getBaseUrl error: $e');
       return null;
     }
   }
@@ -93,7 +93,7 @@ class TokenStorage {
     try {
       await _storage.deleteAll();
     } catch (e) {
-      debugPrint('TokenStorage clearAll error: $e');
+      logDebug('TokenStorage clearAll error: $e');
     }
   }
 }

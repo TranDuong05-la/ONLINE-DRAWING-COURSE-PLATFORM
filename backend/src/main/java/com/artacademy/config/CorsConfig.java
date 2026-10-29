@@ -1,6 +1,5 @@
 package com.artacademy.config;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
@@ -11,9 +10,6 @@ import java.util.List;
 
 @Configuration
 public class CorsConfig {
-
-    @Value("${app.frontend-url:http://localhost:3000}")
-    private String frontendUrl;
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {

@@ -291,14 +291,18 @@ public class AuthService {
         log.info("Password successfully reset with OTP for user: {}", normalizedEmail);
     }
 
-    private record GoogleUserInfo(String sub, String email, String name, String pictureUrl) {}
+    record GoogleUserInfo(String sub, String email, String name, String pictureUrl) {}
 
-    private GoogleUserInfo verifyGoogleIdToken(String idTokenString) {
+    GoogleUserInfo verifyGoogleIdToken(String idTokenString) {
         if (idTokenString == null || idTokenString.trim().isEmpty()) {
             throw new BusinessException("Mã xác thực Google ID Token không được để trống.");
         }
 
         String targetClientId = getGoogleClientId();
+        if (targetClientId.isBlank()) {
+            log.error("Google Client ID is not configured on the backend!");
+            throw new BusinessException("Hệ thống chưa cấu hình Google Client ID.");
+        }
         GoogleIdToken idToken = null;
 
         try {
@@ -376,8 +380,10 @@ public class AuthService {
         } catch (UnauthorizedException | BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Google tokeninfo verification failed: {}", e.getMessage());
-            throw new UnauthorizedException("Mã xác thực Google không hợp lệ hoặc đã hết hạn: " + e.getMessage());
+            // Do not log or return e.getMessage(): RestTemplate errors embed the request URL,
+            // which contains the Google ID token.
+            log.error("Google tokeninfo verification failed: {}", e.getClass().getSimpleName());
+            throw new UnauthorizedException("Mã xác thực Google không hợp lệ hoặc đã hết hạn.");
         }
 
         throw new UnauthorizedException("Xác thực token Google thất bại.");
@@ -403,11 +409,19 @@ public class AuthService {
             Optional<User> existingUserByEmail = userRepository.findByEmail(normalizedEmail);
             if (existingUserByEmail.isPresent()) {
                 User emailUser = existingUserByEmail.get();
-                // Safe linking policy: If account was registered via email/password, reject automatic takeover
-                if (emailUser.getGoogleId() == null || !emailUser.getGoogleId().equals(googleSub)) {
-                    throw new BusinessException("Email này (" + normalizedEmail + ") đã được đăng ký bằng mật khẩu. Vui lòng đăng nhập bằng mật khẩu của bạn.");
+                // Link Google account to existing email user if not yet linked
+                if (emailUser.getGoogleId() == null) {
+                    log.info("Linking Google account ({}) to existing email user: {}", googleSub, normalizedEmail);
+                    emailUser.setGoogleId(googleSub);
+                    if (emailUser.getAvatarUrl() == null && avatarUrl != null) {
+                        emailUser.setAvatarUrl(avatarUrl);
+                    }
+                    user = userRepository.save(emailUser);
+                } else if (emailUser.getGoogleId().equals(googleSub)) {
+                    user = emailUser;
+                } else {
+                    throw new BusinessException("Email này (" + normalizedEmail + ") đã được liên kết với một tài khoản Google khác.");
                 }
-                user = emailUser;
             } else {
                 // 3. User does not exist: create a new ArtNest user
                 if (fullName == null || fullName.trim().isEmpty()) {
@@ -457,7 +471,7 @@ public class AuthService {
     public String getGoogleClientId() {
         return googleClientId != null && !googleClientId.isBlank()
                 ? googleClientId.trim()
-                : "4555221892-omq3ncgr2ib4frohuct3mhsv5rs02m1n.apps.googleusercontent.com";
+                : "";
     }
 
     // ==========================================
@@ -592,7 +606,7 @@ public class AuthService {
     private AuthResponse buildAuthResponse(User user) {
         UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
-                .password(user.getPasswordHash())
+                .password(user.getPasswordHash() != null ? user.getPasswordHash() : "")
                 .roles(user.getRole().name())
                 .build();
 

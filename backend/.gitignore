@@ -20,3 +20,8 @@ logs/
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
+
+
+# Local env variants; keep only the placeholder template tracked
+.env.*
+!.env.example

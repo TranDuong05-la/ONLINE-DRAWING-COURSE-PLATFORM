@@ -52,16 +52,25 @@ class ApiClient {
     _tokenStorage.saveBaseUrl(_baseUrl);
   }
 
+  // Endpoints that never carry a Bearer token and never trigger a refresh.
+  static const List<String> _publicAuthPaths = [
+    ApiConstants.login,
+    ApiConstants.register,
+    ApiConstants.refresh,
+    ApiConstants.googleLogin,
+    ApiConstants.forgotPassword,
+    ApiConstants.resetPassword,
+  ];
+  static const String _retriedKey = 'artnest_retried_after_refresh';
+
+  static bool _isPublicAuthPath(String path) =>
+      _publicAuthPaths.any((p) => path.contains(p));
+
   void _setupInterceptors() {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          // Check if request needs Bearer token
-          final isPublicAuth = options.path.contains('/api/auth/login') ||
-              options.path.contains('/api/auth/register') ||
-              options.path.contains('/api/auth/refresh');
-
-          if (!isPublicAuth) {
+          if (!_isPublicAuthPath(options.path)) {
             final accessToken = await _tokenStorage.getAccessToken();
             if (accessToken != null && accessToken.isNotEmpty) {
               options.headers['Authorization'] = 'Bearer $accessToken';
@@ -73,17 +82,19 @@ class ApiClient {
           final statusCode = error.response?.statusCode;
           final requestPath = error.requestOptions.path;
 
-          // If 401 and not an auth attempt, try to refresh token
-          final isAuthAttempt = requestPath.contains('/api/auth/login') ||
-              requestPath.contains('/api/auth/register') ||
-              requestPath.contains('/api/auth/refresh');
+          // If 401 on a protected call, refresh once and retry once.
+          final alreadyRetried =
+              error.requestOptions.extra[_retriedKey] == true;
 
-          if (statusCode == 401 && !isAuthAttempt) {
+          if (statusCode == 401 &&
+              !_isPublicAuthPath(requestPath) &&
+              !alreadyRetried) {
             try {
               final newAccessToken = await _handleTokenRefresh();
               if (newAccessToken != null) {
                 // Retry original request with new token
                 final options = error.requestOptions;
+                options.extra[_retriedKey] = true;
                 options.headers['Authorization'] = 'Bearer $newAccessToken';
                 final response = await _dio.fetch(options);
                 return handler.resolve(response);

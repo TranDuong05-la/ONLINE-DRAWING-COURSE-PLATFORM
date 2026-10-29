@@ -5,6 +5,10 @@ class ApiConstants {
   // - Web (Chrome/Firefox/Edge) or Desktop: http://localhost:8080
   // - Android Emulator: http://10.0.2.2:8080
   static String get defaultBaseUrl {
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) {
+      return envUrl;
+    }
     if (kIsWeb) {
       return 'http://localhost:8080';
     }
