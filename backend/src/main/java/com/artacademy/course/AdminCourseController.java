@@ -65,20 +65,20 @@ public class AdminCourseController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Chi tiết khóa học cho admin (kèm điều kiện xuất bản còn thiếu)")
-    public ApiResponse<AdminCourseDetailDto> get(@PathVariable Long id) {
+    public ApiResponse<AdminCourseDetailDto> get(@PathVariable Integer id) {
         return ApiResponse.success("OK", courseService.get(id));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Sửa thông tin khóa học")
-    public ApiResponse<AdminCourseDetailDto> update(@PathVariable Long id, @Valid @RequestBody CourseRequest req) {
+    public ApiResponse<AdminCourseDetailDto> update(@PathVariable Integer id, @Valid @RequestBody CourseRequest req) {
         return ApiResponse.success("Đã lưu khóa học", courseService.update(id, req));
     }
 
     @PatchMapping("/{id}/status")
     @Operation(summary = "Đổi trạng thái khóa học (PUBLISHED / HIDDEN)",
             description = "Xuất bản phải đủ điều kiện; đã từng xuất bản thì không quay về DRAFT.")
-    public ApiResponse<AdminCourseDetailDto> changeStatus(@PathVariable Long id,
+    public ApiResponse<AdminCourseDetailDto> changeStatus(@PathVariable Integer id,
                                                           @Valid @RequestBody CourseStatusRequest req) {
         return ApiResponse.success("Đã đổi trạng thái", courseService.changeStatus(id, req.status()));
     }
@@ -86,21 +86,21 @@ public class AdminCourseController {
     /** Gửi toàn bộ danh sách quà tặng kèm (thay thế danh sách cũ). */
     @PutMapping("/{id}/kits")
     @Operation(summary = "Thay toàn bộ danh sách dụng cụ tặng kèm")
-    public ApiResponse<List<KitDto>> replaceKits(@PathVariable Long id, @Valid @RequestBody KitsRequest req) {
+    public ApiResponse<List<KitDto>> replaceKits(@PathVariable Integer id, @Valid @RequestBody KitsRequest req) {
         return ApiResponse.success("Đã lưu quà tặng", kitService.replaceKits(id, req));
     }
 
     @PostMapping("/{courseId}/modules")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Thêm module vào khóa học")
-    public ApiResponse<AdminModuleDto> createModule(@PathVariable Long courseId,
+    public ApiResponse<AdminModuleDto> createModule(@PathVariable Integer courseId,
                                                     @Valid @RequestBody ModuleRequest req) {
         return ApiResponse.success("Đã thêm module", structureService.createModule(courseId, req));
     }
 
     @PutMapping("/{courseId}/modules/reorder")
     @Operation(summary = "Sắp xếp lại module", description = "Gửi đủ tất cả id (kể cả module đang ẩn) theo thứ tự mới.")
-    public ApiResponse<List<AdminModuleDto>> reorderModules(@PathVariable Long courseId,
+    public ApiResponse<List<AdminModuleDto>> reorderModules(@PathVariable Integer courseId,
                                                             @Valid @RequestBody ReorderRequest req) {
         return ApiResponse.success("Đã sắp xếp", structureService.reorderModules(courseId, req.ids()));
     }

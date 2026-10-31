@@ -20,7 +20,7 @@ public class CourseIncludedKit {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "course_id", nullable = false)
@@ -42,7 +42,7 @@ public class CourseIncludedKit {
         this.quantity = quantity;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 

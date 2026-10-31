@@ -41,13 +41,13 @@ public class CourseMapper {
         if (courses.isEmpty()) {
             return List.of();
         }
-        List<Long> ids = courses.stream().map(Course::getId).toList();
+        List<Integer> ids = courses.stream().map(Course::getId).toList();
 
-        Map<Long, long[]> stats = new HashMap<>();
+        Map<Integer, long[]> stats = new HashMap<>();
         for (Object[] row : lessonRepository.visibleStats(ids)) {
-            stats.put((Long) row[0], new long[]{((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
+            stats.put((Integer) row[0], new long[]{((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
         }
-        Set<Long> withKits = new HashSet<>(kitRepository.courseIdsWithActiveKits(ids));
+        Set<Integer> withKits = new HashSet<>(kitRepository.courseIdsWithActiveKits(ids));
 
         List<CourseSummaryDto> result = new ArrayList<>();
         for (Course c : courses) {
@@ -96,7 +96,7 @@ public class CourseMapper {
     // ---------------------------------------------------------------- admin
 
     public AdminCourseDetailDto toAdminDetail(Course course) {
-        Map<Long, List<AdminLessonDto>> lessonsByModule = new HashMap<>();
+        Map<Integer, List<AdminLessonDto>> lessonsByModule = new HashMap<>();
         for (CourseLesson l : lessonRepository.findAllByCourse(course.getId())) {
             lessonsByModule.computeIfAbsent(l.getModule().getId(), k -> new ArrayList<>()).add(toAdminLesson(l));
         }

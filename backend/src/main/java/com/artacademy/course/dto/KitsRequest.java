@@ -10,7 +10,7 @@ import java.util.List;
 public record KitsRequest(@NotNull(message = "Thiếu danh sách quà tặng") @Valid List<Item> items) {
 
     public record Item(
-            @NotNull(message = "Thiếu sản phẩm") Long productId,
+            @NotNull(message = "Thiếu sản phẩm") Integer productId,
 
             @NotNull(message = "Thiếu số lượng")
             @Min(value = 1, message = "Số lượng quà phải từ 1 đến 99")

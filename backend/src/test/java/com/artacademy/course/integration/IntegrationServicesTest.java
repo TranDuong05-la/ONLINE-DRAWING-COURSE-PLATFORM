@@ -51,7 +51,7 @@ class IntegrationServicesTest extends IntegrationTestBase {
 
         assertThrows(NotFoundException.class, () -> sellableService.getSellableCourse(draft.getId()));
         assertThrows(NotFoundException.class, () -> sellableService.getSellableCourse(hidden.getId()));
-        assertThrows(NotFoundException.class, () -> sellableService.getSellableCourse(99999L));
+        assertThrows(NotFoundException.class, () -> sellableService.getSellableCourse(99999));
     }
 
     @Test
@@ -117,7 +117,7 @@ class IntegrationServicesTest extends IntegrationTestBase {
         CourseLesson draftLesson = newLesson(newModule(draft, "M", 1, false), "Bài", 1, VIDEO, false, false);
         assertThrows(NotFoundException.class, () -> contentService.getLessonContent(draftLesson.getId()));
         assertThrows(NotFoundException.class, () -> contentService.getCourseStructure(draft.getId()));
-        assertThrows(NotFoundException.class, () -> contentService.getLessonContent(99999L));
+        assertThrows(NotFoundException.class, () -> contentService.getLessonContent(99999));
     }
 
     @Test

@@ -40,7 +40,7 @@ public class CourseController {
     @GetMapping("/{id}")
     @Operation(summary = "Chi tiết khóa học",
             description = "Khóa nháp/ngừng bán trả 404. Không trả link video và tài liệu của bài không học thử.")
-    public ApiResponse<CourseDetailDto> detail(@PathVariable Long id) {
+    public ApiResponse<CourseDetailDto> detail(@PathVariable Integer id) {
         return ApiResponse.success("OK", courseService.getDetail(id));
     }
 }

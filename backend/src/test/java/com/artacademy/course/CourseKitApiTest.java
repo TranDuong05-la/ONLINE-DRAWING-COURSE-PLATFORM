@@ -18,7 +18,7 @@ class CourseKitApiTest extends IntegrationTestBase {
     private KitsRequest kits(Object... pairs) {
         java.util.ArrayList<KitsRequest.Item> items = new java.util.ArrayList<>();
         for (int i = 0; i < pairs.length; i += 2) {
-            items.add(new KitsRequest.Item((Long) pairs[i], (Integer) pairs[i + 1]));
+            items.add(new KitsRequest.Item((Integer) pairs[i], (Integer) pairs[i + 1]));
         }
         return new KitsRequest(items);
     }
@@ -87,7 +87,7 @@ class CourseKitApiTest extends IntegrationTestBase {
         putJson("/api/admin/courses/" + c.getId() + "/kits", kits(inactive.getId(), 1))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("đã ngừng bán")));
-        putJson("/api/admin/courses/" + c.getId() + "/kits", kits(99999L, 1))
+        putJson("/api/admin/courses/" + c.getId() + "/kits", kits(99999, 1))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("không tồn tại")));
         putJson("/api/admin/courses/" + c.getId() + "/kits", kits(active.getId(), 1, active.getId(), 2))

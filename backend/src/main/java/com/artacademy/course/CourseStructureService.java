@@ -44,7 +44,7 @@ public class CourseStructureService {
 
     // ------------------------------------------------------------------ module
 
-    public AdminModuleDto createModule(Long courseId, ModuleRequest req) {
+    public AdminModuleDto createModule(Integer courseId, ModuleRequest req) {
         Course course = findCourse(courseId);
         // Module mới luôn nằm cuối danh sách
         CourseModule module = new CourseModule(course, req.title().trim(), moduleRepository.maxSortOrder(courseId) + 1);
@@ -54,7 +54,7 @@ public class CourseStructureService {
         return mapper.toAdminModule(module, List.of());
     }
 
-    public AdminModuleDto updateModule(Long moduleId, ModuleRequest req) {
+    public AdminModuleDto updateModule(Integer moduleId, ModuleRequest req) {
         CourseModule module = findModule(moduleId);
         module.setTitle(req.title().trim());
         module.setHidden(Boolean.TRUE.equals(req.hidden()));
@@ -62,7 +62,7 @@ public class CourseStructureService {
         return mapper.toAdminModule(module, lessonRepository.findByModuleIdOrderBySortOrderAscIdAsc(moduleId));
     }
 
-    public List<AdminModuleDto> reorderModules(Long courseId, List<Long> ids) {
+    public List<AdminModuleDto> reorderModules(Integer courseId, List<Integer> ids) {
         findCourse(courseId);
         List<CourseModule> modules = moduleRepository.findByCourseIdOrderBySortOrderAscIdAsc(courseId);
         applyOrder(modules, ids, CourseModule::getId, CourseModule::setSortOrder);
@@ -74,7 +74,7 @@ public class CourseStructureService {
 
     // ------------------------------------------------------------------ bài học
 
-    public AdminLessonDto createLesson(Long moduleId, LessonRequest req) {
+    public AdminLessonDto createLesson(Integer moduleId, LessonRequest req) {
         CourseModule module = findModule(moduleId);
         CourseLesson lesson = new CourseLesson(module, req.title().trim(), lessonRepository.maxSortOrder(moduleId) + 1);
         applyLesson(lesson, req);
@@ -83,7 +83,7 @@ public class CourseStructureService {
         return mapper.toAdminLesson(lesson);
     }
 
-    public AdminLessonDto updateLesson(Long lessonId, LessonRequest req) {
+    public AdminLessonDto updateLesson(Integer lessonId, LessonRequest req) {
         CourseLesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy bài học"));
         lesson.setTitle(req.title().trim());
@@ -92,7 +92,7 @@ public class CourseStructureService {
         return mapper.toAdminLesson(lesson);
     }
 
-    public List<AdminLessonDto> reorderLessons(Long moduleId, List<Long> ids) {
+    public List<AdminLessonDto> reorderLessons(Integer moduleId, List<Integer> ids) {
         findModule(moduleId);
         List<CourseLesson> lessons = lessonRepository.findByModuleIdOrderBySortOrderAscIdAsc(moduleId);
         applyOrder(lessons, ids, CourseLesson::getId, CourseLesson::setSortOrder);
@@ -122,10 +122,10 @@ public class CourseStructureService {
     }
 
     /** Gán sort_order = 1..n theo đúng thứ tự `ids`. `ids` phải khớp chính xác tập id hiện có. */
-    private <T> void applyOrder(List<T> items, List<Long> ids, Function<T, Long> idOf,
+    private <T> void applyOrder(List<T> items, List<Integer> ids, Function<T, Integer> idOf,
                                 java.util.function.ObjIntConsumer<T> setOrder) {
-        Set<Long> unique = new HashSet<>(ids);
-        Map<Long, T> byId = items.stream().collect(Collectors.toMap(idOf, Function.identity()));
+        Set<Integer> unique = new HashSet<>(ids);
+        Map<Integer, T> byId = items.stream().collect(Collectors.toMap(idOf, Function.identity()));
         if (unique.size() != ids.size() || !unique.equals(byId.keySet())) {
             throw new BadRequestException(
                     "Danh sách id phải gồm đủ tất cả mục hiện có (kể cả mục đang ẩn), không thiếu và không trùng");
@@ -135,11 +135,11 @@ public class CourseStructureService {
         }
     }
 
-    private Course findCourse(Long id) {
+    private Course findCourse(Integer id) {
         return courseRepository.findById(id).orElseThrow(() -> new NotFoundException("Không tìm thấy khóa học"));
     }
 
-    private CourseModule findModule(Long id) {
+    private CourseModule findModule(Integer id) {
         return moduleRepository.findById(id).orElseThrow(() -> new NotFoundException("Không tìm thấy module"));
     }
 }

@@ -26,8 +26,8 @@ public class BundleMapper {
     }
 
     /** Các khóa của từng combo (1 câu truy vấn cho tất cả combo), đúng thứ tự admin chọn. */
-    public Map<Long, List<Course>> coursesByBundle(Collection<Long> bundleIds) {
-        Map<Long, List<Course>> map = new HashMap<>();
+    public Map<Integer, List<Course>> coursesByBundle(Collection<Integer> bundleIds) {
+        Map<Integer, List<Course>> map = new HashMap<>();
         if (bundleIds.isEmpty()) {
             return map;
         }

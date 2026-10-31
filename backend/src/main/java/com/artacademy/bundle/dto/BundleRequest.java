@@ -26,7 +26,7 @@ public record BundleRequest(
 
         @NotNull(message = "Vui lòng chọn khóa học cho combo")
         @Size(min = 2, message = "Combo cần ít nhất 2 khóa học")
-        List<@NotNull(message = "Id khóa học không hợp lệ") Long> courseIds,
+        List<@NotNull(message = "Id khóa học không hợp lệ") Integer> courseIds,
 
         Boolean active) {
 }

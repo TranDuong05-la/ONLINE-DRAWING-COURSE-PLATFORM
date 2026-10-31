@@ -37,12 +37,12 @@ public class BundleAdminService {
     @Transactional(readOnly = true)
     public List<AdminBundleDto> list() {
         List<CourseBundle> bundles = bundleRepository.findAllByOrderByIdDesc();
-        Map<Long, List<Course>> courses = mapper.coursesByBundle(bundles.stream().map(CourseBundle::getId).toList());
+        Map<Integer, List<Course>> courses = mapper.coursesByBundle(bundles.stream().map(CourseBundle::getId).toList());
         return bundles.stream().map(b -> mapper.toAdmin(b, courses.getOrDefault(b.getId(), List.of()))).toList();
     }
 
     @Transactional(readOnly = true)
-    public AdminBundleDto get(Long id) {
+    public AdminBundleDto get(Integer id) {
         return toAdmin(find(id));
     }
 
@@ -56,7 +56,7 @@ public class BundleAdminService {
         return toAdmin(bundle);
     }
 
-    public AdminBundleDto update(Long id, BundleRequest req) {
+    public AdminBundleDto update(Integer id, BundleRequest req) {
         CourseBundle bundle = find(id);
         List<Course> courses = validateCourses(req);
         if (req.code() != null && !req.code().isBlank()) {
@@ -71,7 +71,7 @@ public class BundleAdminService {
     }
 
     /** Bật/tắt combo. Tắt = ẩn khỏi học viên. */
-    public AdminBundleDto setActive(Long id, boolean active) {
+    public AdminBundleDto setActive(Integer id, boolean active) {
         CourseBundle bundle = find(id);
         bundle.setActive(active);
         return toAdmin(bundle);
@@ -94,15 +94,15 @@ public class BundleAdminService {
      * Trả về khóa theo đúng thứ tự admin chọn.
      */
     private List<Course> validateCourses(BundleRequest req) {
-        List<Long> ids = req.courseIds();
+        List<Integer> ids = req.courseIds();
         if (new HashSet<>(ids).size() != ids.size()) {
             throw new BadRequestException("Một khóa học chỉ được chọn một lần trong combo");
         }
-        Map<Long, Course> byId = new HashMap<>();
+        Map<Integer, Course> byId = new HashMap<>();
         courseRepository.findAllById(ids).forEach(c -> byId.put(c.getId(), c));
 
         List<Course> courses = new ArrayList<>();
-        for (Long id : ids) {
+        for (Integer id : ids) {
             Course course = byId.get(id);
             if (course == null) {
                 throw new BadRequestException("Khóa học id " + id + " không tồn tại");
@@ -127,7 +127,7 @@ public class BundleAdminService {
         }
     }
 
-    private String resolveCode(String requested, Long selfId) {
+    private String resolveCode(String requested, Integer selfId) {
         if (requested == null || requested.isBlank()) {
             String code;
             do {
@@ -145,7 +145,7 @@ public class BundleAdminService {
         return code;
     }
 
-    private CourseBundle find(Long id) {
+    private CourseBundle find(Integer id) {
         return bundleRepository.findById(id).orElseThrow(() -> new NotFoundException("Không tìm thấy combo"));
     }
 

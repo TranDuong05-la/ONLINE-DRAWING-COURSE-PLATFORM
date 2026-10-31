@@ -44,7 +44,7 @@ public class CourseAdminService {
     }
 
     @Transactional(readOnly = true)
-    public AdminCourseDetailDto get(Long id) {
+    public AdminCourseDetailDto get(Integer id) {
         return mapper.toAdminDetail(find(id));
     }
 
@@ -59,7 +59,7 @@ public class CourseAdminService {
         return mapper.toAdminDetail(course);
     }
 
-    public AdminCourseDetailDto update(Long id, CourseRequest req) {
+    public AdminCourseDetailDto update(Integer id, CourseRequest req) {
         Course course = find(id);
         apply(course, req);
         if (req.code() != null && !req.code().isBlank()) {
@@ -78,7 +78,7 @@ public class CourseAdminService {
      *  Đã từng xuất bản thì không quay lại DRAFT; khóa nháp chưa xuất bản thì không chuyển thẳng sang HIDDEN.
      *  Mỗi lần sang PUBLISHED đều kiểm tra lại điều kiện.
      */
-    public AdminCourseDetailDto changeStatus(Long id, CourseStatus target) {
+    public AdminCourseDetailDto changeStatus(Integer id, CourseStatus target) {
         Course course = find(id);
         CourseStatus current = course.getStatus();
         if (current == target) {
@@ -106,7 +106,7 @@ public class CourseAdminService {
 
     // ------------------------------------------------------------------ nội bộ
 
-    private Course find(Long id) {
+    private Course find(Integer id) {
         return courseRepository.findById(id).orElseThrow(() -> new NotFoundException("Không tìm thấy khóa học"));
     }
 
@@ -125,7 +125,7 @@ public class CourseAdminService {
     }
 
     /** Mã do admin nhập (phải chưa tồn tại) hoặc tự sinh khi tạo mới. */
-    private String resolveCode(String requested, Long selfId) {
+    private String resolveCode(String requested, Integer selfId) {
         if (requested == null || requested.isBlank()) {
             String code;
             do {

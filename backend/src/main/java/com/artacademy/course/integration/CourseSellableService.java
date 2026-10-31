@@ -28,7 +28,7 @@ public class CourseSellableService {
     /**
      * @throws NotFoundException khóa không tồn tại hoặc không ở trạng thái PUBLISHED (nháp / ngừng bán)
      */
-    public SellableCourse getSellableCourse(Long courseId) {
+    public SellableCourse getSellableCourse(Integer courseId) {
         Course course = courseRepository.findById(courseId)
                 .filter(c -> c.getStatus() == CourseStatus.PUBLISHED)
                 .orElseThrow(() -> new NotFoundException("Khóa học không tồn tại hoặc đã ngừng bán"));

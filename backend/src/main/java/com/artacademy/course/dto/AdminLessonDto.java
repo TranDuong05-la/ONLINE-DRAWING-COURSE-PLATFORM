@@ -2,8 +2,8 @@ package com.artacademy.course.dto;
 
 /** Bài học ở màn admin: đầy đủ mọi trường, kể cả đang ẩn và link video/tài liệu. */
 public record AdminLessonDto(
-        Long id,
-        Long moduleId,
+        Integer id,
+        Integer moduleId,
         String title,
         String description,
         String videoUrl,

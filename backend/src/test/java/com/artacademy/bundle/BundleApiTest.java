@@ -18,21 +18,21 @@ import org.springframework.test.web.servlet.MvcResult;
 /** Test combo khóa học (admin + học viên). */
 class BundleApiTest extends IntegrationTestBase {
 
-    private BundleRequest request(long price, Long... courseIds) {
+    private BundleRequest request(long price, Integer... courseIds) {
         return new BundleRequest(null, "Combo thử", "Mô tả", price, List.of(courseIds), null);
     }
 
-    private long createBundle(long price, Course... courses) throws Exception {
-        Long[] ids = java.util.Arrays.stream(courses).map(Course::getId).toArray(Long[]::new);
+    private int createBundle(long price, Course... courses) throws Exception {
+        Integer[] ids = java.util.Arrays.stream(courses).map(Course::getId).toArray(Integer[]::new);
         MvcResult r = postJson("/api/admin/bundles", request(price, ids)).andExpect(status().isCreated()).andReturn();
-        return readLong(r, "/id");
+        return readInt(r, "/id");
     }
 
     @Test
     void create_succeeds_andPublicSeesSavings() throws Exception {
         Course a = publishedCourse("A", 500_000, null, CourseLevel.BASIC);       // thực bán 500.000
         Course b = publishedCourse("B", 600_000, 400_000L, CourseLevel.ADVANCED); // thực bán 400.000
-        long id = createBundle(800_000, a, b);
+        int id = createBundle(800_000, a, b);
 
         getJson("/api/bundles/" + id)
                 .andExpect(status().isOk())
@@ -81,7 +81,7 @@ class BundleApiTest extends IntegrationTestBase {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("chưa xuất bản")));
         postJson("/api/admin/bundles", request(100_000, a.getId(), hidden.getId())).andExpect(status().isBadRequest());
-        postJson("/api/admin/bundles", request(100_000, a.getId(), 99999L))
+        postJson("/api/admin/bundles", request(100_000, a.getId(), 99999))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("không tồn tại")));
         assertEquals(0, bundleRepository.count());
@@ -101,7 +101,7 @@ class BundleApiTest extends IntegrationTestBase {
     void bundle_disappearsFromPublic_whenACourseIsHidden_andComesBack() throws Exception {
         Course a = publishedCourse("A", 500_000, null, CourseLevel.BASIC);
         Course b = publishedCourse("B", 400_000, null, CourseLevel.BASIC);
-        long id = createBundle(700_000, a, b);
+        int id = createBundle(700_000, a, b);
         getJson("/api/bundles").andExpect(jsonPath("$.data.length()").value(1));
 
         patchJson("/api/admin/courses/" + b.getId() + "/status", Map.of("status", "HIDDEN")).andExpect(status().isOk());
@@ -121,7 +121,7 @@ class BundleApiTest extends IntegrationTestBase {
     void toggleActive_hidesAndShowsBundle() throws Exception {
         Course a = publishedCourse("A", 500_000, null, CourseLevel.BASIC);
         Course b = publishedCourse("B", 400_000, null, CourseLevel.BASIC);
-        long id = createBundle(700_000, a, b);
+        int id = createBundle(700_000, a, b);
 
         patchJson("/api/admin/bundles/" + id + "/active", Map.of("active", false))
                 .andExpect(status().isOk())
@@ -141,7 +141,7 @@ class BundleApiTest extends IntegrationTestBase {
         Course a = publishedCourse("A", 500_000, null, CourseLevel.BASIC);
         Course b = publishedCourse("B", 400_000, null, CourseLevel.BASIC);
         Course c = publishedCourse("C", 300_000, null, CourseLevel.BASIC);
-        long id = createBundle(800_000, a, b);
+        int id = createBundle(800_000, a, b);
 
         // thêm lại cả khóa cũ (a) lẫn khóa mới (c): không được lỗi trùng
         putJson("/api/admin/bundles/" + id, request(700_000, a.getId(), c.getId()))

@@ -35,13 +35,13 @@ public class CourseKitService {
      * Thay TOÀN BỘ danh sách quà của khóa bằng danh sách mới.
      * Quy tắc: sản phẩm phải tồn tại và đang active, số lượng 1-99, không trùng sản phẩm.
      */
-    public List<KitDto> replaceKits(Long courseId, KitsRequest req) {
+    public List<KitDto> replaceKits(Integer courseId, KitsRequest req) {
         if (!courseRepository.existsById(courseId)) {
             throw new NotFoundException("Không tìm thấy khóa học");
         }
 
         // Kiểm tra hết trước khi xóa quà cũ, để lỗi thì không mất dữ liệu cũ
-        Set<Long> seen = new HashSet<>();
+        Set<Integer> seen = new HashSet<>();
         List<Product> products = new ArrayList<>();
         for (KitsRequest.Item item : req.items()) {
             if (!seen.add(item.productId())) {

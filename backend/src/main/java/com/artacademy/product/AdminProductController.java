@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Admin - Courses", description = "Quản trị khóa học, module, quà tặng kèm (chỉ ADMIN)")
 public class AdminProductController {
 
-    public record ProductResponse(Long id, String sku, String name, long price, String thumbnailUrl) {
+    public record ProductResponse(Integer id, String sku, String name, long price, String thumbnailUrl) {
     }
 
     private final ProductRepository productRepository;

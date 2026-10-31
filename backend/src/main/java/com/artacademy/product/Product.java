@@ -17,7 +17,7 @@ public class Product {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @Column(nullable = false, unique = true, length = 50)
     private String sku;
@@ -44,7 +44,7 @@ public class Product {
         this.thumbnailUrl = thumbnailUrl;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 

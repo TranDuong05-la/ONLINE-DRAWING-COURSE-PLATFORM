@@ -27,22 +27,22 @@ class CourseAdminApiTest extends IntegrationTestBase {
         return new LessonRequest(title, null, videoUrl, 60, null, false, false, hidden);
     }
 
-    private long createCourse() throws Exception {
+    private int createCourse() throws Exception {
         MvcResult r = postJson("/api/admin/courses", courseRequest("Vẽ màu nước", 500_000, null))
                 .andExpect(status().isCreated()).andReturn();
-        return readLong(r, "/course/id");
+        return readInt(r, "/course/id");
     }
 
-    private long createModule(long courseId, String title) throws Exception {
+    private int createModule(int courseId, String title) throws Exception {
         MvcResult r = postJson("/api/admin/courses/" + courseId + "/modules", new ModuleRequest(title, false))
                 .andExpect(status().isCreated()).andReturn();
-        return readLong(r, "/id");
+        return readInt(r, "/id");
     }
 
-    private long createLesson(long moduleId, String title, String videoUrl) throws Exception {
+    private int createLesson(int moduleId, String title, String videoUrl) throws Exception {
         MvcResult r = postJson("/api/admin/modules/" + moduleId + "/lessons", lessonRequest(title, videoUrl, false))
                 .andExpect(status().isCreated()).andReturn();
-        return readLong(r, "/id");
+        return readInt(r, "/id");
     }
 
     // ------------------------------------------------------------------ tạo / sửa
@@ -99,7 +99,7 @@ class CourseAdminApiTest extends IntegrationTestBase {
 
     @Test
     void publish_courseWithoutLessons_isRejected() throws Exception {
-        long id = createCourse();
+        int id = createCourse();
         patchJson("/api/admin/courses/" + id + "/status", Map.of("status", "PUBLISHED"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(containsString("ít nhất 1 bài học")));
@@ -108,8 +108,8 @@ class CourseAdminApiTest extends IntegrationTestBase {
 
     @Test
     void publish_fullFlow_makesCourseVisibleToStudents() throws Exception {
-        long courseId = createCourse();
-        long moduleId = createModule(courseId, "Chương 1");
+        int courseId = createCourse();
+        int moduleId = createModule(courseId, "Chương 1");
         createLesson(moduleId, "Bài 1", VIDEO);
 
         // trước khi xuất bản: học viên chưa thấy
@@ -126,8 +126,8 @@ class CourseAdminApiTest extends IntegrationTestBase {
 
     @Test
     void publish_isRejected_whenAVisibleLessonHasNoVideo() throws Exception {
-        long courseId = createCourse();
-        long moduleId = createModule(courseId, "Chương 1");
+        int courseId = createCourse();
+        int moduleId = createModule(courseId, "Chương 1");
         createLesson(moduleId, "Có video", VIDEO);
         createLesson(moduleId, "Thiếu video", null);
 
@@ -138,8 +138,8 @@ class CourseAdminApiTest extends IntegrationTestBase {
 
     @Test
     void publish_ignoresHiddenLessonsWithoutVideo() throws Exception {
-        long courseId = createCourse();
-        long moduleId = createModule(courseId, "Chương 1");
+        int courseId = createCourse();
+        int moduleId = createModule(courseId, "Chương 1");
         createLesson(moduleId, "Có video", VIDEO);
         postJson("/api/admin/modules/" + moduleId + "/lessons", lessonRequest("Đã ẩn, thiếu video", null, true))
                 .andExpect(status().isCreated());
@@ -175,7 +175,7 @@ class CourseAdminApiTest extends IntegrationTestBase {
 
     @Test
     void adminDetail_listsPublishProblems() throws Exception {
-        long id = createCourse();
+        int id = createCourse();
         getJson("/api/admin/courses/" + id)
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.publishProblems.length()").value(1))
@@ -301,10 +301,10 @@ class CourseAdminApiTest extends IntegrationTestBase {
 
     @Test
     void newModulesAndLessons_areAppendedAtTheEnd_andReorderWorks() throws Exception {
-        long courseId = createCourse();
-        long m1 = createModule(courseId, "A");
-        long m2 = createModule(courseId, "B");
-        long m3 = createModule(courseId, "C");
+        int courseId = createCourse();
+        int m1 = createModule(courseId, "A");
+        int m2 = createModule(courseId, "B");
+        int m3 = createModule(courseId, "C");
 
         putJson("/api/admin/courses/" + courseId + "/modules/reorder", new ReorderRequest(List.of(m3, m1, m2)))
                 .andExpect(status().isOk())
@@ -315,9 +315,9 @@ class CourseAdminApiTest extends IntegrationTestBase {
                 .andExpect(jsonPath("$.data.modules[0].title").value("C"))
                 .andExpect(jsonPath("$.data.modules[2].title").value("B"));
 
-        long l1 = createLesson(m1, "L1", VIDEO);
-        long l2 = createLesson(m1, "L2", VIDEO);
-        long l3 = createLesson(m1, "L3", VIDEO);
+        int l1 = createLesson(m1, "L1", VIDEO);
+        int l2 = createLesson(m1, "L2", VIDEO);
+        int l3 = createLesson(m1, "L3", VIDEO);
         putJson("/api/admin/modules/" + m1 + "/lessons/reorder", new ReorderRequest(List.of(l2, l3, l1)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].title").value("L2"))
@@ -326,22 +326,22 @@ class CourseAdminApiTest extends IntegrationTestBase {
 
     @Test
     void reorder_requiresExactlyAllIds() throws Exception {
-        long courseId = createCourse();
-        long m1 = createModule(courseId, "A");
-        long m2 = createModule(courseId, "B");
+        int courseId = createCourse();
+        int m1 = createModule(courseId, "A");
+        int m2 = createModule(courseId, "B");
 
         putJson("/api/admin/courses/" + courseId + "/modules/reorder", new ReorderRequest(List.of(m1)))
                 .andExpect(status().isBadRequest());
         putJson("/api/admin/courses/" + courseId + "/modules/reorder", new ReorderRequest(List.of(m1, m1)))
                 .andExpect(status().isBadRequest());
-        putJson("/api/admin/courses/" + courseId + "/modules/reorder", new ReorderRequest(List.of(m1, m2, 99999L)))
+        putJson("/api/admin/courses/" + courseId + "/modules/reorder", new ReorderRequest(List.of(m1, m2, 99999)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
     void lessons_storeFlagsAndDocument_andValidateInput() throws Exception {
-        long courseId = createCourse();
-        long moduleId = createModule(courseId, "A");
+        int courseId = createCourse();
+        int moduleId = createModule(courseId, "A");
 
         postJson("/api/admin/modules/" + moduleId + "/lessons",
                 new LessonRequest("Bài học thử", "Mô tả", "/uploads/a.mp4", 125, "/uploads/b.pdf", true, true, false))

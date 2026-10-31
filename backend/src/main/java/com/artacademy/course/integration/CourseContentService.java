@@ -35,7 +35,7 @@ public class CourseContentService {
     }
 
     /** Module/bài đang hiển thị, đúng thứ tự sort_order. */
-    public CourseStructure getCourseStructure(Long courseId) {
+    public CourseStructure getCourseStructure(Integer courseId) {
         Course course = findLearnableCourse(courseId);
         Map<CourseModule, List<CourseStructure.LessonItem>> grouped = new LinkedHashMap<>();
         for (CourseLesson l : lessonRepository.findVisibleByCourse(courseId)) {
@@ -54,7 +54,7 @@ public class CourseContentService {
      * Nội dung một bài. Bài đã bị ẩn vẫn đọc được (để dữ liệu tiến độ cũ của C không bị "mồ côi"),
      * nhưng sẽ không có trong getCourseStructure.
      */
-    public LessonContent getLessonContent(Long lessonId) {
+    public LessonContent getLessonContent(Integer lessonId) {
         CourseLesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy bài học"));
         Course course = findLearnableCourse(lesson.getModule().getCourse().getId());
@@ -62,7 +62,7 @@ public class CourseContentService {
                 lesson.getVideoUrl(), lesson.getMaterialUrl(), lesson.getDurationSeconds(), lesson.isRequired());
     }
 
-    private Course findLearnableCourse(Long courseId) {
+    private Course findLearnableCourse(Integer courseId) {
         return courseRepository.findById(courseId)
                 .filter(c -> c.getStatus() != CourseStatus.DRAFT)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy khóa học"));

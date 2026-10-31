@@ -10,7 +10,7 @@ import java.util.List;
  * warnings giải thích vì sao combo đang bị ẩn đi hoặc giá không còn hợp lý.
  */
 public record AdminBundleDto(
-        Long id,
+        Integer id,
         String code,
         String title,
         String description,

@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
  * lessonCount/totalDurationSeconds chỉ tính các bài đang hiển thị.
  */
 public record CourseSummaryDto(
-        Long id,
+        Integer id,
         String code,
         String slug,
         String title,

@@ -31,7 +31,7 @@ public class BundleController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Chi tiết combo")
-    public ApiResponse<BundleDto> detail(@PathVariable Long id) {
+    public ApiResponse<BundleDto> detail(@PathVariable Integer id) {
         return ApiResponse.success("OK", bundleService.get(id));
     }
 }

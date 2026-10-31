@@ -35,28 +35,28 @@ public class AdminStructureController {
 
     @PutMapping("/modules/{id}")
     @Operation(summary = "Sửa module (tên, ẩn/hiện)")
-    public ApiResponse<AdminModuleDto> updateModule(@PathVariable Long id, @Valid @RequestBody ModuleRequest req) {
+    public ApiResponse<AdminModuleDto> updateModule(@PathVariable Integer id, @Valid @RequestBody ModuleRequest req) {
         return ApiResponse.success("Đã lưu module", structureService.updateModule(id, req));
     }
 
     @PostMapping("/modules/{moduleId}/lessons")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Thêm bài học vào module")
-    public ApiResponse<AdminLessonDto> createLesson(@PathVariable Long moduleId,
+    public ApiResponse<AdminLessonDto> createLesson(@PathVariable Integer moduleId,
                                                     @Valid @RequestBody LessonRequest req) {
         return ApiResponse.success("Đã thêm bài học", structureService.createLesson(moduleId, req));
     }
 
     @PutMapping("/modules/{moduleId}/lessons/reorder")
     @Operation(summary = "Sắp xếp lại bài học trong module")
-    public ApiResponse<List<AdminLessonDto>> reorderLessons(@PathVariable Long moduleId,
+    public ApiResponse<List<AdminLessonDto>> reorderLessons(@PathVariable Integer moduleId,
                                                             @Valid @RequestBody ReorderRequest req) {
         return ApiResponse.success("Đã sắp xếp", structureService.reorderLessons(moduleId, req.ids()));
     }
 
     @PutMapping("/lessons/{id}")
     @Operation(summary = "Sửa bài học (PUT thay thế toàn bộ các trường)")
-    public ApiResponse<AdminLessonDto> updateLesson(@PathVariable Long id, @Valid @RequestBody LessonRequest req) {
+    public ApiResponse<AdminLessonDto> updateLesson(@PathVariable Integer id, @Valid @RequestBody LessonRequest req) {
         return ApiResponse.success("Đã lưu bài học", structureService.updateLesson(id, req));
     }
 }

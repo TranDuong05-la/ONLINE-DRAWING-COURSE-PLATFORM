@@ -16,7 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class BundleSellableService {
 
-    public record SellableBundle(Long bundleId, String code, String title, long price, long originalTotal,
+    public record SellableBundle(Integer bundleId, String code, String title, long price, long originalTotal,
                                  List<SellableCourse> courses) {
     }
 
@@ -34,7 +34,7 @@ public class BundleSellableService {
     /**
      * @throws NotFoundException combo không tồn tại, đã tắt, hoặc có khóa không còn PUBLISHED
      */
-    public SellableBundle getSellableBundle(Long bundleId) {
+    public SellableBundle getSellableBundle(Integer bundleId) {
         CourseBundle bundle = bundleRepository.findById(bundleId)
                 .orElseThrow(() -> new NotFoundException("Combo không tồn tại hoặc đã ngừng bán"));
         List<Course> courses = bundleMapper.coursesByBundle(List.of(bundleId)).getOrDefault(bundleId, List.of());

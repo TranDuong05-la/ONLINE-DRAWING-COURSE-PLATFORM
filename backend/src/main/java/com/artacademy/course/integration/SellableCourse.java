@@ -7,7 +7,7 @@ import java.util.List;
  * effectivePrice = giá giảm nếu có, không thì giá gốc. D PHẢI tự lưu lại giá lúc mua vào đơn hàng.
  */
 public record SellableCourse(
-        Long courseId,
+        Integer courseId,
         String title,
         String thumbnailUrl,
         long price,
@@ -16,6 +16,6 @@ public record SellableCourse(
         List<SellableKit> kits) {
 
     /** Quà tặng kèm (chỉ gồm sản phẩm còn bán) để D/E trừ kho và giao hàng. */
-    public record SellableKit(Long productId, String sku, String name, int quantity) {
+    public record SellableKit(Integer productId, String sku, String name, int quantity) {
     }
 }

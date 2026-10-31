@@ -62,7 +62,7 @@ public class CoursePublicService {
     }
 
     /** Khóa nháp/ngừng bán trả 404 như thể không tồn tại. */
-    public CourseDetailDto getDetail(Long id) {
+    public CourseDetailDto getDetail(Integer id) {
         Course course = courseRepository.findById(id)
                 .filter(c -> c.getStatus() == CourseStatus.PUBLISHED)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy khóa học"));

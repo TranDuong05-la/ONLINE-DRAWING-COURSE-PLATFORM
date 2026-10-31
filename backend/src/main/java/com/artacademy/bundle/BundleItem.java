@@ -18,7 +18,7 @@ public class BundleItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "bundle_id", nullable = false)
@@ -36,7 +36,7 @@ public class BundleItem {
         this.course = course;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 

@@ -45,7 +45,7 @@ public class CoursePublishValidator {
         }
 
         if (checkEmptyModules) {
-            Set<Long> modulesWithLessons = new HashSet<>();
+            Set<Integer> modulesWithLessons = new HashSet<>();
             visibleLessons.forEach(l -> modulesWithLessons.add(l.getModule().getId()));
             for (CourseModule module : moduleRepository.findByCourseIdOrderBySortOrderAscIdAsc(course.getId())) {
                 if (!module.isHidden() && !modulesWithLessons.contains(module.getId())) {

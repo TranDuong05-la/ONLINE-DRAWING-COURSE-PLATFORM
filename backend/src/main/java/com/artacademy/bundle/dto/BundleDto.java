@@ -8,7 +8,7 @@ import java.util.List;
  * originalTotal = tổng giá thực bán nếu mua lẻ từng khóa; savings = originalTotal - price.
  */
 public record BundleDto(
-        Long id,
+        Integer id,
         String code,
         String title,
         String description,

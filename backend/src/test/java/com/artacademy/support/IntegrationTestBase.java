@@ -156,9 +156,9 @@ public abstract class IntegrationTestBase {
         return mvc.perform(url.startsWith("/api/admin") ? get(url).with(admin()) : get(url));
     }
 
-    /** Lấy 1 giá trị số (ví dụ id) từ JSON trả về theo đường dẫn JSON Pointer như "/course/id". */
+    /** Lấy 1 giá trị số nguyên (ví dụ id) từ JSON trả về theo đường dẫn JSON Pointer như "/course/id". */
     /** Dữ liệu nằm trong trường "data" của ApiResponse nên tự thêm tiền tố /data. */
-    protected long readLong(MvcResult result, String pointer) throws Exception {
-        return json.readTree(result.getResponse().getContentAsString()).at("/data" + pointer).asLong();
+    protected int readInt(MvcResult result, String pointer) throws Exception {
+        return json.readTree(result.getResponse().getContentAsString()).at("/data" + pointer).asInt();
     }
 }
