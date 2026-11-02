@@ -20,6 +20,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpMethod;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -32,6 +34,10 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CustomUserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
+    @Value("${app.payment.vnpay.enabled:false}")
+    private boolean vnPayEnabled;
+    @Value("${app.payment.vnpay.ipn.enabled:false}")
+    private boolean vnPayIpnEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           CustomUserDetailsService userDetailsService,
@@ -75,7 +81,12 @@ public class SecurityConfig {
                                 ));
                         })
                 )
-                .authorizeHttpRequests(auth -> auth
+                .authorizeHttpRequests(auth -> {
+                    if (vnPayEnabled && vnPayIpnEnabled) {
+                        auth.requestMatchers(HttpMethod.GET, "/api/payments/vnpay/ipn")
+                                .permitAll();
+                    }
+                    auth
                         // Public auth endpoints
                         .requestMatchers(
                                 "/api/auth/register",
@@ -93,11 +104,20 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs"
                         ).permitAll()
-                        // Admin endpoints
+                        // B: khóa học & combo cho học viên (chỉ GET) và file đã upload (ảnh, video, PDF): công khai.
+                        // Video/ảnh được tải bằng Image.network / video_player nên không gửi kèm token được.
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/courses", "/api/courses/**",
+                                "/api/bundles", "/api/bundles/**",
+                                "/uploads/**"
+                        ).permitAll()
+                        // C: link tải chứng nhận có token ký số ngắn hạn (kiểm tra trong CertificateService)
+                        .requestMatchers(HttpMethod.GET, "/api/files/certificates/*/pdf").permitAll()
+                        // Admin endpoints (gồm quản trị khóa học/combo/upload của B và chấm bài của C)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // All other API endpoints require authentication
-                        .anyRequest().authenticated()
-                )
+                        .anyRequest().authenticated();
+                })
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
@@ -106,8 +126,7 @@ public class SecurityConfig {
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder);
         return authProvider;
     }

@@ -51,6 +51,9 @@ class AuthServiceTest {
     @Mock
     private AuthenticationManager authenticationManager;
 
+    @Mock
+    private GoogleTokenInfoClient googleTokenInfoClient;
+
     @InjectMocks
     private AuthService authService;
 
@@ -274,6 +277,8 @@ class AuthServiceTest {
     @Test
     @DisplayName("Google Login: Invalid token signature/verifier throws UnauthorizedException")
     void googleLogin_invalidToken_throwsUnauthorized() {
+        when(googleTokenInfoClient.fetch(anyString()))
+                .thenThrow(new org.springframework.web.client.RestClientException("deterministic test failure"));
         GoogleLoginRequest request = GoogleLoginRequest.builder()
                 .idToken("invalid.jwt.token")
                 .build();

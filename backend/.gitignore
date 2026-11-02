@@ -9,6 +9,8 @@ target/
 
 # Environment files
 .env
+.env.*
+!.env.example
 
 # OS files
 .DS_Store
@@ -20,6 +22,7 @@ logs/
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
+.maven-user-home/
 
 
 # Local env variants; keep only the placeholder template tracked

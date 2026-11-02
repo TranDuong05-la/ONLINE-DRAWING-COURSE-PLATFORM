@@ -4,10 +4,14 @@ class ApiConstants {
   // Automatically detect platform for default Base URL:
   // - Web (Chrome/Firefox/Edge) or Desktop: http://localhost:8080
   // - Android Emulator: http://10.0.2.2:8080
+  //
+  // Có thể ghi đè khi chạy mà không sửa code (ví dụ khi cổng 8080 đang bị chương trình khác dùng):
+  //   flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8081
+  static const String _baseUrlOverride = String.fromEnvironment('API_BASE_URL');
+
   static String get defaultBaseUrl {
-    const envUrl = String.fromEnvironment('API_BASE_URL');
-    if (envUrl.isNotEmpty) {
-      return envUrl;
+    if (_baseUrlOverride.isNotEmpty) {
+      return _baseUrlOverride;
     }
     if (kIsWeb) {
       return 'http://localhost:8080';
@@ -38,7 +42,12 @@ class ApiConstants {
   // Address endpoints
   static const String addresses = '/api/users/me/addresses';
   static String addressDetail(int id) => '/api/users/me/addresses/$id';
-  static String addressSetDefault(int id) => '/api/users/me/addresses/$id/default';
+  static String addressSetDefault(int id) =>
+      '/api/users/me/addresses/$id/default';
+
+  // Read-only Order History endpoints
+  static const String orders = '/api/orders';
+  static String orderDetail(int id) => '$orders/$id';
 
   // Admin endpoints
   static const String adminUsers = '/api/admin/users';
