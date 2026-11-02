@@ -177,30 +177,61 @@ public class AuthController {
     }
 
     // ==========================================
-    // ADMIN USER MANAGEMENT ENDPOINTS
+    // ADMIN DASHBOARD & USER MANAGEMENT ENDPOINTS
     // ==========================================
 
+    @GetMapping("/api/admin/dashboard")
+    @Operation(summary = "Get admin dashboard overview statistics", description = "Returns aggregated platform metrics including user counts by role, courses, orders, and active accounts. Requires ADMIN role.", tags = {"Admin Dashboard"})
+    public ResponseEntity<ApiResponse<AdminDashboardResponse>> getAdminDashboard() {
+        AdminDashboardResponse dashboard = authService.getAdminDashboard();
+        return ResponseEntity.ok(ApiResponse.success("Dashboard metrics retrieved successfully", dashboard));
+    }
+
     @GetMapping("/api/admin/users")
-    @Operation(summary = "List all users (Admin)", description = "Paginated user listing with optional search by email/name/phone and filters by role and active status. Requires ADMIN role.", tags = {"Admin User Management"})
+    @Operation(summary = "List all users (Admin)", description = "Paginated user listing with optional search by email/name/phone, filters by role and status, and sorting. Requires ADMIN role.", tags = {"Admin User Management"})
     public ResponseEntity<ApiResponse<Page<UserResponse>>> getAllUsers(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Role role,
             @RequestParam(required = false) Boolean isActive,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Page<UserResponse> users = authService.getAllUsers(search, role, isActive, page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
+        Page<UserResponse> users = authService.getAllUsers(search, role, isActive, page, size, sortBy, sortDirection);
         return ResponseEntity.ok(ApiResponse.success("Users retrieved successfully", users));
     }
 
     @GetMapping("/api/admin/users/{id}")
-    @Operation(summary = "Get user details (Admin)", description = "Returns user details by ID. Does not return password hash or refresh tokens. Requires ADMIN role.", tags = {"Admin User Management"})
+    @Operation(summary = "Get user details (Admin)", description = "Returns user details by ID. Does not return password hash. Requires ADMIN role.", tags = {"Admin User Management"})
     public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable Integer id) {
         UserResponse user = authService.getUserById(id);
         return ResponseEntity.ok(ApiResponse.success("User retrieved successfully", user));
     }
 
+    @PutMapping("/api/admin/users/{id}/role")
+    @Operation(summary = "Change user role (Admin)", description = "Updates user role and logs the audit event to role history. Requires ADMIN role.", tags = {"Admin User Management"})
+    public ResponseEntity<ApiResponse<UserResponse>> updateUserRole(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Integer id,
+            @Valid @RequestBody UpdateUserRoleRequest request) {
+        UserResponse user = authService.updateUserRole(userDetails.getUsername(), id, request);
+        return ResponseEntity.ok(ApiResponse.success("User role updated successfully", user));
+    }
+
+    @PutMapping("/api/admin/users/{id}/status")
+    @Operation(summary = "Update user status (Admin)", description = "Updates user status (ACTIVE, INACTIVE, LOCKED). Prevents locking the last active admin. Requires ADMIN role.", tags = {"Admin User Management"})
+    public ResponseEntity<ApiResponse<UserResponse>> updateUserStatusWithDto(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @PathVariable Integer id,
+            @RequestBody UpdateUserStatusRequest request) {
+        UserResponse user = authService.updateUserStatus(userDetails.getUsername(), id, request);
+        return ResponseEntity.ok(ApiResponse.success(
+                Boolean.TRUE.equals(user.getIsActive()) ? "User activated successfully" : "User deactivated successfully",
+                user));
+    }
+
     @PatchMapping("/api/admin/users/{id}/status")
-    @Operation(summary = "Activate or deactivate a user (Admin)", description = "Toggles user active status. Cannot deactivate the last active admin. Revoking deactivated user's refresh tokens. Requires ADMIN role.", tags = {"Admin User Management"})
+    @Operation(summary = "Activate or deactivate a user (Admin)", description = "Toggles user active status. Cannot deactivate the last active admin. Requires ADMIN role.", tags = {"Admin User Management"})
     public ResponseEntity<ApiResponse<UserResponse>> updateUserStatus(
             @PathVariable Integer id,
             @RequestBody Map<String, Boolean> body) {
@@ -213,5 +244,12 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(
                 isActive ? "User activated successfully" : "User deactivated successfully",
                 user));
+    }
+
+    @GetMapping("/api/admin/users/{id}/role-history")
+    @Operation(summary = "Get role change history (Admin)", description = "Returns chronological role modification logs for a specific user. Requires ADMIN role.", tags = {"Admin User Management"})
+    public ResponseEntity<ApiResponse<List<RoleHistoryResponse>>> getUserRoleHistory(@PathVariable Integer id) {
+        List<RoleHistoryResponse> history = authService.getUserRoleHistory(id);
+        return ResponseEntity.ok(ApiResponse.success("Role history retrieved successfully", history));
     }
 }

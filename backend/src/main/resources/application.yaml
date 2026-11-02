@@ -40,6 +40,8 @@ spring:
           protocol: smtp
 
 app:
+  seed:
+    enabled: ${SEED_DATA_ENABLED:true}
   jwt:
     secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}

@@ -51,15 +51,32 @@ public class JwtService {
     /**
      * Generate an access token for the given user.
      */
+    /**
+     * Generate an access token for the given user.
+     */
     public String generateAccessToken(UserDetails userDetails) {
-        return buildToken(userDetails, accessExpirationMs, TokenType.ACCESS);
+        return generateAccessToken(userDetails, 1);
+    }
+
+    /**
+     * Generate an access token for the given user with specific token version.
+     */
+    public String generateAccessToken(UserDetails userDetails, Integer tokenVersion) {
+        return buildToken(userDetails, accessExpirationMs, TokenType.ACCESS, tokenVersion);
     }
 
     /**
      * Generate a stateless JWT refresh token for the given user.
      */
     public String generateRefreshToken(UserDetails userDetails) {
-        return buildToken(userDetails, refreshExpirationMs, TokenType.REFRESH);
+        return generateRefreshToken(userDetails, 1);
+    }
+
+    /**
+     * Generate a stateless JWT refresh token for the given user with specific token version.
+     */
+    public String generateRefreshToken(UserDetails userDetails, Integer tokenVersion) {
+        return buildToken(userDetails, refreshExpirationMs, TokenType.REFRESH, tokenVersion);
     }
 
     /**
@@ -113,6 +130,17 @@ public class JwtService {
     }
 
     /**
+     * Extract the token version from the token claims.
+     */
+    public Integer extractTokenVersion(String token) {
+        try {
+            return extractClaim(token, claims -> claims.get("version", Integer.class));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * Validate the token against the user details.
      */
     public boolean isTokenValid(String token, UserDetails userDetails) {
@@ -147,13 +175,18 @@ public class JwtService {
         }
     }
 
-    private String buildToken(UserDetails userDetails, long expirationMs, TokenType tokenType) {
+    private String buildToken(UserDetails userDetails, long expirationMs, TokenType tokenType, Integer tokenVersion) {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + expirationMs);
 
+        Map<String, Object> claims = Map.of(
+                "type", tokenType.name(),
+                "version", tokenVersion != null ? tokenVersion : 1
+        );
+
         return Jwts.builder()
                 .subject(userDetails.getUsername())
-                .claims(Map.of("type", tokenType.name()))
+                .claims(claims)
                 .issuedAt(now)
                 .expiration(expiration)
                 .signWith(signingKey)

@@ -1,0 +1,422 @@
+{
+  "info": {
+    "name": "ArtNest - RBAC & Admin Management API Collection",
+    "_postman_id": "artnest-rbac-collection-v1",
+    "description": "Comprehensive Postman test collection for ArtNest RBAC, Admin Dashboard, and User Management across 4 roles: USER, INSTRUCTOR, STAFF, ADMIN.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "userToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "instructorToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "staffToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testUserId",
+      "value": "8",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication (All 4 Roles)",
+      "item": [
+        {
+          "name": "Login - ADMIN (admin.test@artnest.com)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('User is ADMIN', function () { pm.expect(jsonData.data.user.role).to.eql('ADMIN'); });",
+                  "if (jsonData.data && jsonData.data.accessToken) { pm.collectionVariables.set('adminToken', jsonData.data.accessToken); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.test@artnest.com\",\n  \"password\": \"ArtNest@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Login - USER (user.test@artnest.com)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('User is USER', function () { pm.expect(jsonData.data.user.role).to.eql('USER'); });",
+                  "if (jsonData.data && jsonData.data.accessToken) { pm.collectionVariables.set('userToken', jsonData.data.accessToken); pm.collectionVariables.set('testUserId', jsonData.data.user.id.toString()); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user.test@artnest.com\",\n  \"password\": \"ArtNest@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Login - INSTRUCTOR (instructor.test@artnest.com)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('User is INSTRUCTOR', function () { pm.expect(jsonData.data.user.role).to.eql('INSTRUCTOR'); });",
+                  "if (jsonData.data && jsonData.data.accessToken) { pm.collectionVariables.set('instructorToken', jsonData.data.accessToken); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"instructor.test@artnest.com\",\n  \"password\": \"ArtNest@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Login - STAFF (staff.test@artnest.com)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "pm.test('User is STAFF', function () { pm.expect(jsonData.data.user.role).to.eql('STAFF'); });",
+                  "if (jsonData.data && jsonData.data.accessToken) { pm.collectionVariables.set('staffToken', jsonData.data.accessToken); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"staff.test@artnest.com\",\n  \"password\": \"ArtNest@123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api", "auth", "login"] }
+          }
+        },
+        {
+          "name": "Get Current User Profile (/api/auth/me)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api", "auth", "me"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Admin Dashboard & Metrics",
+      "item": [
+        {
+          "name": "Get Admin Dashboard Overview",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Contains totalUsers metric', function () { pm.expect(jsonData.data).to.have.property('totalUsers'); });",
+                  "pm.test('Contains role breakdowns', function () { pm.expect(jsonData.data).to.have.property('totalAdmins'); pm.expect(jsonData.data).to.have.property('totalInstructors'); pm.expect(jsonData.data).to.have.property('totalStaff'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/admin/dashboard", "host": ["{{baseUrl}}"], "path": ["api", "admin", "dashboard"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Admin User & Role Management",
+      "item": [
+        {
+          "name": "Get All Users (Filtered & Paginated)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users?page=0&size=20&sortBy=createdAt&sortDirection=desc",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" },
+                { "key": "sortBy", "value": "createdAt" },
+                { "key": "sortDirection", "value": "desc" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Detail by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{testUserId}}"] }
+          }
+        },
+        {
+          "name": "Change User Role to INSTRUCTOR",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Role updated to INSTRUCTOR', function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData.data.role).to.eql('INSTRUCTOR');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"INSTRUCTOR\",\n  \"reason\": \"Cấp quyền Giảng viên chuyên ngành Mỹ thuật\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{testUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "Get User Role History (Audit Trail)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('History contains entries', function () { pm.expect(jsonData.data.length).to.be.above(0); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/role-history", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{testUserId}}", "role-history"] }
+          }
+        },
+        {
+          "name": "Revert User Role back to USER",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"USER\",\n  \"reason\": \"Hoàn trả vai trò ban đầu sau khi kiểm thử\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{testUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "Update User Status (Lock Account)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\",\n  \"reason\": \"Tạm khóa tài khoản để xác minh\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{testUserId}}", "status"] }
+          }
+        },
+        {
+          "name": "Update User Status (Re-activate Account)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\",\n  \"reason\": \"Mở khóa tài khoản\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{testUserId}}", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Security & Authorization Boundary Tests",
+      "item": [
+        {
+          "name": "[RBAC 403] USER calls GET /api/admin/users (Forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{userToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/admin/users", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users"] }
+          }
+        },
+        {
+          "name": "[RBAC 403] INSTRUCTOR calls PUT /api/admin/users/{id}/role (Forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{instructorToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{testUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "[RBAC 403] STAFF calls PUT /api/admin/users/{id}/role (Forbidden)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 403 Forbidden', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{staffToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"ADMIN\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "{{testUserId}}", "role"] }
+          }
+        },
+        {
+          "name": "[Security 400] Block demoting the last active ADMIN",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"USER\",\n  \"reason\": \"Cố ý hạ quyền admin duy nhất\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/admin/users/4/role", "host": ["{{baseUrl}}"], "path": ["api", "admin", "users", "4", "role"] }
+          }
+        }
+      ]
+    }
+  ]
+}

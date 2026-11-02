@@ -42,6 +42,9 @@ class ApiConstants {
 
   // Admin endpoints
   static const String adminUsers = '/api/admin/users';
+  static const String adminDashboard = '/api/admin/dashboard';
   static String adminUserDetail(int id) => '/api/admin/users/$id';
+  static String adminUserRole(int id) => '/api/admin/users/$id/role';
   static String adminUserStatus(int id) => '/api/admin/users/$id/status';
+  static String adminUserRoleHistory(int id) => '/api/admin/users/$id/role-history';
 }

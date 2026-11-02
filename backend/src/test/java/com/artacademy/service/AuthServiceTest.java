@@ -46,6 +46,9 @@ class AuthServiceTest {
     private com.artacademy.repository.UserProfileRepository userProfileRepository;
 
     @Mock
+    private com.artacademy.repository.UserRoleHistoryRepository userRoleHistoryRepository;
+
+    @Mock
     private EmailService emailService;
 
     @Mock
@@ -457,5 +460,93 @@ class AuthServiceTest {
         assertThatThrownBy(() -> spyAuthService.loginWithGoogle(request))
                 .isInstanceOf(org.springframework.security.authentication.DisabledException.class)
                 .hasMessageContaining("khóa");
+    }
+
+    // ==========================================
+    // RBAC & ADMIN USER MANAGEMENT TESTS
+    // ==========================================
+
+    @Test
+    @DisplayName("Admin Update Role: Success - changes role, updates token version and records history")
+    void updateUserRole_success() {
+        User admin = User.builder().id(99).email("admin@artnest.com").role(Role.ADMIN).build();
+        User target = User.builder().id(10).email("user@artnest.com").role(Role.USER).tokenVersion(1).build();
+
+        when(userRepository.findByEmail("admin@artnest.com")).thenReturn(Optional.of(admin));
+        when(userRepository.findById(10)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UpdateUserRoleRequest request = UpdateUserRoleRequest.builder()
+                .role(Role.INSTRUCTOR)
+                .reason("Promoted to instructor")
+                .build();
+
+        UserResponse response = authService.updateUserRole("admin@artnest.com", 10, request);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getRole()).isEqualTo(Role.INSTRUCTOR);
+        assertThat(target.getTokenVersion()).isEqualTo(2);
+        verify(userRoleHistoryRepository, times(1)).save(any(com.artacademy.entity.UserRoleHistory.class));
+    }
+
+    @Test
+    @DisplayName("Admin Update Role: Non-admin cannot update role - throws UnauthorizedException")
+    void updateUserRole_nonAdmin_throwsUnauthorizedException() {
+        User regularUser = User.builder().id(88).email("user@artnest.com").role(Role.USER).build();
+        when(userRepository.findByEmail("user@artnest.com")).thenReturn(Optional.of(regularUser));
+
+        UpdateUserRoleRequest request = UpdateUserRoleRequest.builder().role(Role.ADMIN).build();
+
+        assertThatThrownBy(() -> authService.updateUserRole("user@artnest.com", 10, request))
+                .isInstanceOf(UnauthorizedException.class);
+    }
+
+    @Test
+    @DisplayName("Admin Update Role: Cannot demote the last active admin")
+    void updateUserRole_demoteLastAdmin_throwsBusinessException() {
+        User admin = User.builder().id(99).email("admin@artnest.com").role(Role.ADMIN).build();
+        User targetAdmin = User.builder().id(100).email("targetadmin@artnest.com").role(Role.ADMIN).build();
+
+        when(userRepository.findByEmail("admin@artnest.com")).thenReturn(Optional.of(admin));
+        when(userRepository.findById(100)).thenReturn(Optional.of(targetAdmin));
+        when(userRepository.countByRoleAndIsActive(Role.ADMIN, true)).thenReturn(1L);
+
+        UpdateUserRoleRequest request = UpdateUserRoleRequest.builder().role(Role.USER).build();
+
+        assertThatThrownBy(() -> authService.updateUserRole("admin@artnest.com", 100, request))
+                .isInstanceOf(com.artacademy.exception.BusinessException.class)
+                .hasMessageContaining("last active admin");
+    }
+
+    @Test
+    @DisplayName("Admin Update Status: Cannot deactivate the last active admin")
+    void updateUserStatus_deactivateLastAdmin_throwsBusinessException() {
+        User targetAdmin = User.builder().id(100).email("targetadmin@artnest.com").role(Role.ADMIN).build();
+        when(userRepository.findById(100)).thenReturn(Optional.of(targetAdmin));
+        when(userRepository.countByRoleAndIsActive(Role.ADMIN, true)).thenReturn(1L);
+
+        assertThatThrownBy(() -> authService.updateUserStatus(100, false))
+                .isInstanceOf(com.artacademy.exception.BusinessException.class)
+                .hasMessageContaining("Cannot deactivate the last active admin account");
+    }
+
+    @Test
+    @DisplayName("Admin Dashboard: Returns correct aggregated metrics")
+    void getAdminDashboard_returnsAggregatedMetrics() {
+        when(userRepository.count()).thenReturn(10L);
+        when(userRepository.countByRole(Role.ADMIN)).thenReturn(2L);
+        when(userRepository.countByRole(Role.INSTRUCTOR)).thenReturn(3L);
+        when(userRepository.countByRole(Role.STAFF)).thenReturn(1L);
+        when(userRepository.countByIsActive(true)).thenReturn(8L);
+        when(userRepository.countByIsActive(false)).thenReturn(2L);
+
+        AdminDashboardResponse dashboard = authService.getAdminDashboard();
+
+        assertThat(dashboard.getTotalUsers()).isEqualTo(10L);
+        assertThat(dashboard.getTotalAdmins()).isEqualTo(2L);
+        assertThat(dashboard.getTotalInstructors()).isEqualTo(3L);
+        assertThat(dashboard.getTotalStaff()).isEqualTo(1L);
+        assertThat(dashboard.getActiveUsers()).isEqualTo(8L);
+        assertThat(dashboard.getInactiveUsers()).isEqualTo(2L);
     }
 }
