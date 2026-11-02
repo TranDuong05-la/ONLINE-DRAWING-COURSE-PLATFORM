@@ -10,8 +10,9 @@ import java.util.List;
 public final class OrderHistoryResponseMapper {
     public OrderSummary toSummary(OrderHistoryProjection row) {
         return new OrderSummary(row.getOrderId(), row.getStatus(), row.getPaymentStatus(), row.getCreatedAt(),
-                row.getUpdatedAt(), row.getPaymentExpiresAt(), row.getTotalVnd(), row.getCurrency(),
-                row.getItemCount());
+                row.getUpdatedAt(), row.getPaymentExpiresAt(), row.getMerchandiseSubtotalVnd(),
+                row.getEligibleSubtotalVnd(), row.getDiscountVnd(), row.getShippingFeeVnd(),
+                row.getTotalVnd(), row.getCurrency(), row.getItemCount());
     }
 
     public OrderDetail toDetail(StoredOrder stored, OrderDetail.ShippingAddress address) {

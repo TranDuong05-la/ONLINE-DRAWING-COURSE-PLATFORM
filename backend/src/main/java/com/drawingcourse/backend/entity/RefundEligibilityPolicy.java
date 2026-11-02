@@ -2,6 +2,7 @@ package com.drawingcourse.backend.entity;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 /** Pure advisory policy. ELIGIBLE never means a request or Shipment HOLD was persisted. */
@@ -32,6 +33,16 @@ public final class RefundEligibilityPolicy {
 
     /** Progress is expected in basis points [0, 10000]; null fields represent incomplete evidence. */
     public record CourseEvidence(Integer progressBasisPoints, Boolean hasSuccessfulAssignment) { }
+
+    /** Whole-Combo decision; the first failing component is reported deterministically. */
+    public record ComboResult(Decision decision, Reason reason, Integer failingComponentIndex) {
+        public ComboResult {
+            Objects.requireNonNull(decision, "decision");
+            Objects.requireNonNull(reason, "reason");
+            if ((decision == Decision.ELIGIBLE) != (failingComponentIndex == null))
+                throw new IllegalArgumentException("Combo eligibility and failing component disagree");
+        }
+    }
 
     public Result evaluateProduct(boolean hasCommittedSettlement, HandoverState handoverState) {
         if (!hasCommittedSettlement) return ineligible(Reason.ORDER_NOT_SETTLED);
@@ -66,6 +77,21 @@ public final class RefundEligibilityPolicy {
         boolean within = boundary == WindowBoundary.DEADLINE_INCLUSIVE
                 ? !evaluatedAt.isAfter(deadline) : evaluatedAt.isBefore(deadline);
         return within ? eligible(Reason.COURSE_PROGRESS_WITHIN_LIMIT) : ineligible(Reason.COURSE_WINDOW_EXPIRED);
+    }
+
+    /** Every ordered component must pass the same trusted settlement/window evaluation. */
+    public ComboResult evaluateCombo(boolean hasCommittedSettlement, List<CourseEvidence> orderedComponents,
+                                     Instant windowStart, Instant evaluatedAt, WindowBoundary boundary) {
+        Objects.requireNonNull(orderedComponents, "orderedComponents");
+        if (orderedComponents.isEmpty())
+            return new ComboResult(Decision.INVALID_EVIDENCE, Reason.COURSE_EVIDENCE_INVALID, 0);
+        for (int index = 0; index < orderedComponents.size(); index++) {
+            Result component = evaluateCourse(hasCommittedSettlement, orderedComponents.get(index),
+                    windowStart, evaluatedAt, boundary);
+            if (component.decision() != Decision.ELIGIBLE)
+                return new ComboResult(component.decision(), component.reason(), index);
+        }
+        return new ComboResult(Decision.ELIGIBLE, Reason.COURSE_PROGRESS_WITHIN_LIMIT, null);
     }
 
     private static Result eligible(Reason reason) { return new Result(Decision.ELIGIBLE, reason); }

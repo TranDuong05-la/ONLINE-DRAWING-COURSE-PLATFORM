@@ -26,7 +26,7 @@ public interface OrderRepository extends Repository<OrderJpaEntity, Integer> {
 
     <S extends OrderJpaEntity> S saveAndFlush(S order);
 
-    @Query(value = "select o.id as orderId, o.status as status, o.paymentStatus as paymentStatus, o.createdAt as createdAt, o.updatedAt as updatedAt, o.paymentExpiresAt as paymentExpiresAt, o.totalVnd as totalVnd, o.currency as currency, (select count(i) from OrderItemJpaEntity i where i.order.id = o.id) as itemCount from OrderJpaEntity o where o.userId = :userId order by o.createdAt desc, o.id desc",
+    @Query(value = "select o.id as orderId, o.status as status, o.paymentStatus as paymentStatus, o.createdAt as createdAt, o.updatedAt as updatedAt, o.paymentExpiresAt as paymentExpiresAt, o.merchandiseSubtotalVnd as merchandiseSubtotalVnd, o.eligibleSubtotalVnd as eligibleSubtotalVnd, o.discountVnd as discountVnd, o.shippingFeeVnd as shippingFeeVnd, o.totalVnd as totalVnd, o.currency as currency, (select count(i) from OrderItemJpaEntity i where i.order.id = o.id) as itemCount from OrderJpaEntity o where o.userId = :userId order by o.createdAt desc, o.id desc",
            countQuery = "select count(o) from OrderJpaEntity o where o.userId = :userId")
     Page<OrderHistoryProjection> findHistoryByUserId(@Param("userId") Integer userId, Pageable pageable);
 

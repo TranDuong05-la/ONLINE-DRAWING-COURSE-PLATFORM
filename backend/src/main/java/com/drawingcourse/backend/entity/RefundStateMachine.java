@@ -17,10 +17,13 @@ public final class RefundStateMachine {
 
     private RefundStateMachine() { }
 
-    public enum ItemType { COURSE, PRODUCT }
+    public enum ItemType { COURSE, PRODUCT, COMBO }
     public enum AdminDecision { REQUESTED, APPROVED, REJECTED }
     public enum FulfillmentStatus { NOT_REQUIRED, PENDING, ADJUSTED, RELEASED, REQUIRES_REVIEW }
     public enum HoldStatus { NOT_APPLICABLE, ACTIVE, RELEASED, REQUIRES_REVIEW }
+    public enum CourseAccessStatus {
+        NOT_APPLICABLE, UNCHANGED, ELIGIBILITY_CONFIRMED, REVOCATION_PENDING, REVOKED, REQUIRES_REVIEW
+    }
     public enum FinancialStatus { NOT_STARTED, READY, PROCESSING, UNKNOWN, SUCCEEDED, FAILED, REQUIRES_REVIEW }
     public enum Outcome { APPLIED, ALREADY_APPLIED, REJECTED }
     public enum Reason {
@@ -30,22 +33,31 @@ public final class RefundStateMachine {
         DECISION_ALREADY_APPROVED, FINANCIAL_NOT_READY, UNKNOWN_REQUIRES_RECONCILIATION,
         PROVIDER_EVIDENCE_UNVERIFIED, PROVIDER_AMOUNT_MISMATCH, PROVIDER_CURRENCY_MISMATCH,
         PROVIDER_EVENT_AMBIGUOUS, PROVIDER_OUTCOME_CONFLICT, SUCCESS_ALREADY_RECORDED,
-        EVENT_IDENTITY_CONFLICT, INVALID_EVENT_IDENTITY
+        EVENT_IDENTITY_CONFLICT, INVALID_EVENT_IDENTITY, COURSE_ACCESS_REVOCATION_NOT_CONFIRMED
     }
     public enum OperationType {
         ADMIN_APPROVAL, ADMIN_REJECTION, HOLD_RELEASE_AFTER_ADJUSTMENT,
-        FINANCIAL_EXECUTION_START, LOCAL_PROVIDER_TIMEOUT, PROVIDER_OUTCOME
+        FINANCIAL_EXECUTION_START, LOCAL_PROVIDER_TIMEOUT, PROVIDER_OUTCOME, COURSE_ACCESS_REVOCATION
     }
     public enum Evidence { CONFIRMED, MISSING, AMBIGUOUS, REJECTED }
     public enum ProviderOutcome { SUCCESS, DEFINITIVE_FAILURE, UNKNOWN, AMBIGUOUS }
     public enum ReviewReason { PROVIDER_OUTCOME_UNKNOWN, PHYSICAL_ADJUSTMENT_WITH_PROVIDER_FAILURE }
 
-    public sealed interface ApprovalEvidence permits ProductApprovalEvidence, CourseApprovalEvidence { }
+    public sealed interface ApprovalEvidence permits ProductApprovalEvidence, CourseApprovalEvidence,
+            CourseWithPhysicalGiftApprovalEvidence { }
     public record ProductApprovalEvidence(Evidence fulfillmentAdjustment) implements ApprovalEvidence {
         public ProductApprovalEvidence { Objects.requireNonNull(fulfillmentAdjustment); }
     }
     public record CourseApprovalEvidence(Evidence eligibility) implements ApprovalEvidence {
         public CourseApprovalEvidence { Objects.requireNonNull(eligibility); }
+    }
+    public record CourseWithPhysicalGiftApprovalEvidence(Evidence eligibility,
+                                                         Evidence fulfillmentAdjustment)
+            implements ApprovalEvidence {
+        public CourseWithPhysicalGiftApprovalEvidence {
+            Objects.requireNonNull(eligibility);
+            Objects.requireNonNull(fulfillmentAdjustment);
+        }
     }
     public record HoldAcquisitionEvidence(Evidence result) {
         public HoldAcquisitionEvidence { Objects.requireNonNull(result); }
@@ -102,6 +114,8 @@ public final class RefundStateMachine {
         private final AdminDecision decision;
         private final FulfillmentStatus fulfillment;
         private final HoldStatus hold;
+        private final CourseAccessStatus courseAccess;
+        private final boolean physicalEffectsRequired;
         private final FinancialStatus financial;
         private final boolean settlementCommitted;
         private final long requestedAmountVnd;
@@ -110,41 +124,52 @@ public final class RefundStateMachine {
         private final Map<EventKey, String> appliedEvents;
 
         private State(ItemType itemType, RefundScope scope, AdminDecision decision, FulfillmentStatus fulfillment,
-                      HoldStatus hold, FinancialStatus financial, boolean settlementCommitted,
-                      long requestedAmountVnd, boolean courseEligibilityConfirmed,
+                      HoldStatus hold, CourseAccessStatus courseAccess, boolean physicalEffectsRequired,
+                      FinancialStatus financial, boolean settlementCommitted, long requestedAmountVnd,
                       Set<ReviewReason> reviewReasons, Map<EventKey, String> appliedEvents) {
             this.itemType = Objects.requireNonNull(itemType);
             this.scope = Objects.requireNonNull(scope);
             this.decision = Objects.requireNonNull(decision);
             this.fulfillment = Objects.requireNonNull(fulfillment);
             this.hold = Objects.requireNonNull(hold);
+            this.courseAccess = Objects.requireNonNull(courseAccess);
+            this.physicalEffectsRequired = physicalEffectsRequired;
             this.financial = Objects.requireNonNull(financial);
             this.settlementCommitted = settlementCommitted;
             this.requestedAmountVnd = requestedAmountVnd;
-            this.courseEligibilityConfirmed = courseEligibilityConfirmed;
+            this.courseEligibilityConfirmed = courseAccess == CourseAccessStatus.ELIGIBILITY_CONFIRMED
+                    || courseAccess == CourseAccessStatus.REVOCATION_PENDING
+                    || courseAccess == CourseAccessStatus.REVOKED;
             this.reviewReasons = Set.copyOf(Objects.requireNonNull(reviewReasons));
             this.appliedEvents = Map.copyOf(Objects.requireNonNull(appliedEvents));
             if (!settlementCommitted) throw new IllegalArgumentException("Refund workflow requires a committed settlement");
             if (requestedAmountVnd < 0) throw new IllegalArgumentException("Refund amount cannot be negative");
-            if (itemType == ItemType.COURSE
-                    && (fulfillment != FulfillmentStatus.NOT_REQUIRED || hold != HoldStatus.NOT_APPLICABLE)) {
-                throw new IllegalArgumentException("COURSE refund cannot carry Shipment fulfillment or HOLD state");
-            }
-            if (itemType == ItemType.PRODUCT
-                    && (fulfillment == FulfillmentStatus.NOT_REQUIRED || hold == HoldStatus.NOT_APPLICABLE)) {
-                throw new IllegalArgumentException("PRODUCT refund requires independent fulfillment and HOLD states");
-            }
+            boolean courseEffectsRequired = itemType == ItemType.COURSE || itemType == ItemType.COMBO;
+            if (!physicalEffectsRequired
+                    && (fulfillment != FulfillmentStatus.NOT_REQUIRED || hold != HoldStatus.NOT_APPLICABLE))
+                throw new IllegalArgumentException("Nonphysical refund cannot carry Shipment fulfillment or HOLD state");
+            if (physicalEffectsRequired
+                    && (fulfillment == FulfillmentStatus.NOT_REQUIRED || hold == HoldStatus.NOT_APPLICABLE))
+                throw new IllegalArgumentException("Physical refund requires independent fulfillment and HOLD states");
+            if (itemType == ItemType.PRODUCT && !physicalEffectsRequired)
+                throw new IllegalArgumentException("PRODUCT refund requires physical effects");
+            if (courseEffectsRequired && courseAccess == CourseAccessStatus.NOT_APPLICABLE)
+                throw new IllegalArgumentException("Course-bearing refund requires a Course-access state");
+            if (!courseEffectsRequired && courseAccess != CourseAccessStatus.NOT_APPLICABLE)
+                throw new IllegalArgumentException("PRODUCT refund cannot carry a Course-access state");
             if (decision == AdminDecision.REQUESTED && (financial != FinancialStatus.NOT_STARTED
-                    || (itemType == ItemType.PRODUCT && (fulfillment != FulfillmentStatus.PENDING || hold != HoldStatus.ACTIVE)))) {
+                    || (physicalEffectsRequired && (fulfillment != FulfillmentStatus.PENDING || hold != HoldStatus.ACTIVE))
+                    || (courseEffectsRequired && courseAccess != CourseAccessStatus.UNCHANGED))) {
                 throw new IllegalArgumentException("Requested workflow requires initial physical and financial states");
             }
             if (decision == AdminDecision.REJECTED && (financial != FinancialStatus.NOT_STARTED
-                    || (itemType == ItemType.PRODUCT && (fulfillment != FulfillmentStatus.RELEASED || hold != HoldStatus.RELEASED)))) {
+                    || (physicalEffectsRequired && (fulfillment != FulfillmentStatus.RELEASED || hold != HoldStatus.RELEASED))
+                    || (courseEffectsRequired && courseAccess != CourseAccessStatus.UNCHANGED))) {
                 throw new IllegalArgumentException("Rejected workflow must not retain an active financial or physical request");
             }
             if (decision == AdminDecision.APPROVED
-                    && ((itemType == ItemType.PRODUCT && fulfillment != FulfillmentStatus.ADJUSTED)
-                    || (itemType == ItemType.COURSE && !courseEligibilityConfirmed))) {
+                    && ((physicalEffectsRequired && fulfillment != FulfillmentStatus.ADJUSTED)
+                    || (courseEffectsRequired && !courseEligibilityConfirmed))) {
                 throw new IllegalArgumentException("Approved workflow requires item-specific evidence");
             }
             if (financial != FinancialStatus.NOT_STARTED && !settlementCommitted) {
@@ -153,11 +178,11 @@ public final class RefundStateMachine {
             if ((financial == FinancialStatus.READY || financial == FinancialStatus.PROCESSING
                     || financial == FinancialStatus.UNKNOWN || financial == FinancialStatus.SUCCEEDED)
                     && (decision != AdminDecision.APPROVED || requestedAmountVnd == 0
-                    || (itemType == ItemType.PRODUCT && fulfillment != FulfillmentStatus.ADJUSTED)
-                    || (itemType == ItemType.COURSE && !courseEligibilityConfirmed))) {
+                    || (physicalEffectsRequired && fulfillment != FulfillmentStatus.ADJUSTED)
+                    || (courseEffectsRequired && !courseEligibilityConfirmed))) {
                 throw new IllegalArgumentException("Financial execution requires approved, eligible, positive amount and required fulfillment");
             }
-            if (financial == FinancialStatus.FAILED && itemType == ItemType.PRODUCT
+            if (financial == FinancialStatus.FAILED && physicalEffectsRequired
                     && fulfillment == FulfillmentStatus.ADJUSTED
                     && !this.reviewReasons.contains(ReviewReason.PHYSICAL_ADJUSTMENT_WITH_PROVIDER_FAILURE)) {
                 throw new IllegalArgumentException("Failed provider refund after physical adjustment requires review");
@@ -169,12 +194,23 @@ public final class RefundStateMachine {
         public AdminDecision decision() { return decision; }
         public FulfillmentStatus fulfillment() { return fulfillment; }
         public HoldStatus hold() { return hold; }
+        public CourseAccessStatus courseAccess() { return courseAccess; }
+        public boolean physicalEffectsRequired() { return physicalEffectsRequired; }
+        public boolean courseAccessEffectsRequired() {
+            return itemType == ItemType.COURSE || itemType == ItemType.COMBO;
+        }
         public FinancialStatus financial() { return financial; }
         public boolean settlementCommitted() { return settlementCommitted; }
         public long requestedAmountVnd() { return requestedAmountVnd; }
         public boolean courseEligibilityConfirmed() { return courseEligibilityConfirmed; }
         public boolean reviewRequired() { return !reviewReasons.isEmpty(); }
         public Set<ReviewReason> reviewReasons() { return reviewReasons; }
+        public boolean effectsComplete() {
+            return financial == FinancialStatus.SUCCEEDED
+                    && (!courseAccessEffectsRequired() || courseAccess == CourseAccessStatus.REVOKED)
+                    && (!physicalEffectsRequired
+                    || (fulfillment == FulfillmentStatus.ADJUSTED && hold == HoldStatus.RELEASED));
+        }
         /** In-memory replay aid only; persistence is required for restart-safe replay. */
         public int appliedEventCount() { return appliedEvents.size(); }
     }
@@ -199,8 +235,9 @@ public final class RefundStateMachine {
         if (holdEvidence == null || holdEvidence.result() != Evidence.CONFIRMED)
             return rejectedCreation(Reason.HOLD_NOT_CONFIRMED);
         return new CreationResult(Optional.of(new State(ItemType.PRODUCT, scope, AdminDecision.REQUESTED,
-                FulfillmentStatus.PENDING, HoldStatus.ACTIVE, FinancialStatus.NOT_STARTED,
-                true, amountVnd, false, Set.of(), Map.of())), Outcome.APPLIED, Reason.NONE);
+                FulfillmentStatus.PENDING, HoldStatus.ACTIVE, CourseAccessStatus.NOT_APPLICABLE, true,
+                FinancialStatus.NOT_STARTED, true, amountVnd, Set.of(), Map.of())),
+                Outcome.APPLIED, Reason.NONE);
     }
 
     public static CreationResult requestCourse(RefundScope scope, boolean settlementCommitted, long amountVnd) {
@@ -208,8 +245,45 @@ public final class RefundStateMachine {
         if (!settlementCommitted) return rejectedCreation(Reason.UNSETTLED_ORDER);
         if (amountVnd < 0) return rejectedCreation(Reason.INVALID_AMOUNT);
         return new CreationResult(Optional.of(new State(ItemType.COURSE, scope, AdminDecision.REQUESTED,
-                FulfillmentStatus.NOT_REQUIRED, HoldStatus.NOT_APPLICABLE, FinancialStatus.NOT_STARTED,
-                true, amountVnd, false, Set.of(), Map.of())), Outcome.APPLIED, Reason.NONE);
+                FulfillmentStatus.NOT_REQUIRED, HoldStatus.NOT_APPLICABLE, CourseAccessStatus.UNCHANGED, false,
+                FinancialStatus.NOT_STARTED, true, amountVnd, Set.of(), Map.of())),
+                Outcome.APPLIED, Reason.NONE);
+    }
+
+    public static CreationResult requestCourseWithPhysicalGifts(RefundScope scope, boolean settlementCommitted,
+                                                                 long amountVnd,
+                                                                 HoldAcquisitionEvidence holdEvidence) {
+        return requestCourseBearing(ItemType.COURSE, scope, settlementCommitted, amountVnd, true, holdEvidence);
+    }
+
+    /** A Combo is one whole financial obligation; component-level scopes are deliberately not represented. */
+    public static CreationResult requestCombo(RefundScope scope, boolean settlementCommitted, long amountVnd,
+                                              boolean hasPhysicalGifts,
+                                              HoldAcquisitionEvidence holdEvidence) {
+        if (!hasPhysicalGifts && holdEvidence != null)
+            throw new IllegalArgumentException("Nonphysical Combo cannot carry HOLD evidence");
+        return requestCourseBearing(ItemType.COMBO, scope, settlementCommitted, amountVnd,
+                hasPhysicalGifts, holdEvidence);
+    }
+
+    private static CreationResult requestCourseBearing(ItemType itemType, RefundScope scope,
+                                                        boolean settlementCommitted, long amountVnd,
+                                                        boolean physical,
+                                                        HoldAcquisitionEvidence holdEvidence) {
+        Objects.requireNonNull(scope, "scope");
+        if (itemType != ItemType.COURSE && itemType != ItemType.COMBO)
+            throw new IllegalArgumentException("Course-bearing refund type required");
+        if (!settlementCommitted) return rejectedCreation(Reason.UNSETTLED_ORDER);
+        if (amountVnd < 0) return rejectedCreation(Reason.INVALID_AMOUNT);
+        if (physical && (holdEvidence == null || holdEvidence.result() != Evidence.CONFIRMED))
+            return rejectedCreation(Reason.HOLD_NOT_CONFIRMED);
+        if (!physical && holdEvidence != null)
+            throw new IllegalArgumentException("Nonphysical refund cannot carry HOLD evidence");
+        return new CreationResult(Optional.of(new State(itemType, scope, AdminDecision.REQUESTED,
+                physical ? FulfillmentStatus.PENDING : FulfillmentStatus.NOT_REQUIRED,
+                physical ? HoldStatus.ACTIVE : HoldStatus.NOT_APPLICABLE,
+                CourseAccessStatus.UNCHANGED, physical, FinancialStatus.NOT_STARTED,
+                true, amountVnd, Set.of(), Map.of())), Outcome.APPLIED, Reason.NONE);
     }
 
     /** Admin approval is all-or-reject. Product adjustment evidence must already be authoritative. */
@@ -220,20 +294,34 @@ public final class RefundStateMachine {
         if (replay != null) return replay;
         if (state.decision() == AdminDecision.APPROVED) return applyEvent(state, event, Outcome.ALREADY_APPLIED, Reason.NONE, state);
         if (state.decision() == AdminDecision.REJECTED) return reject(state, Reason.DECISION_ALREADY_REJECTED);
-        if (state.itemType() == ItemType.PRODUCT) {
+        boolean physicalConfirmed = !state.physicalEffectsRequired();
+        boolean courseConfirmed = !state.courseAccessEffectsRequired();
+        if (state.itemType() == ItemType.PRODUCT
+                && approvalEvidence instanceof ProductApprovalEvidence productEvidence) {
+            physicalConfirmed = productEvidence.fulfillmentAdjustment() == Evidence.CONFIRMED;
+        } else if (state.courseAccessEffectsRequired() && !state.physicalEffectsRequired()
+                && approvalEvidence instanceof CourseApprovalEvidence courseEvidence) {
+            courseConfirmed = courseEvidence.eligibility() == Evidence.CONFIRMED;
+        } else if (state.courseAccessEffectsRequired() && state.physicalEffectsRequired()
+                && approvalEvidence instanceof CourseWithPhysicalGiftApprovalEvidence combined) {
+            courseConfirmed = combined.eligibility() == Evidence.CONFIRMED;
+            physicalConfirmed = combined.fulfillmentAdjustment() == Evidence.CONFIRMED;
+        }
+        if (state.physicalEffectsRequired()) {
             if (state.hold() != HoldStatus.ACTIVE) return reject(state, Reason.HOLD_NOT_CONFIRMED);
-            if (!(approvalEvidence instanceof ProductApprovalEvidence productEvidence)
-                    || productEvidence.fulfillmentAdjustment() != Evidence.CONFIRMED)
+            if (!physicalConfirmed)
                 return reject(state, Reason.FULFILLMENT_ADJUSTMENT_NOT_CONFIRMED);
-        } else if (!(approvalEvidence instanceof CourseApprovalEvidence courseEvidence)
-                || courseEvidence.eligibility() != Evidence.CONFIRMED) {
+        }
+        if (state.courseAccessEffectsRequired() && !courseConfirmed) {
             return reject(state, Reason.COURSE_ELIGIBILITY_NOT_CONFIRMED);
         }
-        boolean courseEligible = state.itemType() == ItemType.COURSE;
         var financial = state.requestedAmountVnd() == 0 ? FinancialStatus.NOT_STARTED : FinancialStatus.READY;
-        var next = copy(state, AdminDecision.APPROVED,
-                state.itemType() == ItemType.PRODUCT ? FulfillmentStatus.ADJUSTED : FulfillmentStatus.NOT_REQUIRED,
-                state.hold(), financial, courseEligible, Set.of(), state.appliedEvents);
+        var next = copyWithCourseAccess(state, AdminDecision.APPROVED,
+                state.physicalEffectsRequired() ? FulfillmentStatus.ADJUSTED : FulfillmentStatus.NOT_REQUIRED,
+                state.hold(), financial,
+                state.courseAccessEffectsRequired()
+                        ? CourseAccessStatus.ELIGIBILITY_CONFIRMED : CourseAccessStatus.NOT_APPLICABLE,
+                Set.of(), state.appliedEvents);
         return applyEvent(state, event, Outcome.APPLIED, Reason.NONE, next);
     }
 
@@ -245,13 +333,13 @@ public final class RefundStateMachine {
         if (replay != null) return replay;
         if (state.decision() == AdminDecision.REJECTED) return applyEvent(state, event, Outcome.ALREADY_APPLIED, Reason.NONE, state);
         if (state.decision() == AdminDecision.APPROVED) return reject(state, Reason.DECISION_ALREADY_APPROVED);
-        if (state.itemType() == ItemType.PRODUCT
+        if (state.physicalEffectsRequired()
                 && (holdEvidence == null || holdEvidence.result() != Evidence.CONFIRMED)) {
             return reject(state, Reason.HOLD_RELEASE_NOT_CONFIRMED);
         }
         var next = copy(state, AdminDecision.REJECTED,
-                state.itemType() == ItemType.PRODUCT ? FulfillmentStatus.RELEASED : FulfillmentStatus.NOT_REQUIRED,
-                state.itemType() == ItemType.PRODUCT ? HoldStatus.RELEASED : HoldStatus.NOT_APPLICABLE,
+                state.physicalEffectsRequired() ? FulfillmentStatus.RELEASED : FulfillmentStatus.NOT_REQUIRED,
+                state.physicalEffectsRequired() ? HoldStatus.RELEASED : HoldStatus.NOT_APPLICABLE,
                 FinancialStatus.NOT_STARTED, false, Set.of(), state.appliedEvents);
         return applyEvent(state, event, Outcome.APPLIED, Reason.NONE, next);
     }
@@ -263,7 +351,7 @@ public final class RefundStateMachine {
         if (invalid != null) return invalid;
         var replay = replay(state, event);
         if (replay != null) return replay;
-        if (state.itemType() != ItemType.PRODUCT || state.decision() != AdminDecision.APPROVED
+        if (!state.physicalEffectsRequired() || state.decision() != AdminDecision.APPROVED
                 || state.fulfillment() != FulfillmentStatus.ADJUSTED) {
             return reject(state, Reason.FULFILLMENT_NOT_ADJUSTED);
         }
@@ -330,7 +418,7 @@ public final class RefundStateMachine {
                 financial = FinancialStatus.FAILED;
                 // An adjusted Product fulfillment cannot be safely reopened by a payment failure.
                 reviewReasons.remove(ReviewReason.PROVIDER_OUTCOME_UNKNOWN);
-                if (state.itemType() == ItemType.PRODUCT && state.fulfillment() == FulfillmentStatus.ADJUSTED)
+                if (state.physicalEffectsRequired() && state.fulfillment() == FulfillmentStatus.ADJUSTED)
                     reviewReasons.add(ReviewReason.PHYSICAL_ADJUSTMENT_WITH_PROVIDER_FAILURE);
             }
             case UNKNOWN -> {
@@ -340,8 +428,28 @@ public final class RefundStateMachine {
             case AMBIGUOUS -> throw new IllegalStateException("Handled above");
             default -> throw new IllegalStateException("Unhandled provider outcome");
         }
-        var next = copy(state, state.decision(), state.fulfillment(), state.hold(), financial,
-                state.courseEligibilityConfirmed(), reviewReasons, state.appliedEvents);
+        CourseAccessStatus courseAccess = state.courseAccess();
+        if (evidence.outcome() == ProviderOutcome.SUCCESS && state.courseAccessEffectsRequired())
+            courseAccess = CourseAccessStatus.REVOCATION_PENDING;
+        var next = copyWithCourseAccess(state, state.decision(), state.fulfillment(), state.hold(), financial,
+                courseAccess, reviewReasons, state.appliedEvents);
+        return applyEvent(state, event, Outcome.APPLIED, Reason.NONE, next);
+    }
+
+    /** Records C's idempotent whole-OrderItem access revocation after verified financial success. */
+    public static TransitionResult confirmCourseAccessRevoked(State state, EventIdentity event,
+                                                              Evidence revocationEvidence) {
+        var invalid = validateEvent(state, event, OperationType.COURSE_ACCESS_REVOCATION);
+        if (invalid != null) return invalid;
+        var replay = replay(state, event);
+        if (replay != null) return replay;
+        if (!state.courseAccessEffectsRequired()
+                || state.financial() != FinancialStatus.SUCCEEDED
+                || state.courseAccess() != CourseAccessStatus.REVOCATION_PENDING
+                || revocationEvidence != Evidence.CONFIRMED)
+            return reject(state, Reason.COURSE_ACCESS_REVOCATION_NOT_CONFIRMED);
+        var next = copyWithCourseAccess(state, state.decision(), state.fulfillment(), state.hold(),
+                state.financial(), CourseAccessStatus.REVOKED, state.reviewReasons(), state.appliedEvents);
         return applyEvent(state, event, Outcome.APPLIED, Reason.NONE, next);
     }
 
@@ -383,7 +491,18 @@ public final class RefundStateMachine {
     private static State copy(State source, AdminDecision decision, FulfillmentStatus fulfillment,
                               HoldStatus hold, FinancialStatus financial, boolean courseEligible,
                               Set<ReviewReason> reviewReasons, Map<EventKey, String> events) {
-        return new State(source.itemType(), source.scope(), decision, fulfillment, hold, financial,
-                source.settlementCommitted(), source.requestedAmountVnd(), courseEligible, reviewReasons, events);
+        CourseAccessStatus access = source.courseAccessEffectsRequired()
+                ? (courseEligible ? source.courseAccess() : CourseAccessStatus.UNCHANGED)
+                : CourseAccessStatus.NOT_APPLICABLE;
+        return copyWithCourseAccess(source, decision, fulfillment, hold, financial, access, reviewReasons, events);
+    }
+
+    private static State copyWithCourseAccess(State source, AdminDecision decision,
+                                              FulfillmentStatus fulfillment, HoldStatus hold,
+                                              FinancialStatus financial, CourseAccessStatus courseAccess,
+                                              Set<ReviewReason> reviewReasons, Map<EventKey, String> events) {
+        return new State(source.itemType(), source.scope(), decision, fulfillment, hold, courseAccess,
+                source.physicalEffectsRequired(), financial, source.settlementCommitted(),
+                source.requestedAmountVnd(), reviewReasons, events);
     }
 }

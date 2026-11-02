@@ -43,6 +43,12 @@ spring:
           protocol: smtp
 
 app:
+  checkout:
+    course-only:
+      enabled: ${COURSE_ONLY_CHECKOUT_ENABLED:false}
+  voucher:
+    api-enabled: ${VOUCHER_API_ENABLED:false}
+    admin-api-enabled: ${VOUCHER_ADMIN_API_ENABLED:false}
   payment:
     vnpay:
       enabled: ${VNPAY_ENABLED:false}

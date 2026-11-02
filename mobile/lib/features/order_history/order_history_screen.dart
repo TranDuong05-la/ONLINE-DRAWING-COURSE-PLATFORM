@@ -56,16 +56,28 @@ class _OrderHistoryScreenState extends State<OrderHistoryScreen> {
           );
         }
         if (_controller.isEmpty) {
-          return const EmptyStateView(
-            icon: Icons.receipt_long_outlined,
-            title: 'No orders yet',
-            message: 'Orders will appear here after a purchase. No sample orders are shown.',
+          return RefreshIndicator(
+            onRefresh: _controller.loadFirstPage,
+            child: const CustomScrollView(
+              physics: AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: EmptyStateView(
+                    icon: Icons.receipt_long_outlined,
+                    title: 'No orders yet',
+                    message: 'Orders will appear here after a purchase. No sample orders are shown.',
+                  ),
+                ),
+              ],
+            ),
           );
         }
         return RefreshIndicator(
           onRefresh: _controller.loadFirstPage,
           child: ListView(
             key: const ValueKey('order-history-list'),
+            physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.all(16),
             children: [
               for (final order in _controller.orders)

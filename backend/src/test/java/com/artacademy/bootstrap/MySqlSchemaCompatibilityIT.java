@@ -422,7 +422,8 @@ class MySqlSchemaCompatibilityIT {
                     && env.getProperty("spring.jpa.hibernate.ddl-auto", "").equalsIgnoreCase("validate")
                     && env.getProperty("spring.flyway.enabled", Boolean.class, false)
                     && env.getProperty("spring.flyway.validate-on-migrate", Boolean.class, false)
-                    && env.getProperty("spring.flyway.clean-disabled", Boolean.class, false);
+                    && env.getProperty("spring.flyway.clean-disabled", Boolean.class, false)
+                    && "9".equals(env.getProperty("spring.flyway.target"));
             if (!safe) throw new IllegalStateException("MySQL integration tests require the explicitly acknowledged isolated drawing_course_it target; no connection was opened.");
         }
         private static boolean nonBlank(String value) { return value != null && !value.isBlank(); }

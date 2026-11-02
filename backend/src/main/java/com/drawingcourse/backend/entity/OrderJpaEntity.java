@@ -14,7 +14,8 @@ import java.util.*;
 @Entity
 @Table(name = "orders", indexes = {
         @Index(name = "ix_orders_owner", columnList = "user_id,id"),
-        @Index(name = "ix_orders_expiry", columnList = "status,payment_expires_at")})
+        @Index(name = "ix_orders_expiry", columnList = "status,payment_expires_at")},
+        uniqueConstraints = @UniqueConstraint(name = "uk_orders_id_user", columnNames = {"id", "user_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderJpaEntity {

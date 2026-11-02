@@ -32,37 +32,78 @@ public final class CheckoutCoordinator {
     private final CheckoutOrderPort orders;
     private final Clock clock;
     private final TransactionTemplate transaction;
+    private final boolean courseOnlyMode;
 
     public CheckoutCoordinator(CheckoutIdempotencyPort idempotency, CheckoutCartPort carts,
             CourseCatalogPort courses, ProductCatalogPort products, CoursePurchasePort coursePurchases,
             InventoryReservationPort inventory, VoucherReservationPort vouchers, ShippingQuotePort shipping,
             CheckoutOrderPort orders, Clock clock, PlatformTransactionManager transactionManager) {
+        this(idempotency, carts, courses, products, coursePurchases, inventory, vouchers, shipping,
+                orders, clock, transactionManager, false);
+    }
+
+    private CheckoutCoordinator(CheckoutIdempotencyPort idempotency, CheckoutCartPort carts,
+            CourseCatalogPort courses, ProductCatalogPort products, CoursePurchasePort coursePurchases,
+            InventoryReservationPort inventory, VoucherReservationPort vouchers, ShippingQuotePort shipping,
+            CheckoutOrderPort orders, Clock clock, PlatformTransactionManager transactionManager,
+            boolean courseOnlyMode) {
         this.idempotency = Objects.requireNonNull(idempotency);
         this.carts = Objects.requireNonNull(carts);
         this.courses = Objects.requireNonNull(courses);
-        this.products = Objects.requireNonNull(products);
         this.coursePurchases = Objects.requireNonNull(coursePurchases);
-        this.inventory = Objects.requireNonNull(inventory);
         this.vouchers = Objects.requireNonNull(vouchers);
-        this.shipping = Objects.requireNonNull(shipping);
+        this.courseOnlyMode = courseOnlyMode;
+        if (courseOnlyMode) {
+            this.products = products;
+            this.inventory = inventory;
+            this.shipping = shipping;
+        } else {
+            this.products = Objects.requireNonNull(products);
+            this.inventory = Objects.requireNonNull(inventory);
+            this.shipping = Objects.requireNonNull(shipping);
+        }
         this.orders = Objects.requireNonNull(orders);
         this.clock = Objects.requireNonNull(clock);
         this.transaction = new TransactionTemplate(Objects.requireNonNull(transactionManager));
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
     }
 
+    /** Constructs a Course-only coordinator without fake Product, Inventory, or Shipping participants. */
+    public static CheckoutCoordinator courseOnly(CheckoutIdempotencyPort idempotency, CheckoutCartPort carts,
+            CourseCatalogPort courses, CoursePurchasePort coursePurchases, VoucherReservationPort vouchers,
+            CheckoutOrderPort orders, Clock clock, PlatformTransactionManager transactionManager) {
+        return new CheckoutCoordinator(idempotency, carts, courses, null, coursePurchases, null, vouchers, null,
+                orders, clock, transactionManager, true);
+    }
+
     /** authenticatedUserId must be resolved from the verified principal at the application boundary. */
     public CheckoutResult checkout(Integer authenticatedUserId, String idempotencyKey, CheckoutRequest request) {
+        if (courseOnlyMode) return checkoutCoursesOnly(authenticatedUserId, idempotencyKey, request);
+        return checkoutInternal(authenticatedUserId, idempotencyKey, request, false);
+    }
+
+    /** Enforces Course-only selection under the same Cart lock used for the actual Checkout. */
+    public CheckoutResult checkoutCoursesOnly(Integer authenticatedUserId, String idempotencyKey,
+                                               CheckoutRequest request) {
+        if (!courseOnlyMode) throw new IllegalStateException("Coordinator is not configured for Course-only Checkout");
+        return checkoutInternal(authenticatedUserId, idempotencyKey, request, true);
+    }
+
+    private CheckoutResult checkoutInternal(Integer authenticatedUserId, String idempotencyKey,
+                                             CheckoutRequest request, boolean courseOnly) {
         if (authenticatedUserId == null || authenticatedUserId <= 0)
             throw new IllegalArgumentException("Authenticated user ID must be positive");
         if (idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 64)
             throw rejected(CheckoutRejectedException.Reason.INVALID_IDEMPOTENCY_KEY, "Idempotency-Key must contain 1 to 64 characters");
         Objects.requireNonNull(request, "request");
-        return transaction.execute(status -> checkoutInTransaction(authenticatedUserId, idempotencyKey, request));
+        return transaction.execute(status -> checkoutInTransaction(authenticatedUserId, idempotencyKey,
+                request, courseOnly));
     }
 
-    private CheckoutResult checkoutInTransaction(Integer userId, String key, CheckoutRequest request) {
-        String fingerprint = request.canonicalFingerprint();
+    private CheckoutResult checkoutInTransaction(Integer userId, String key, CheckoutRequest request,
+                                                  boolean courseOnly) {
+        String fingerprint = courseOnly ? request.canonicalFingerprint("course-only-v1")
+                : request.canonicalFingerprint();
         CheckoutIdempotencyService.ClaimResult claim;
         try {
             claim = idempotency.claim(userId, key, fingerprint);
@@ -88,6 +129,10 @@ public final class CheckoutCoordinator {
             throw rejected(CheckoutRejectedException.Reason.CART_REVISION_MISMATCH, "Cart changed; reload before Checkout");
 
         List<SelectedLine> selected = selectedLines(cart, request);
+        if (courseOnly && selected.stream().anyMatch(line -> line.cartItem().itemType() != CartItemType.COURSE)) {
+            throw rejected(CheckoutRejectedException.Reason.UNSUPPORTED_ITEM_TYPE,
+                    "Course-only Checkout does not support Product items");
+        }
         Instant observedAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
         var orderLines = new ArrayList<OrderLineSnapshot>(selected.size());
         var courseIds = new TreeSet<Integer>();
@@ -107,6 +152,8 @@ public final class CheckoutCoordinator {
                 orderLines.add(new OrderLineSnapshot(OrderItemType.COURSE, item.itemId(), offer.name(),
                         item.quantity(), offer.unitPriceVnd(), true));
             } else {
+                if (courseOnly) throw rejected(CheckoutRejectedException.Reason.UNSUPPORTED_ITEM_TYPE,
+                        "Course-only Checkout does not support Product items");
                 var offer = products.findForCheckout(item.itemId()).orElseThrow(() -> rejected(
                         CheckoutRejectedException.Reason.ITEM_UNAVAILABLE, "Product is unavailable"));
                 if (!offer.purchasable()) throw rejected(CheckoutRejectedException.Reason.ITEM_UNAVAILABLE, "Product is unavailable");
@@ -128,6 +175,7 @@ public final class CheckoutCoordinator {
 
         long shippingFee = 0L;
         if (!productQuantities.isEmpty()) {
+            if (shipping == null) throw new IllegalStateException("Product Checkout requires a Shipping adapter");
             var shippingItems = productQuantities.entrySet().stream()
                     .map(entry -> new ShippingQuotePort.ProductQuantity(entry.getKey(), entry.getValue())).toList();
             shippingFee = shipping.quoteFeeVnd(userId, shippingItems, request.address());
@@ -151,6 +199,8 @@ public final class CheckoutCoordinator {
 
         // Providers acquire shared rows in deterministic ID order. All must join this transaction and perform
         // atomic write-side checks; the earlier ownership/pending/catalog reads are not concurrency protection.
+        if (!productQuantities.isEmpty() && inventory == null)
+            throw new IllegalStateException("Product Checkout requires an Inventory adapter");
         for (Integer productId : productQuantities.keySet())
             inventory.reserveForOrder(userId, productId, productQuantities.get(productId), stored.id(), snapshot.getExpiresAt());
         for (Integer courseId : courseIds)

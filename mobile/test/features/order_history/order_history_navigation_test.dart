@@ -85,11 +85,15 @@ void main() {
   testWidgets(
     'valid empty history stays empty and network errors do not log out',
     (tester) async {
+      var emptyLoads = 0;
       final emptyAuth = _TestAuthProvider(authenticated: true);
       final emptyRouter = AppRouter.createRouter(
         emptyAuth,
         orderHistoryRepository: _FakeRepository(
-          list: () async => parsedPage([]),
+          list: () async {
+            emptyLoads++;
+            return parsedPage([]);
+          },
           detail: (id) async => throw NotFoundException(),
         ),
       );
@@ -99,6 +103,10 @@ void main() {
       expect(find.text('No orders yet'), findsOneWidget);
       expect(find.textContaining('sample orders'), findsOneWidget);
       expect(find.textContaining('Order #'), findsNothing);
+      expect(find.byType(RefreshIndicator), findsOneWidget);
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 300));
+      await tester.pumpAndSettle();
+      expect(emptyLoads, 2);
       emptyRouter.dispose();
       emptyAuth.dispose();
 
@@ -125,6 +133,29 @@ void main() {
       networkAuth.dispose();
     },
   );
+
+  testWidgets('detail omits absent voucher shipping and deadline snapshots', (
+    tester,
+  ) async {
+    final auth = _TestAuthProvider(authenticated: true);
+    final router = AppRouter.createRouter(
+      auth,
+      orderHistoryRepository: _FakeRepository(
+        list: () async => parsedPage([]),
+        detail: (id) async =>
+            OrderDetail.fromJson(orderDetailJson(id, nullable: true)),
+      ),
+    );
+    router.go('/orders/53');
+    await tester.pumpWidget(_app(router, auth));
+    await tester.pumpAndSettle();
+    expect(find.text('Order #53'), findsOneWidget);
+    expect(find.text('Payment deadline'), findsNothing);
+    expect(find.text('Voucher snapshot'), findsNothing);
+    expect(find.text('Shipping address snapshot'), findsNothing);
+    router.dispose();
+    auth.dispose();
+  });
 
   testWidgets(
     '404 detail renders unavailable state and does not reveal foreign data',
@@ -168,7 +199,7 @@ class _FakeRepository implements OrderHistoryRepository {
   final Future<PaginatedOrderHistory> Function() list;
   final Future<OrderDetail> Function(int id) detail;
   @override
-  Future<PaginatedOrderHistory> getOrders({int page = 0, int size = 20}) =>
+  Future<PaginatedOrderHistory> getOrders({int page = 0, int size = 10}) =>
       list();
   @override
   Future<OrderDetail> getOrderDetail(int orderId) => detail(orderId);

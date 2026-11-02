@@ -12,7 +12,8 @@ import java.util.Objects;
 @Table(name = "payment_settlements", uniqueConstraints = {
         @UniqueConstraint(name = "uk_payment_settlement_order", columnNames = "order_id"),
         @UniqueConstraint(name = "uk_payment_settlement_attempt", columnNames = "payment_attempt_id"),
-        @UniqueConstraint(name = "uk_payment_settlement_event", columnNames = "payment_event_id")
+        @UniqueConstraint(name = "uk_payment_settlement_event", columnNames = "payment_event_id"),
+        @UniqueConstraint(name = "uk_payment_settlements_id_order", columnNames = {"id", "order_id"})
 })
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

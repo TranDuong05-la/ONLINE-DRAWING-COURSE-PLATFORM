@@ -69,7 +69,7 @@ Map<String, dynamic> orderPageJson(
   int number = 0,
   int totalPages = 1,
   int totalElements = 0,
-  int size = 20,
+  int size = 10,
   bool? last,
 }) => {
   'content': orders,

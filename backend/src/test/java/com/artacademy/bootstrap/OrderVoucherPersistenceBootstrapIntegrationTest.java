@@ -8,6 +8,8 @@ import com.drawingcourse.backend.repository.*;
 import com.drawingcourse.backend.service.AuthenticatedOrderCurrentUser;
 import com.drawingcourse.backend.service.OrderPersistenceService;
 import com.drawingcourse.backend.service.checkout.CheckoutCoordinator;
+import com.drawingcourse.backend.service.checkout.CourseOnlyCheckoutApplicationService;
+import com.drawingcourse.backend.controller.CourseOnlyCheckoutController;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +48,8 @@ class OrderVoucherPersistenceBootstrapIntegrationTest {
         assertThat(context.getBean(AuthenticatedOrderCurrentUser.class)).isNotNull();
         assertThat(context.getBeansOfType(OrderPersistenceService.class)).isEmpty();
         assertThat(context.getBeansOfType(CheckoutCoordinator.class)).isEmpty();
+        assertThat(context.getBeansOfType(CourseOnlyCheckoutApplicationService.class)).isEmpty();
+        assertThat(context.getBeansOfType(CourseOnlyCheckoutController.class)).isEmpty();
         assertThat(context.getBeansOfType(PaymentSessionApplicationService.class)).isEmpty();
         assertThat(context.getBeansOfType(VnPayIpnReconciliationService.class)).isEmpty();
         assertThat(context.getBeansOfType(PaymentSettlementRepository.class)).hasSize(1);

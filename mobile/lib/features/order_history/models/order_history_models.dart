@@ -440,7 +440,7 @@ class PaginatedOrderHistory {
     if (totalElements < 0 ||
         totalPages < 0 ||
         size < 1 ||
-        size > 100 ||
+        size > 50 ||
         number < 0 ||
         rawContent.length > size ||
         empty != rawContent.isEmpty) {

@@ -50,30 +50,54 @@ public record CheckoutRequest(long cartRevision, List<Selection> selections,
             var bytes = new ByteArrayOutputStream();
             try (var out = new DataOutputStream(bytes)) {
                 write(out, "drawing-course-checkout-request-v1");
-                out.writeLong(cartRevision);
-                out.writeInt(selections.size());
-                for (Selection selection : selections) {
-                    out.writeInt(selection.cartItemId());
-                    out.writeInt(selection.quantity());
-                }
-                out.writeBoolean(voucherCode.isPresent());
-                if (voucherCode.isPresent()) write(out, voucherCode.orElseThrow());
-                out.writeBoolean(address.isPresent());
-                if (address.isPresent()) {
-                    Address value = address.orElseThrow();
-                    write(out, value.recipient());
-                    write(out, value.phone());
-                    write(out, value.addressLine());
-                    write(out, value.locality());
-                    write(out, value.postalCode());
-                    write(out, value.countryCode());
-                }
+                writeCanonicalContents(out);
             }
-            byte[] digest = MessageDigest.getInstance("SHA-256").digest(bytes.toByteArray());
-            return "v1:" + HexFormat.of().formatHex(digest);
+            return fingerprint(bytes.toByteArray());
         } catch (IOException | NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("Unable to fingerprint Checkout request", impossible);
         }
+    }
+
+    /** Checkout scope is included so a key used for another checkout mode cannot replay across boundaries. */
+    public String canonicalFingerprint(String scope) {
+        if (scope == null || scope.isBlank()) throw new IllegalArgumentException("Checkout scope is required");
+        try {
+            var bytes = new ByteArrayOutputStream();
+            try (var out = new DataOutputStream(bytes)) {
+                write(out, "drawing-course-checkout-request-v2");
+                write(out, scope);
+                writeCanonicalContents(out);
+            }
+            return fingerprint(bytes.toByteArray());
+        } catch (IOException | NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("Unable to fingerprint Checkout request", impossible);
+        }
+    }
+
+    private void writeCanonicalContents(DataOutputStream out) throws IOException {
+        out.writeLong(cartRevision);
+        out.writeInt(selections.size());
+        for (Selection selection : selections) {
+            out.writeInt(selection.cartItemId());
+            out.writeInt(selection.quantity());
+        }
+        out.writeBoolean(voucherCode.isPresent());
+        if (voucherCode.isPresent()) write(out, voucherCode.orElseThrow());
+        out.writeBoolean(address.isPresent());
+        if (address.isPresent()) {
+            Address value = address.orElseThrow();
+            write(out, value.recipient());
+            write(out, value.phone());
+            write(out, value.addressLine());
+            write(out, value.locality());
+            write(out, value.postalCode());
+            write(out, value.countryCode());
+        }
+    }
+
+    private static String fingerprint(byte[] value) throws NoSuchAlgorithmException {
+        byte[] digest = MessageDigest.getInstance("SHA-256").digest(value);
+        return "v1:" + HexFormat.of().formatHex(digest);
     }
 
     private static void write(DataOutputStream out, String value) throws IOException {

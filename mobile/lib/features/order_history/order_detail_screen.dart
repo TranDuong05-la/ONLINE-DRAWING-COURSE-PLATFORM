@@ -77,12 +77,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               ],
             ),
             _info('Created', formatOrderDate(order.createdAt)),
-            _info(
-              'Payment deadline',
-              order.paymentExpiresAt == null
-                  ? 'Not set'
-                  : formatOrderDate(order.paymentExpiresAt!),
-            ),
+            if (order.paymentExpiresAt != null)
+              _info(
+                'Payment deadline',
+                formatOrderDate(order.paymentExpiresAt!),
+              ),
             const SizedBox(height: 16),
             Text('Items', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),

@@ -135,6 +135,35 @@ class RefundPolicyTest {
     }
 
     @Test
+    void courseRefundWindowUsesSettlementInstantWithExclusiveSevenDayBoundary() {
+        Instant settledAt = Instant.parse("2026-01-31T23:59:30.123456Z");
+        Instant providerPaidAt = settledAt.minusSeconds(2 * 24 * 60 * 60L);
+        Instant deadline = settledAt.plus(RefundEligibilityPolicy.COURSE_REFUND_WINDOW);
+        var evidence = new RefundEligibilityPolicy.CourseEvidence(2_000, false);
+        var exclusive = RefundEligibilityPolicy.WindowBoundary.DEADLINE_EXCLUSIVE;
+
+        // The confirmed integration mapping is PaymentSettlement.settledAt. providerPaidAt is retained
+        // as provider evidence and Order.createdAt must never replace this origin.
+        assertResult(course(true, evidence, settledAt, settledAt, exclusive),
+                RefundEligibilityPolicy.Decision.ELIGIBLE, RefundEligibilityPolicy.Reason.COURSE_PROGRESS_WITHIN_LIMIT);
+        assertResult(course(true, evidence, settledAt, settledAt.minusNanos(1), exclusive),
+                RefundEligibilityPolicy.Decision.INELIGIBLE, RefundEligibilityPolicy.Reason.COURSE_WINDOW_NOT_STARTED);
+        assertResult(course(true, evidence, settledAt, deadline.minusNanos(1), exclusive),
+                RefundEligibilityPolicy.Decision.ELIGIBLE, RefundEligibilityPolicy.Reason.COURSE_PROGRESS_WITHIN_LIMIT);
+        assertResult(course(true, evidence, settledAt, deadline, exclusive),
+                RefundEligibilityPolicy.Decision.INELIGIBLE, RefundEligibilityPolicy.Reason.COURSE_WINDOW_EXPIRED);
+        assertResult(course(true, evidence, settledAt, deadline.plusNanos(1), exclusive),
+                RefundEligibilityPolicy.Decision.INELIGIBLE, RefundEligibilityPolicy.Reason.COURSE_WINDOW_EXPIRED);
+        assertResult(course(true, evidence, providerPaidAt, deadline.minusNanos(1), exclusive),
+                RefundEligibilityPolicy.Decision.INELIGIBLE, RefundEligibilityPolicy.Reason.COURSE_WINDOW_EXPIRED);
+
+        assertEquals(Instant.parse("2026-02-07T23:59:30.123456Z"), deadline,
+                "seven days are 168 elapsed hours across the month boundary");
+        assertNotEquals(providerPaidAt, settledAt,
+                "provider payment evidence is distinct from the refund-window origin");
+    }
+
+    @Test
     void productHandoverDoesNotChangeIndependentCourseDecisionForMixedOrder() {
         var product = eligibility.evaluateProduct(true, RefundEligibilityPolicy.HandoverState.HANDED_OVER);
         var course = course(true, new RefundEligibilityPolicy.CourseEvidence(1_500, false),

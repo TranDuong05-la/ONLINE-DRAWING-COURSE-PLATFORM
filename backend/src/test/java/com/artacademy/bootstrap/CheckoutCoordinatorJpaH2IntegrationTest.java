@@ -86,6 +86,50 @@ class CheckoutCoordinatorJpaH2IntegrationTest {
                 Integer.class, fixture.userId));
     }
 
+    @Test
+    void courseOnlyCheckoutUsesExplicitTestCourseParticipantAndReplayCreatesNoPaymentOrSettlement() {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        Integer userId = new TransactionTemplate(transactions).execute(status -> {
+            User user = users.saveAndFlush(User.builder().fullName("Course-only Checkout test")
+                    .email("course-only-" + suffix + "@example.test").passwordHash("test-hash")
+                    .role(Role.USER).isActive(true).build());
+            CartJpaEntity cart = new CartJpaEntity(user.getId());
+            cart.addItem(CartItemType.COURSE, 971, 1);
+            carts.saveAndFlush(cart);
+            return user.getId();
+        });
+        var selection = new TransactionTemplate(transactions).execute(status -> {
+            var row = carts.findByUserId(userId).orElseThrow().getItems().getFirst();
+            return new CheckoutRequest.Selection(row.getId(), 1);
+        });
+        var request = new CheckoutRequest(0, List.of(selection), Optional.empty(), Optional.empty());
+        var clock = Clock.fixed(Instant.parse("2026-10-28T05:00:00Z"), ZoneOffset.UTC);
+        var orderPersistence = new OrderPersistenceService(orders, orderItems, () -> userId, transactions);
+        var idempotency = new CheckoutIdempotencyService(checkoutRequests, users, orders, clock, transactions);
+        var coordinator = CheckoutCoordinator.courseOnly(idempotency, new JpaCheckoutCartPort(carts),
+                id -> Optional.of(new CourseCatalogPort.CourseOffer(id, "Course-only snapshot", 25_000, true)),
+                new TestCoursePort(jdbc), new TestVoucherPort(jdbc, false),
+                new OrderPersistenceCheckoutPort(orderPersistence), clock, transactions);
+        String key = "course-only-" + suffix;
+
+        var first = coordinator.checkoutCoursesOnly(userId, key, request);
+        var replay = coordinator.checkoutCoursesOnly(userId, key, request);
+
+        assertFalse(first.replayed());
+        assertEquals(new CheckoutCoordinator.CheckoutResult(first.orderId(), true), replay);
+        assertEquals(1, countOrders(userId));
+        assertEquals("PENDING_PAYMENT", jdbc.queryForObject("SELECT status FROM orders WHERE id=?", String.class,
+                first.orderId()));
+        assertEquals("CREATED", jdbc.queryForObject("SELECT payment_status FROM orders WHERE id=?", String.class,
+                first.orderId()));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM payment_attempts WHERE order_id=?", Integer.class,
+                first.orderId()));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM payment_settlements WHERE order_id=?", Integer.class,
+                first.orderId()));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM checkout_test_effects WHERE effect_key='course'",
+                Integer.class));
+    }
+
     private Fixture fixture(boolean failVoucherReservation) {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         Integer userId = new TransactionTemplate(transactions).execute(status -> {

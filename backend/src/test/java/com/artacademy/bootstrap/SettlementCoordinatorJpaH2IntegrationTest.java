@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.dao.TransientDataAccessException;
+import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -48,6 +49,9 @@ class SettlementCoordinatorJpaH2IntegrationTest {
     @Autowired private PaymentEventRepository events;
     @Autowired private PaymentSettlementRepository settlements;
     @Autowired private JpaSettlementLedgerAdapter jpaLedger;
+    @Autowired private PaymentSettlementWorkItemRepository workItems;
+    @Autowired private PaymentSettlementWorkClaimRepository workClaims;
+    @Autowired private SettlementWorkClaimService claimService;
 
     private TestParticipants participants;
     private SettlementCoordinator coordinator;
@@ -56,6 +60,7 @@ class SettlementCoordinatorJpaH2IntegrationTest {
     void setUp() {
         jdbc.execute("CREATE TABLE IF NOT EXISTS settlement_test_effects (kind VARCHAR(24) NOT NULL, order_id INT NOT NULL, item_id INT NOT NULL)");
         jdbc.update("DELETE FROM settlement_test_effects");
+        jdbc.update("DELETE FROM payment_settlement_work_items");
         participants = new TestParticipants(jdbc);
         coordinator = coordinator(jpaLedger, participants);
     }
@@ -148,11 +153,11 @@ class SettlementCoordinatorJpaH2IntegrationTest {
     }
 
     @Test
-    void transientFailureJoiningOuterTransactionPropagatesUntilOuterRollback() {
+    void settlementRejectsAmbientTransactionInsteadOfJoiningIt() {
         participants.transientFailAt = "inventory";
         var fixture = fixture();
 
-        assertThrows(TestTransientPersistenceFailure.class,
+        assertThrows(IllegalStateException.class,
                 () -> tx().executeWithoutResult(status -> coordinator.settle(fixture.validResult())));
 
         assertPending(fixture);
@@ -212,9 +217,249 @@ class SettlementCoordinatorJpaH2IntegrationTest {
         assertPending(conflictFixture);
     }
 
+    @Test
+    void claimedExecutionCompletesAtomicallyAndExactReplayDoesNotRepeatEffects() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        var claimedCoordinator = claimedCoordinator(jpaLedger, participants);
+
+        var settled = claimedCoordinator.executeClaimedWork(claim);
+        assertEquals(SettlementResult.Outcome.SETTLED, settled.outcome());
+        assertEquals(PaymentSettlementWorkState.COMPLETED, work(claim.id()).getState());
+        assertEquals(OrderStatus.CONFIRMED, order(fixture).getStatus());
+        assertEquals(1, settlements.findByOrderId(fixture.orderId()).stream().count());
+        assertEquals(1, effects("voucher", fixture.orderId()));
+        assertEquals(1, effects("inventory", fixture.orderId()));
+        assertEquals(1, effects("course", fixture.orderId()));
+
+        var replay = claimedCoordinator.executeClaimedWork(claim);
+        assertEquals(SettlementResult.Outcome.ALREADY_SETTLED, replay.outcome());
+        assertEquals(1, effects("voucher", fixture.orderId()));
+        assertEquals(1, effects("inventory", fixture.orderId()));
+        assertEquals(1, effects("course", fixture.orderId()));
+    }
+
+    @Test
+    void participantFailureRollsBackLedgerOrderEffectsAndWorkCompletion() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        participants.failAt = "course";
+
+        var result = claimedCoordinator(jpaLedger, participants).executeClaimedWork(claim);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.MANUAL_REVIEW, work(claim.id()).getState());
+    }
+
+    @Test
+    void transientParticipantFailureReportsRetryOnlyAfterRollbackAndLeavesClaimUncompleted() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        participants.transientFailAt = "inventory";
+
+        var result = claimedCoordinator(jpaLedger, participants).executeClaimedWork(claim);
+
+        assertEquals(SettlementResult.Outcome.RETRYABLE_FAILURE, result.outcome());
+        assertPending(fixture);
+        assertEquals(SettlementWorkClaimService.RetryResult.RETRY_SCHEDULED,
+                claimService.recordTransientFailure(claim, SettlementWorkClaimService.TransientFailure.TRANSIENT_DATABASE));
+        assertEquals(PaymentSettlementWorkState.RETRY_WAIT, work(claim.id()).getState());
+    }
+
+    @Test
+    void finalFenceFailureRollsBackEverySettlementEffect() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        jdbc.update("UPDATE payment_settlement_work_items SET lease_until=DATEADD('SECOND', -1, " +
+                "DATEADD('MINUTE', -EXTRACT(TIMEZONE_MINUTE FROM CURRENT_TIMESTAMP), " +
+                "DATEADD('HOUR', -EXTRACT(TIMEZONE_HOUR FROM CURRENT_TIMESTAMP), " +
+                "CAST(CURRENT_TIMESTAMP AS TIMESTAMP(6))))) WHERE id=?", claim.id());
+
+        var result = claimedCoordinator(jpaLedger, participants).executeClaimedWork(claim);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.LEASED, work(claim.id()).getState());
+    }
+
+    @Test
+    void staleClaimTokenCannotApplyEffects() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        var stale = new SettlementWorkClaimService.Claim(claim.id(), claim.paymentEventId(),
+                "00000000-0000-0000-0000-000000000000", claim.workerId(), claim.attemptCount(),
+                claim.retryGeneration(), claim.claimedAt(), claim.leaseUntil());
+
+        var result = claimedCoordinator(jpaLedger, participants).executeClaimedWork(stale);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.LEASED, work(claim.id()).getState());
+    }
+
+    @Test
+    void claimCannotSubstituteAnotherPersistedPaymentEvent() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        var forged = new SettlementWorkClaimService.Claim(claim.id(), claim.paymentEventId() + 1,
+                claim.leaseToken(), claim.workerId(), claim.attemptCount(), claim.retryGeneration(),
+                claim.claimedAt(), claim.leaseUntil());
+
+        var result = claimedCoordinator(jpaLedger, participants).executeClaimedWork(forged);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.LEASED, work(claim.id()).getState());
+    }
+
+    @Test
+    void voucherFailureRollsBackClaimedSettlementAndRequiresReview() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        participants.failAt = "voucher";
+
+        var result = claimedCoordinator(jpaLedger, participants).executeClaimedWork(claim);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.MANUAL_REVIEW, work(claim.id()).getState());
+    }
+
+    @Test
+    void inventoryFailureRollsBackClaimedSettlementAndRequiresReview() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        participants.failAt = "inventory";
+
+        var result = claimedCoordinator(jpaLedger, participants).executeClaimedWork(claim);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.MANUAL_REVIEW, work(claim.id()).getState());
+    }
+
+    @Test
+    void ledgerFailureRollsBackClaimedOrderAndParticipantEffects() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        SettlementLedgerPort failAfterInsert = new SettlementLedgerPort() {
+            @Override public Optional<SettlementReference> findForUpdateByOrderId(Integer orderId) {
+                return jpaLedger.findForUpdateByOrderId(orderId);
+            }
+            @Override public SettlementReference insert(Integer orderId, Integer attemptId, Integer eventId,
+                    Instant providerPaidAt, Instant settledAt) {
+                jpaLedger.insert(orderId, attemptId, eventId, providerPaidAt, settledAt);
+                throw new IllegalStateException("Injected ledger failure after insert");
+            }
+        };
+
+        var result = claimedCoordinator(failAfterInsert, participants).executeClaimedWork(claim);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.MANUAL_REVIEW, work(claim.id()).getState());
+    }
+
+    @Test
+    void concurrentExecutionOfSameCommittedClaimSettlesOnce() throws Exception {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        var claimedCoordinator = claimedCoordinator(jpaLedger, participants);
+        var executor = Executors.newFixedThreadPool(2);
+        var start = new CountDownLatch(1);
+        try {
+            Callable<SettlementResult> task = () -> { start.await(3, TimeUnit.SECONDS); return claimedCoordinator.executeClaimedWork(claim); };
+            var first = executor.submit(task);
+            var second = executor.submit(task);
+            start.countDown();
+            var outcomes = Set.of(first.get(8, TimeUnit.SECONDS).outcome(), second.get(8, TimeUnit.SECONDS).outcome());
+            assertEquals(Set.of(SettlementResult.Outcome.SETTLED, SettlementResult.Outcome.ALREADY_SETTLED), outcomes);
+            assertEquals(PaymentSettlementWorkState.COMPLETED, work(claim.id()).getState());
+            assertEquals(1, settlements.findByOrderId(fixture.orderId()).stream().count());
+            assertEquals(1, effects("voucher", fixture.orderId()));
+            assertEquals(1, effects("inventory", fixture.orderId()));
+            assertEquals(1, effects("course", fixture.orderId()));
+        } finally {
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(3, TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
+    void claimedExecutionRejectsAnAmbientTransaction() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+
+        assertThrows(IllegalStateException.class, () -> tx().executeWithoutResult(status ->
+                claimedCoordinator(jpaLedger, participants).executeClaimedWork(claim)));
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.LEASED, work(claim.id()).getState());
+    }
+
+    @Test
+    void differentSuccessfulEventForSettledOrderIsManualReviewWithoutRepeatedEffects() {
+        var original = fixtureWithWork();
+        var originalClaim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        var claimedCoordinator = claimedCoordinator(jpaLedger, participants);
+        assertEquals(SettlementResult.Outcome.SETTLED,
+                claimedCoordinator.executeClaimedWork(originalClaim).outcome());
+
+        var second = additionalSuccessfulAttempt(original);
+        tx().executeWithoutResult(status -> workItems.saveAndFlush(
+                PaymentSettlementWorkItemJpaEntity.ready(second.eventId(),
+                        Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS).minusSeconds(1))));
+        var secondClaim = claimService.claimNext("settlement-test-worker-2").orElseThrow();
+
+        var result = claimedCoordinator.executeClaimedWork(secondClaim);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertEquals(PaymentSettlementWorkState.MANUAL_REVIEW, work(secondClaim.id()).getState());
+        assertEquals(1, settlements.findByOrderId(original.orderId()).stream().count());
+        assertEquals(1, effects("voucher", original.orderId()));
+        assertEquals(1, effects("inventory", original.orderId()));
+        assertEquals(1, effects("course", original.orderId()));
+    }
+
+    @Test
+    void lostCommitAcknowledgmentIsResolvedFromFreshSettlementAndWorkState() {
+        var fixture = fixtureWithWork();
+        var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
+        var uncertainManager = new CommitAcknowledgmentLossManager(transactionManager);
+        var uncertainCoordinator = new SettlementCoordinator(orders, attempts, events, jpaLedger,
+                participants, participants, participants, Clock.systemUTC(), new SettlementTimeoutProperties(),
+                uncertainManager, workItems, workClaims);
+
+        var result = uncertainCoordinator.executeClaimedWork(claim);
+
+        assertEquals(SettlementResult.Outcome.ALREADY_SETTLED, result.outcome());
+        assertEquals(PaymentSettlementWorkState.COMPLETED, work(claim.id()).getState());
+        assertEquals(1, settlements.findByOrderId(fixture.orderId()).stream().count());
+        assertEquals(1, effects("voucher", fixture.orderId()));
+        assertEquals(1, effects("inventory", fixture.orderId()));
+        assertEquals(1, effects("course", fixture.orderId()));
+    }
+
     private SettlementCoordinator coordinator(SettlementLedgerPort ledger, TestParticipants ports) {
         return new SettlementCoordinator(orders, attempts, events, ledger, ports, ports, ports,
                 Clock.fixed(SETTLED, ZoneOffset.UTC), transactionManager);
+    }
+
+    private SettlementCoordinator claimedCoordinator(SettlementLedgerPort ledger, TestParticipants ports) {
+        return new SettlementCoordinator(orders, attempts, events, ledger, ports, ports, ports,
+                Clock.systemUTC(), new SettlementTimeoutProperties(), transactionManager, workItems, workClaims);
+    }
+
+    private Fixture fixtureWithWork() {
+        Fixture fixture = fixture();
+        tx().executeWithoutResult(status -> workItems.saveAndFlush(
+                PaymentSettlementWorkItemJpaEntity.ready(fixture.eventId(),
+                        Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS).minusSeconds(1))));
+        return fixture;
+    }
+
+    private PaymentSettlementWorkItemJpaEntity work(Integer id) {
+        return tx().execute(status -> workItems.findById(id).orElseThrow());
     }
 
     private Fixture fixture() {
@@ -348,5 +593,25 @@ class SettlementCoordinatorJpaH2IntegrationTest {
 
     private static final class TestTransientPersistenceFailure extends TransientDataAccessException {
         private TestTransientPersistenceFailure() { super("Injected transient participant failure"); }
+    }
+
+    private static final class CommitAcknowledgmentLossManager implements PlatformTransactionManager {
+        private final PlatformTransactionManager delegate;
+        private boolean loseNextCommitAcknowledgment = true;
+        private CommitAcknowledgmentLossManager(PlatformTransactionManager delegate) { this.delegate = delegate; }
+        @Override public org.springframework.transaction.TransactionStatus getTransaction(
+                org.springframework.transaction.TransactionDefinition definition) {
+            return delegate.getTransaction(definition);
+        }
+        @Override public void commit(org.springframework.transaction.TransactionStatus status) {
+            delegate.commit(status);
+            if (loseNextCommitAcknowledgment) {
+                loseNextCommitAcknowledgment = false;
+                throw new TransientDataAccessResourceException("Injected lost commit acknowledgment");
+            }
+        }
+        @Override public void rollback(org.springframework.transaction.TransactionStatus status) {
+            delegate.rollback(status);
+        }
     }
 }

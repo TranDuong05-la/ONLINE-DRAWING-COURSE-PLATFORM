@@ -8,6 +8,7 @@ import com.drawingcourse.backend.repository.PaymentEventRepository;
 import com.drawingcourse.backend.repository.PaymentEventConflictRepository;
 import com.drawingcourse.backend.repository.PaymentSettlementRepository;
 import com.drawingcourse.backend.repository.PaymentReconciliationCaseRepository;
+import com.drawingcourse.backend.repository.PaymentSettlementWorkItemRepository;
 import com.drawingcourse.backend.service.OrderPersistenceMapper;
 import com.drawingcourse.backend.service.checkout.JpaVoucherReservationService;
 import com.drawingcourse.backend.service.expiration.CoursePurchaseReleasePort;
@@ -78,6 +79,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
     @Autowired private PaymentEventConflictRepository conflicts;
     @Autowired private PaymentSettlementRepository settlements;
     @Autowired private PaymentReconciliationCaseRepository cases;
+    @Autowired private PaymentSettlementWorkItemRepository settlementWorkItems;
     @Autowired private JpaVoucherReservationService voucherReservations;
     @Autowired private OrderRepository orders;
     @Autowired private EntityManager entityManager;
@@ -189,12 +191,19 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         assertEquals(PaymentStatus.SUCCEEDED, attempts.findByIdAndUserId(success.attemptId(), success.ownerId()).orElseThrow().getStatus());
         assertEquals(before, orders.findByIdAndUserId(success.orderId(), success.ownerId()).orElseThrow().getStatus());
         assertEquals(OrderStatus.PENDING_PAYMENT, before);
+        assertEquals(1, countWorkForOrder(success.orderId()));
+        var successfulEvent = events.findAllByOrderIdAndUserId(success.orderId(), success.ownerId()).getFirst();
+        var work = settlementWorkItems.findByPaymentEventId(successfulEvent.getId()).orElseThrow();
+        assertEquals(PaymentSettlementWorkState.READY, work.getState());
+        assertEquals((short) 0, work.getAttemptCount());
+        assertEquals(0L, work.getRetryGeneration());
 
         var failed = payableFixture(9202, BASE.minusSeconds(5));
         var failureResult = reconciliation.reconcile(callback(failed, "24", "02", BASE.plusSeconds(1), null));
         assertEquals(IpnClassification.VALID_FAILURE, failureResult.classification());
         assertEquals(PaymentStatus.FAILED, attempts.findByIdAndUserId(failed.attemptId(), failed.ownerId()).orElseThrow().getStatus());
         assertEquals(OrderStatus.PENDING_PAYMENT, orders.findByIdAndUserId(failed.orderId(), failed.ownerId()).orElseThrow().getStatus());
+        assertEquals(0, countWorkForOrder(failed.orderId()));
     }
 
     @Test void duplicateCallbackIsIdempotentAndChangedFactsAreRecordedAsConflict() {
@@ -208,6 +217,15 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         assertTrue(replay.duplicate());
         assertEquals(first.eventId(), replay.eventId());
         assertEquals(1, events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.ownerId()).size());
+        assertEquals(1, countWorkForOrder(fixture.orderId()));
+
+        var work = settlementWorkItems.findByPaymentEventId(first.eventId()).orElseThrow();
+        jdbc.update("UPDATE payment_settlement_work_items SET state='MANUAL_REVIEW', available_at=NULL WHERE id=?", work.getId());
+        entityManager.clear();
+        var terminalReplay = reconciliation.reconcile(callback);
+        assertEquals(IpnClassification.DUPLICATE_CALLBACK, terminalReplay.classification());
+        assertEquals(PaymentSettlementWorkState.MANUAL_REVIEW,
+                settlementWorkItems.findByPaymentEventId(first.eventId()).orElseThrow().getState());
 
         var conflicting = callback(fixture, "24", "05", BASE.plusSeconds(2), null);
         var conflict = reconciliation.reconcile(conflicting);
@@ -220,6 +238,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         assertEquals(PaymentAttempt.ReviewReason.CONFLICTING_SUCCESS,
                 attempts.findByIdAndUserId(fixture.attemptId(), fixture.ownerId()).orElseThrow().getReviewReason());
         assertEquals(OrderStatus.PENDING_PAYMENT, orders.findByIdAndUserId(fixture.orderId(), fixture.ownerId()).orElseThrow().getStatus());
+        assertEquals(1, countWorkForOrder(fixture.orderId()));
 
         var failedFirst = payableFixture(9212, BASE.minusSeconds(5));
         var failure = callback(failedFirst, "24", "02", BASE.plusSeconds(1), null);
@@ -272,8 +291,10 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
 
     @Test void lateAndAmountMismatchAreDurablyLinkedToTheirPaymentEvent() {
         var late = oldPendingFixture(9218);
-        var lateResult = reconciliation.reconcile(callback(late, "00", "00", BASE.minusSeconds(1), null));
+        // Payment time is before the deadline, but local receipt occurs after it.
+        var lateResult = reconciliation.reconcile(callback(late, "00", "00", BASE.minusSeconds(2), null));
         assertEquals(IpnClassification.LATE_PROVIDER_SUCCESS, lateResult.classification());
+        assertEquals(0, countWorkForOrder(late.orderId()));
         assertEquals(1, countCases(late.merchantReference() + ":" + late.transactionReference(), "LATE_SUCCESS"));
 
         var amount = payableFixture(9219, BASE.minusSeconds(5));
@@ -301,6 +322,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         var fixture = payableFixture(9221, BASE.minusSeconds(5));
         var result = reconciliation.reconcile(callback(fixture, "00", "00", BASE.plusSeconds(1), null));
         assertEquals(IpnClassification.VALID_ON_TIME_SUCCESS, result.classification());
+        assertEquals(1, countWorkForOrder(fixture.orderId()));
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM payment_reconciliation_cases WHERE order_id=?", Integer.class,
                 fixture.orderId()));
     }
@@ -329,11 +351,27 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
                 .thenReturn(Optional.empty());
         when(failingCases.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("injected case write failure"));
         var failingService = new VnPayIpnReconciliationService(vnPayProperties, attempts, events, conflicts,
-                failingCases, orders, verifier, testClock, transactionManager);
+                failingCases, settlementWorkItems, orders, verifier, testClock, transactionManager);
 
         assertThrows(DataIntegrityViolationException.class,
                 () -> failingService.reconcile(callback(fixture, "07", "07", BASE.plusSeconds(1), null)));
         assertTrue(events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.ownerId()).isEmpty());
+        assertEquals(PaymentStatus.CREATED,
+                attempts.findByIdAndUserId(fixture.attemptId(), fixture.ownerId()).orElseThrow().getStatus());
+    }
+
+    @Test void workItemPersistenceFailureRollsBackNewEventAndAttemptDecision() {
+        var fixture = payableFixture(9224, BASE.minusSeconds(5));
+        var failingWorkItems = mock(PaymentSettlementWorkItemRepository.class);
+        when(failingWorkItems.findByPaymentEventId(any())).thenReturn(Optional.empty());
+        when(failingWorkItems.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("injected V9 work insert failure"));
+        var failingService = new VnPayIpnReconciliationService(vnPayProperties, attempts, events, conflicts,
+                cases, failingWorkItems, orders, verifier, testClock, transactionManager);
+
+        assertThrows(DataIntegrityViolationException.class,
+                () -> failingService.reconcile(callback(fixture, "00", "00", BASE.plusSeconds(1), null)));
+        assertTrue(events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.ownerId()).isEmpty());
+        assertEquals(0, countWorkForOrder(fixture.orderId()));
         assertEquals(PaymentStatus.CREATED,
                 attempts.findByIdAndUserId(fixture.attemptId(), fixture.ownerId()).orElseThrow().getStatus());
     }
@@ -376,6 +414,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         testClock.set(BASE.plusSeconds(20));
         var result = reconciliation.reconcile(callback(fixture, "00", "00", BASE.plusSeconds(1), "999900"));
         assertEquals(IpnClassification.AMOUNT_MISMATCH, result.classification());
+        assertEquals(0, countWorkForOrder(fixture.orderId()));
         assertEquals(PaymentAttempt.ReviewReason.AMOUNT_MISMATCH, result.reviewReason());
         assertEquals(PaymentStatus.CREATED, attempts.findByIdAndUserId(fixture.attemptId(), fixture.ownerId()).orElseThrow().getStatus());
         assertEquals(OrderStatus.PENDING_PAYMENT, orders.findByIdAndUserId(fixture.orderId(), fixture.ownerId()).orElseThrow().getStatus());
@@ -386,12 +425,14 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         testClock.set(BASE.plusSeconds(20));
         var expiredResult = reconciliation.reconcile(callback(expired, "24", "05", BASE.minusSeconds(1), null));
         assertEquals(IpnClassification.EXPIRED_ORDER, expiredResult.classification());
+        assertEquals(0, countWorkForOrder(expired.orderId()));
         assertEquals(1, countCases(expired.merchantReference() + ":" + expired.transactionReference(),
                 "ORDER_NOT_PAYABLE"));
 
         var late = oldPendingFixture(9206);
         var lateResult = reconciliation.reconcile(callback(late, "00", "00", BASE.minusSeconds(1), null));
         assertEquals(IpnClassification.LATE_PROVIDER_SUCCESS, lateResult.classification());
+        assertEquals(0, countWorkForOrder(late.orderId()));
         assertEquals(PaymentAttempt.ReviewReason.LATE_SUCCESS, lateResult.reviewReason());
         assertEquals(OrderStatus.PENDING_PAYMENT, orders.findByIdAndUserId(late.orderId(), late.ownerId()).orElseThrow().getStatus());
     }
@@ -402,6 +443,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         var missingCallback = callback(missingDate, "00", "00", null, null);
         var missing = reconciliation.reconcile(missingCallback);
         assertEquals(IpnClassification.INVALID_PROVIDER_TIMESTAMP, missing.classification());
+        assertEquals(0, countWorkForOrder(missingDate.orderId()));
         assertEquals(PaymentAttempt.ReviewReason.INVALID_EVENT_TIME, missing.reviewReason());
         testClock.set(BASE.plusSeconds(21));
         var missingReplay = reconciliation.reconcile(missingCallback);
@@ -414,6 +456,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         var ambiguous = payableFixture(9209, BASE.minusSeconds(5));
         var unknownStatus = reconciliation.reconcile(callback(ambiguous, "xx", "??", BASE.plusSeconds(1), null));
         assertEquals(IpnClassification.UNKNOWN_OR_AMBIGUOUS_PAYMENT_STATUS, unknownStatus.classification());
+        assertEquals(0, countWorkForOrder(ambiguous.orderId()));
         assertEquals(PaymentStatus.UNKNOWN, attempts.findByIdAndUserId(ambiguous.attemptId(), ambiguous.ownerId()).orElseThrow().getStatus());
         assertEquals(OrderStatus.PENDING_PAYMENT, orders.findByIdAndUserId(ambiguous.orderId(), ambiguous.ownerId()).orElseThrow().getStatus());
     }
@@ -424,6 +467,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
         var suspiciousCallback = callback(suspicious, "07", "07", BASE.plusSeconds(1), null);
         var first = reconciliation.reconcile(suspiciousCallback);
         assertEquals(IpnClassification.SUSPICIOUS_PAYMENT_REQUIRES_REVIEW, first.classification());
+        assertEquals(0, countWorkForOrder(suspicious.orderId()));
         assertEquals(PaymentStatus.UNKNOWN,
                 attempts.findByIdAndUserId(suspicious.attemptId(), suspicious.ownerId()).orElseThrow().getStatus());
         var audit = events.findById(first.eventId()).orElseThrow();
@@ -500,6 +544,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
             assertEquals(1, results.stream().filter(r -> r.classification() == IpnClassification.VALID_ON_TIME_SUCCESS).count());
             assertEquals(1, results.stream().filter(r -> r.classification() == IpnClassification.DUPLICATE_CALLBACK).count());
             assertEquals(1, events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.ownerId()).size());
+            assertEquals(1, countWorkForOrder(fixture.orderId()));
         }
 
         var rollbackFixture = payableFixture(9211, BASE.minusSeconds(5));
@@ -510,6 +555,7 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
             status.setRollbackOnly();
         });
         assertTrue(events.findAllByOrderIdAndUserId(rollbackFixture.orderId(), rollbackFixture.ownerId()).isEmpty());
+        assertEquals(0, countWorkForOrder(rollbackFixture.orderId()));
         assertEquals(PaymentStatus.CREATED,
                 attempts.findByIdAndUserId(rollbackFixture.attemptId(), rollbackFixture.ownerId()).orElseThrow().getStatus());
         assertEquals(OrderStatus.PENDING_PAYMENT,
@@ -621,6 +667,11 @@ class VnPayIpnReconciliationJpaH2IntegrationTest {
     private int countCases(String eventReference, String caseType) {
         return jdbc.queryForObject("SELECT COUNT(*) FROM payment_reconciliation_cases WHERE provider=? AND event_reference=? AND case_type=?",
                 Integer.class, "vnpay", eventReference, caseType);
+    }
+
+    private int countWorkForOrder(int orderId) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM payment_settlement_work_items w JOIN payment_events e ON e.id=w.payment_event_id WHERE e.order_id=?",
+                Integer.class, orderId);
     }
 
     private static String digest(VerifiedVnPayCallback callback) {

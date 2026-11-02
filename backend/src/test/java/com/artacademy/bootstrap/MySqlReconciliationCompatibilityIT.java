@@ -74,6 +74,8 @@ class MySqlReconciliationCompatibilityIT {
     @Autowired private PaymentEventConflictRepository conflicts;
     @Autowired private PaymentReconciliationCaseRepository cases;
     @Autowired private PaymentSettlementRepository settlements;
+    @Autowired private PaymentSettlementWorkItemRepository settlementWorkItems;
+    @Autowired private TestWorkRepository testWorkRepository;
     @Autowired private VnPayIpnReconciliationService reconciliation;
     @Autowired private VnPayCallbackVerifier verifier;
     @Autowired private VnPayProperties properties;
@@ -85,10 +87,11 @@ class MySqlReconciliationCompatibilityIT {
     private final List<String> unlinkedMerchantReferences = new CopyOnWriteArrayList<>();
 
     @BeforeEach
-    void assertExactIsolatedTargetAndV1ThroughV8() {
+    void assertExactIsolatedTargetAndV1ThroughV9() {
         assertThat(jdbc.queryForObject("SELECT DATABASE()", String.class)).isEqualTo("drawing_course_it");
         assertThat(jdbc.queryForObject("SELECT @@port", Integer.class)).isEqualTo(3306);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=TRUE AND version IN ('1','2','3','4','5','6','7','8')", Integer.class)).isEqualTo(8);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM flyway_schema_history WHERE success=TRUE AND version IN ('1','2','3','4','5','6','7','8','9')", Integer.class)).isEqualTo(9);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payment_settlement_work_items'", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payment_reconciliation_cases'", Integer.class)).isEqualTo(1);
     }
 
@@ -96,6 +99,7 @@ class MySqlReconciliationCompatibilityIT {
     void removeOnlyRowsCreatedByThisClass() {
         testCaseRepository.reset();
         testOrderRepository.reset();
+        testWorkRepository.reset();
         for (String merchantReference : unlinkedMerchantReferences)
             jdbc.update("DELETE FROM payment_reconciliation_cases WHERE provider=? AND merchant_reference=?",
                     PROVIDER, merchantReference);
@@ -104,6 +108,8 @@ class MySqlReconciliationCompatibilityIT {
             Integer orderId = fixture.orderId();
             jdbc.update("DELETE FROM payment_reconciliation_cases WHERE order_id=?", orderId);
             jdbc.update("DELETE FROM payment_event_conflicts WHERE order_id=?", orderId);
+            jdbc.update("DELETE FROM payment_settlement_work_actions WHERE work_item_id IN (SELECT id FROM payment_settlement_work_items WHERE payment_event_id IN (SELECT id FROM payment_events WHERE order_id=?))", orderId);
+            jdbc.update("DELETE FROM payment_settlement_work_items WHERE payment_event_id IN (SELECT id FROM payment_events WHERE order_id=?)", orderId);
             jdbc.update("DELETE FROM payment_events WHERE order_id=?", orderId);
             jdbc.update("DELETE FROM payment_attempts WHERE order_id=?", orderId);
             jdbc.update("DELETE FROM order_items WHERE order_id=?", orderId);
@@ -166,6 +172,7 @@ class MySqlReconciliationCompatibilityIT {
         assertThat(caseRow.getOrderId()).isEqualTo(fixture.orderId());
         assertThat(events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.userId())).hasSize(1);
         assertThat(settlements.findByOrderId(fixture.orderId())).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_settlement_work_items w JOIN payment_events e ON e.id=w.payment_event_id WHERE e.order_id=?", Integer.class, fixture.orderId())).isZero();
         assertThat(countCases(fixture.eventReference(), "UNKNOWN_PAYMENT_STATUS")).isEqualTo(1);
         assertThat(orders.findByIdAndUserId(fixture.orderId(), fixture.userId()).orElseThrow().getStatus())
                 .isEqualTo(OrderStatus.PENDING_PAYMENT);
@@ -181,6 +188,12 @@ class MySqlReconciliationCompatibilityIT {
         assertThat(outcomes).extracting(IpnReconciliationResult::classification)
                 .containsExactlyInAnyOrder(IpnClassification.VALID_ON_TIME_SUCCESS, IpnClassification.DUPLICATE_CALLBACK);
         assertThat(events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.userId())).hasSize(1);
+        var canonicalEvent = events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.userId()).getFirst();
+        var work = settlementWorkItems.findByPaymentEventId(canonicalEvent.getId()).orElseThrow();
+        assertThat(work.getState()).isEqualTo(PaymentSettlementWorkState.READY);
+        assertThat(work.getAttemptCount()).isZero();
+        assertThat(work.getRetryGeneration()).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_settlement_work_items w JOIN payment_events e ON e.id=w.payment_event_id WHERE e.order_id=?", Integer.class, fixture.orderId())).isEqualTo(1);
         assertThat(countCases(fixture.eventReference(), "UNKNOWN_PAYMENT_STATUS")).isZero();
         assertThat(settlements.findByOrderId(fixture.orderId())).isEmpty();
         assertThat(orders.findByIdAndUserId(fixture.orderId(), fixture.userId()).orElseThrow().getStatus())
@@ -199,6 +212,11 @@ class MySqlReconciliationCompatibilityIT {
                 .contains(IpnClassification.CONFLICTING_CALLBACK);
         assertThat(events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.userId())).hasSize(1);
         assertThat(conflicts.findAllByOrderIdAndUserId(fixture.orderId(), fixture.userId())).hasSize(1);
+        var firstEvent = events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.userId()).getFirst();
+        int expectedWorkCount = firstEvent.getOutcome() == PaymentEvent.Outcome.SUCCEEDED
+                && firstEvent.getDisposition() == PaymentEventAudit.Disposition.APPLIED
+                && firstEvent.getReason() == PaymentAttempt.ReviewReason.NONE ? 1 : 0;
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_settlement_work_items w JOIN payment_events e ON e.id=w.payment_event_id WHERE e.order_id=?", Integer.class, fixture.orderId())).isEqualTo(expectedWorkCount);
         assertThat(countCases(fixture.eventReference(), "CONFLICTING_CALLBACK")).isEqualTo(1);
         assertThat(settlements.findByOrderId(fixture.orderId())).isEmpty();
         assertThat(orders.findByIdAndUserId(fixture.orderId(), fixture.userId()).orElseThrow().getStatus())
@@ -222,6 +240,20 @@ class MySqlReconciliationCompatibilityIT {
     }
 
     @Test
+    void v5EventAndV9WorkInsertRollbackTogetherWhenWorkPersistenceFails() {
+        Fixture fixture = fixture();
+        var callback = callback(fixture.merchantReference(), "1234500", "00", "00", fixture.transactionReference());
+        testWorkRepository.failNextWrite(new DataIntegrityViolationException("injected V9 enqueue failure"));
+
+        assertThatThrownBy(() -> reconciliation.reconcile(callback))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThat(events.findAllByOrderIdAndUserId(fixture.orderId(), fixture.userId())).isEmpty();
+        assertThat(attempts.findByIdAndUserId(fixture.attemptId(), fixture.userId()).orElseThrow().getStatus())
+                .isEqualTo(PaymentStatus.CREATED);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM payment_settlement_work_items WHERE payment_event_id IN (SELECT id FROM payment_events WHERE order_id=?)", Integer.class, fixture.orderId())).isZero();
+    }
+
+    @Test
     void v8RejectsInvalidRoutesAndDatabaseForeignKeyFailureIsNotReplay() {
         assertMysqlCheckConstraintViolation(() -> jdbc.update("""
                 INSERT INTO payment_reconciliation_cases(provider,event_reference,case_type,evidence_fingerprint,
@@ -233,7 +265,7 @@ class MySqlReconciliationCompatibilityIT {
 
         var invalidFk = PaymentReconciliationCaseJpaEntity.linked(PROVIDER, "mysql-it-bad-fk",
                 "LATE_SUCCESS", "v1:" + "b".repeat(64), Integer.MAX_VALUE, null, Integer.MAX_VALUE,
-                Integer.MAX_VALUE, null, Instant.now());
+                Integer.MAX_VALUE, null, Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MICROS));
         assertThatThrownBy(() -> new TransactionTemplate(transactionManager).executeWithoutResult(tx -> cases.saveAndFlush(invalidFk)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -394,6 +426,37 @@ class MySqlReconciliationCompatibilityIT {
         }
 
         @Bean @Primary OrderRepository testOrderRepositoryPrimary(TestOrderRepository support) { return support; }
+
+        @Bean TestWorkRepository testWorkRepository(
+                @Qualifier("paymentSettlementWorkItemRepository") PaymentSettlementWorkItemRepository delegate) {
+            return new TestWorkRepository(delegate);
+        }
+
+        @Bean @Primary PaymentSettlementWorkItemRepository testWorkRepositoryPrimary(TestWorkRepository support) {
+            return support;
+        }
+    }
+
+    /** Test-only delegator can fail one enqueue write while all other methods use real JPA persistence. */
+    static final class TestWorkRepository implements PaymentSettlementWorkItemRepository {
+        private final PaymentSettlementWorkItemRepository delegate;
+        private volatile RuntimeException nextWriteFailure;
+
+        TestWorkRepository(PaymentSettlementWorkItemRepository delegate) { this.delegate = delegate; }
+        @Override public Optional<PaymentSettlementWorkItemJpaEntity> findById(Integer id) { return delegate.findById(id); }
+        @Override public Optional<PaymentSettlementWorkItemJpaEntity> findByPaymentEventId(Integer eventId) {
+            return delegate.findByPaymentEventId(eventId);
+        }
+        @Override public <S extends PaymentSettlementWorkItemJpaEntity> S saveAndFlush(S workItem) {
+            RuntimeException failure = nextWriteFailure;
+            if (failure != null) {
+                nextWriteFailure = null;
+                throw failure;
+            }
+            return delegate.saveAndFlush(workItem);
+        }
+        void failNextWrite(RuntimeException failure) { nextWriteFailure = failure; }
+        void reset() { nextWriteFailure = null; }
     }
 
     /** Concrete delegating test adapter avoids Mockito invoking abstract Spring Data methods. */

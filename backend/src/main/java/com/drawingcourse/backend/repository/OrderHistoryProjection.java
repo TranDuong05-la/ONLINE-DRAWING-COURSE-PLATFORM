@@ -12,6 +12,10 @@ public interface OrderHistoryProjection {
     Instant getCreatedAt();
     Instant getUpdatedAt();
     Instant getPaymentExpiresAt();
+    long getMerchandiseSubtotalVnd();
+    long getEligibleSubtotalVnd();
+    long getDiscountVnd();
+    long getShippingFeeVnd();
     long getTotalVnd();
     String getCurrency();
     Long getItemCount();

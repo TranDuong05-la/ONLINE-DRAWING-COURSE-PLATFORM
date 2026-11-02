@@ -5,6 +5,10 @@ import com.artacademy.enums.Role;
 import com.artacademy.repository.UserRepository;
 import com.artacademy.service.CustomUserDetailsService;
 import com.artacademy.service.JwtService;
+import io.jsonwebtoken.Jwts;
+import javax.crypto.SecretKey;
+import org.springframework.test.util.ReflectionTestUtils;
+import java.util.Date;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
@@ -64,6 +68,39 @@ class SecurityAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$.authorities[0]").value("ROLE_STAFF"));
     }
 
+    @Test
+    void invalidSignatureExpiredAndRefreshTokensAreRejectedAtHttpBoundary() throws Exception {
+        User user = createUser(Role.USER);
+        UserDetails persistedPrincipal = userDetailsService.loadUserByUsername(user.getEmail());
+
+        String otherKey = java.util.Base64.getEncoder().encodeToString(
+                "different-security-test-key-material-at-least-32-bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String wrongSignature = new JwtService(otherKey, 60_000, 120_000).generateAccessToken(persistedPrincipal);
+        mvc.perform(get("/__phase4/identity").header("Authorization", "Bearer " + wrongSignature))
+                .andExpect(status().isUnauthorized());
+
+        SecretKey signingKey = (SecretKey) ReflectionTestUtils.getField(jwtService, "signingKey");
+        long now = System.currentTimeMillis();
+        String expiredAccess = Jwts.builder().subject(user.getEmail()).claim("type", "ACCESS")
+                .issuedAt(new Date(now - 120_000)).expiration(new Date(now - 60_000))
+                .signWith(signingKey).compact();
+        mvc.perform(get("/__phase4/identity").header("Authorization", "Bearer " + expiredAccess))
+                .andExpect(status().isUnauthorized());
+
+        String refreshAsAccess = jwtService.generateRefreshToken(persistedPrincipal);
+        mvc.perform(get("/__phase4/identity").header("Authorization", "Bearer " + refreshAsAccess))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void inactivePersistedUserIsForbiddenEvenWithValidAccessToken() throws Exception {
+        User inactive = users.saveAndFlush(User.builder().fullName("Inactive security test")
+                .email("inactive-" + UUID.randomUUID() + "@example.test")
+                .passwordHash("test-hash").role(Role.USER).isActive(false).build());
+
+        mvc.perform(get("/__phase4/identity").header("Authorization", bearer(inactive)))
+                .andExpect(status().isForbidden());
+    }
     @Test
     void adminRouteRejectsStaffAndAllowsAdminAuthority() throws Exception {
         User staff = createUser(Role.STAFF);

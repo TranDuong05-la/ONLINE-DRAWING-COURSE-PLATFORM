@@ -9,6 +9,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'order_history_test_data.dart';
 
 void main() {
+  test('list defaults to the backend page-zero size-ten contract', () async {
+    final client = _FakeApiClient(
+      (path, query) async => {
+        'success': true,
+        'message': 'Orders retrieved successfully',
+        'data': orderPageJson([], totalElements: 0),
+      },
+    );
+    await ApiOrderHistoryRepository(apiClient: client).getOrders();
+    expect(client.lastQuery, {'page': 0, 'size': 10});
+  });
+
+  test('list rejects page sizes above the backend maximum', () async {
+    final repository = ApiOrderHistoryRepository(
+      apiClient: _FakeApiClient(
+        (path, query) async => throw StateError('unused'),
+      ),
+    );
+    await expectLater(
+      repository.getOrders(size: 51),
+      throwsA(isA<ArgumentError>()),
+    );
+  });
+
   test(
     'list calls shared ApiClient path with only pagination parameters',
     () async {
@@ -21,15 +45,15 @@ void main() {
             number: 2,
             totalPages: 3,
             totalElements: 45,
-            size: 20,
+            size: 10,
             last: false,
           ),
         },
       );
       final repository = ApiOrderHistoryRepository(apiClient: client);
-      final result = await repository.getOrders(page: 2, size: 20);
+      final result = await repository.getOrders(page: 2, size: 10);
       expect(client.lastPath, ApiConstants.orders);
-      expect(client.lastQuery, {'page': 2, 'size': 20});
+      expect(client.lastQuery, {'page': 2, 'size': 10});
       expect(client.lastQuery!.containsKey('userId'), isFalse);
       expect(result.content.single.orderId, 41);
     },
@@ -72,7 +96,7 @@ void main() {
         'data': {
           'totalElements': 0,
           'totalPages': 0,
-          'size': 20,
+          'size': 10,
           'number': 0,
           'first': true,
           'last': true,

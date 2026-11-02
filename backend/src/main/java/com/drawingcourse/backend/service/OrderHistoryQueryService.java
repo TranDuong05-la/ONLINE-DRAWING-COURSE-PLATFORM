@@ -38,7 +38,7 @@ public final class OrderHistoryQueryService {
     public PageResponse<OrderSummary> list(int page, int size) {
         Integer owner = owner();
         if (page < 0) throw new BusinessException("page must be zero or greater");
-        if (size < 1 || size > 100) throw new BusinessException("size must be between 1 and 100");
+        if (size < 1 || size > 50) throw new BusinessException("size must be between 1 and 50");
         return reads.execute(status -> {
             var result = orders.findHistoryByUserId(owner, PageRequest.of(page, size));
             return new PageResponse<>(result.getContent().stream().map(mapper::toSummary).toList(),

@@ -12,6 +12,7 @@ void main() {
   test('load more appends pages and removes duplicate Order IDs', () async {
     var pageOneCalls = 0;
     final repository = _FakeRepository((page, size) async {
+      expect(size, 10);
       if (page == 0) {
         return parsedPage(
           [1, 2],
@@ -121,7 +122,7 @@ class _FakeRepository implements OrderHistoryRepository {
   _FakeRepository(this.listHandler);
   final Future<PaginatedOrderHistory> Function(int page, int size) listHandler;
   @override
-  Future<PaginatedOrderHistory> getOrders({int page = 0, int size = 20}) =>
+  Future<PaginatedOrderHistory> getOrders({int page = 0, int size = 10}) =>
       listHandler(page, size);
   @override
   Future<OrderDetail> getOrderDetail(int orderId) => throw UnimplementedError();

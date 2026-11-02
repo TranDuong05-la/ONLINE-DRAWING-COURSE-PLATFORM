@@ -9,7 +9,7 @@ typedef SessionExpiryHandler = Future<void> Function();
 class OrderHistoryController extends ChangeNotifier {
   OrderHistoryController({required this.repository, this.onSessionExpired});
 
-  static const int pageSize = 20;
+  static const int pageSize = 10;
   final OrderHistoryRepository repository;
   final SessionExpiryHandler? onSessionExpired;
   final List<OrderSummary> _orders = [];

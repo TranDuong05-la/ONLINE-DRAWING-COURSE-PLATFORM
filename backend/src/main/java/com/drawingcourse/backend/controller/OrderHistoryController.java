@@ -25,7 +25,7 @@ public final class OrderHistoryController {
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<OrderSummary>>> list(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "10") int size) {
         return ResponseEntity.ok(ApiResponse.success("Orders retrieved successfully", orders.list(page, size)));
     }
 

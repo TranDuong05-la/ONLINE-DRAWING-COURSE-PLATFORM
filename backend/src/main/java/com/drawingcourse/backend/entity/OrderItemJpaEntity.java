@@ -10,7 +10,8 @@ import org.hibernate.type.SqlTypes;
 @Entity
 @Table(name = "order_items", uniqueConstraints = {
         @UniqueConstraint(name = "uk_order_items_reference", columnNames = {"order_id", "item_type", "item_id"}),
-        @UniqueConstraint(name = "uk_order_items_position", columnNames = {"order_id", "line_position"})})
+        @UniqueConstraint(name = "uk_order_items_position", columnNames = {"order_id", "line_position"}),
+        @UniqueConstraint(name = "uk_order_items_id_order", columnNames = {"id", "order_id"})})
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OrderItemJpaEntity {

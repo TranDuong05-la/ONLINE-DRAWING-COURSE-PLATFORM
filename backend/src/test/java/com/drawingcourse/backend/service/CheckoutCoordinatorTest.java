@@ -105,6 +105,40 @@ class CheckoutCoordinatorTest {
         assertEquals(0, f.orders.insertCount);
     }
 
+    @Test void courseOnlyModeRejectsProductBeforeCatalogOrOrderWrites() {
+        Fixture f = new Fixture();
+        var coordinator = CheckoutCoordinator.courseOnly(f.idempotency, f.cart, f.courseCatalog,
+                f.courses, f.vouchers, f.orders, f.clock,
+                f.transactionManager());
+        var request = new CheckoutRequest(3,
+                List.of(new CheckoutRequest.Selection(2, 2)), Optional.empty(), Optional.empty());
+
+        assertReason(CheckoutRejectedException.Reason.UNSUPPORTED_ITEM_TYPE,
+                () -> coordinator.checkoutCoursesOnly(17, "course-only-product", request));
+        assertEquals(0, f.productCatalog.lookups);
+        assertEquals(0, f.orders.insertCount);
+        assertEquals(0, f.idempotency.completeCount);
+    }
+
+    @Test void courseOnlyModePreservesIdempotentReplayWithoutProductParticipants() {
+        Fixture f = new Fixture();
+        f.cart.state = new CartState(4, 17, 3, List.of(new CartState.Item(1, CartItemType.COURSE, 11, 1)));
+        var coordinator = CheckoutCoordinator.courseOnly(f.idempotency, f.cart, f.courseCatalog,
+                f.courses, f.vouchers, f.orders, f.clock,
+                f.transactionManager());
+        var request = new CheckoutRequest(3,
+                List.of(new CheckoutRequest.Selection(1, 1)), Optional.empty(), Optional.empty());
+
+        assertEquals(new CheckoutCoordinator.CheckoutResult(501, false),
+                coordinator.checkoutCoursesOnly(17, "course-only-replay", request));
+        f.idempotency.next = new CheckoutIdempotencyService.Replayed(501);
+        assertEquals(new CheckoutCoordinator.CheckoutResult(501, true),
+                coordinator.checkoutCoursesOnly(17, "course-only-replay", request));
+        assertEquals(1, f.orders.insertCount);
+        assertEquals(1, f.idempotency.completeCount);
+        assertThat(f.courses.claimed).containsExactly(11);
+    }
+
     private static void assertReason(CheckoutRejectedException.Reason expected, Runnable action) {
         assertEquals(expected, assertThrows(CheckoutRejectedException.class, action::run).reason());
     }
@@ -127,9 +161,12 @@ class CheckoutCoordinatorTest {
                     voucher ? Optional.of(" SAVE10 ") : Optional.empty(), Optional.empty());
         }
         CheckoutCoordinator coordinator() {
-            JdbcDataSource ds = new JdbcDataSource(); ds.setURL("jdbc:h2:mem:coordinator-" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
             return new CheckoutCoordinator(idempotency, cart, courseCatalog, productCatalog, courses, inventory,
-                    vouchers, (user, lines, address) -> 15_000, orders, clock, new DataSourceTransactionManager(ds));
+                    vouchers, (user, lines, address) -> 15_000, orders, clock, transactionManager());
+        }
+        org.springframework.transaction.PlatformTransactionManager transactionManager() {
+            JdbcDataSource ds = new JdbcDataSource(); ds.setURL("jdbc:h2:mem:coordinator-" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1");
+            return new DataSourceTransactionManager(ds);
         }
     }
     private static final class Idempotency implements CheckoutIdempotencyPort {

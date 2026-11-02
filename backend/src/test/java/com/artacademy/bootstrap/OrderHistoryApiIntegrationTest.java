@@ -71,6 +71,11 @@ class OrderHistoryApiIntegrationTest {
                 .andExpect(jsonPath("$.data.content[0].orderId").value(Math.max(first, second)))
                 .andExpect(jsonPath("$.data.content[1].orderId").value(Math.min(first, second)))
                 .andExpect(jsonPath("$.data.content[0].itemCount").value(1))
+                .andExpect(jsonPath("$.data.content[0].merchandiseSubtotalVnd").value(200000))
+                .andExpect(jsonPath("$.data.content[0].eligibleSubtotalVnd").value(200000))
+                .andExpect(jsonPath("$.data.content[0].discountVnd").value(10000))
+                .andExpect(jsonPath("$.data.content[0].shippingFeeVnd").value(2500))
+                .andExpect(jsonPath("$.data.content[0].totalVnd").value(192500))
                 .andExpect(jsonPath("$.data.totalElements").value(3))
                 .andExpect(jsonPath("$.data.totalPages").value(2))
                 .andExpect(jsonPath("$.data.size").value(2))
@@ -89,14 +94,15 @@ class OrderHistoryApiIntegrationTest {
         User user = createUser();
         mvc.perform(get("/api/orders").header("Authorization", bearer(user)))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.content").isEmpty())
-                .andExpect(jsonPath("$.data.totalElements").value(0)).andExpect(jsonPath("$.data.empty").value(true));
+                .andExpect(jsonPath("$.data.totalElements").value(0)).andExpect(jsonPath("$.data.empty").value(true))
+                .andExpect(jsonPath("$.data.number").value(0)).andExpect(jsonPath("$.data.size").value(10));
         for (String[] params : List.of(new String[]{"page", "-1"}, new String[]{"size", "0"},
-                new String[]{"size", "101"}, new String[]{"size", "not-number"})) {
+                new String[]{"size", "51"}, new String[]{"size", "not-number"})) {
             mvc.perform(get("/api/orders").header("Authorization", bearer(user)).param(params[0], params[1]))
                     .andExpect(status().isBadRequest());
         }
-        mvc.perform(get("/api/orders").header("Authorization", bearer(user)).param("size", "100"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.data.size").value(100));
+        mvc.perform(get("/api/orders").header("Authorization", bearer(user)).param("size", "50"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.size").value(50));
     }
 
     @Test void detailReturnsOnlyImmutablePersistedSnapshotsAndOptionalAddress() throws Exception {

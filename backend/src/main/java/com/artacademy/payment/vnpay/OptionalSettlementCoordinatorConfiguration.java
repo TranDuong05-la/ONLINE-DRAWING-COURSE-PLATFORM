@@ -3,9 +3,12 @@ package com.artacademy.payment.vnpay;
 import com.drawingcourse.backend.repository.OrderRepository;
 import com.drawingcourse.backend.repository.PaymentAttemptRepository;
 import com.drawingcourse.backend.repository.PaymentEventRepository;
+import com.drawingcourse.backend.repository.PaymentSettlementWorkClaimRepository;
+import com.drawingcourse.backend.repository.PaymentSettlementWorkItemRepository;
 import com.drawingcourse.backend.service.settlement.CourseOwnershipConfirmationPort;
 import com.drawingcourse.backend.service.settlement.InventoryReservationConfirmationPort;
 import com.drawingcourse.backend.service.settlement.SettlementCoordinator;
+import com.drawingcourse.backend.service.settlement.SettlementTimeoutProperties;
 import com.drawingcourse.backend.service.settlement.SettlementLedgerPort;
 import com.drawingcourse.backend.service.settlement.VoucherConsumptionPort;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -28,8 +31,11 @@ class OptionalSettlementCoordinatorConfiguration {
             PaymentEventRepository events, SettlementLedgerPort ledger,
             CourseOwnershipConfirmationPort courses, InventoryReservationConfirmationPort inventory,
             VoucherConsumptionPort vouchers, Clock paymentSessionClock,
-            org.springframework.transaction.PlatformTransactionManager transactionManager) {
+            SettlementTimeoutProperties timeoutProperties,
+            org.springframework.transaction.PlatformTransactionManager transactionManager,
+            PaymentSettlementWorkItemRepository workItems,
+            PaymentSettlementWorkClaimRepository workClaims) {
         return new SettlementCoordinator(orders, attempts, events, ledger, courses, inventory,
-                vouchers, paymentSessionClock, transactionManager);
+                vouchers, paymentSessionClock, timeoutProperties, transactionManager, workItems, workClaims);
     }
 }

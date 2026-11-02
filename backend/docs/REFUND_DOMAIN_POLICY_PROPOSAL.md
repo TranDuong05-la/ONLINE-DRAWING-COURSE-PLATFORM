@@ -112,9 +112,13 @@ Unavailable evidence/provider behavior is conservative: return a typed `EVIDENCE
 
 Record requester, Admin reviewer, decision code/reason, timestamps, item amount snapshots, evidence source/version/reference, provider attempt references, and outcome transitions. Store bounded metadata and payload digests rather than secrets, credentials, card data, or complete signed callback/URL strings. Define retention and access controls with the team. Late/ambiguous payment callbacks remain in the existing reconciliation workflow until an explicit reviewed decision creates a refund obligation.
 
+### Course window application requirement
+
+`RefundEligibilityPolicy` is a pure function whose caller supplies the window origin and boundary. The future customer request workflow must load the committed settlement and pass its persisted `settledAt`, a server-derived request instant, and `DEADLINE_EXCLUSIVE`; it must also reject a request instant before `settledAt`. It must not pass `providerPaidAt` or `Order.createdAt` as the origin. The current persistence foundation snapshots both settlement timestamps, but no customer Course Refund workflow currently performs this mapping. The rule is documented and unit-tested at the policy boundary, not claimed as enforced by a production request service.
+
 ## Unresolved policy and integration decisions
 
-1. Does the Course 7-day window begin at provider payment time, local settlement time, or Order creation? Is the endpoint inclusive? Use the persisted UTC instant and DATETIME(6) precision consistently.
+1. **Confirmed Course window rule:** the seven-day window starts at the immutable `PaymentSettlement.settledAt` instant and is exclusive at the deadline: `settledAt <= requestedAt < settledAt + 7 * 24 hours`. Use elapsed `Instant`/`Duration` semantics, not calendar-day truncation. `providerPaidAt` remains provider evidence and is not the window origin; `Order.createdAt` must not be used.
 2. How are logical unit positions mapped to physical packed units/SKUs, and can a shipment contain already-packed but not-yet-handed-over items?
 3. May an eligible Course/Product refund be partial in amount, or only a full item/unit amount? If partial amount is allowed, define allocation and remaining-balance rules.
 4. Does one request cover multiple OrderItems? If yes, define partial provider success and request aggregate statuses.

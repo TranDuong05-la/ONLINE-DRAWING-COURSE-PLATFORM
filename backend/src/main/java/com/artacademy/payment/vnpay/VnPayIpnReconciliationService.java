@@ -37,6 +37,7 @@ public class VnPayIpnReconciliationService {
     private final PaymentEventRepository events;
     private final PaymentEventConflictRepository conflicts;
     private final PaymentReconciliationCaseWriter caseWriter;
+    private final PaymentSettlementWorkItemRepository settlementWorkItems;
     private final OrderRepository orders;
     private final VnPayCallbackVerifier verifier;
     private final Clock clock;
@@ -48,13 +49,15 @@ public class VnPayIpnReconciliationService {
 
     public VnPayIpnReconciliationService(VnPayProperties properties, PaymentAttemptRepository attempts,
             PaymentEventRepository events, PaymentEventConflictRepository conflicts,
-            PaymentReconciliationCaseRepository cases, OrderRepository orders,
+            PaymentReconciliationCaseRepository cases, PaymentSettlementWorkItemRepository settlementWorkItems,
+            OrderRepository orders,
             VnPayCallbackVerifier verifier, Clock clock, PlatformTransactionManager transactionManager) {
         this.properties = Objects.requireNonNull(properties);
         this.attempts = Objects.requireNonNull(attempts);
         this.events = Objects.requireNonNull(events);
         this.conflicts = Objects.requireNonNull(conflicts);
         this.caseWriter = new PaymentReconciliationCaseWriter(cases);
+        this.settlementWorkItems = Objects.requireNonNull(settlementWorkItems);
         this.orders = Objects.requireNonNull(orders);
         this.verifier = Objects.requireNonNull(verifier);
         this.clock = Objects.requireNonNull(clock);
@@ -72,7 +75,8 @@ public class VnPayIpnReconciliationService {
         try {
             return transaction.execute(status -> reconcileInTransaction(verified, receivedAt));
         } catch (PaymentReconciliationCaseWriter.ConcurrentCaseInsertException
-                 | ConcurrentPaymentEventInsertException concurrentInsert) {
+                 | ConcurrentPaymentEventInsertException
+                 | ConcurrentSettlementWorkInsertException concurrentInsert) {
             // The unique violation must roll back before the winner is re-read. Never retry inside a
             // caller-owned transaction, where rollback is still the caller's responsibility.
             if (participatingInOuterTransaction) throw concurrentInsert;
@@ -166,12 +170,7 @@ public class VnPayIpnReconciliationService {
                 throw new IllegalStateException("Persisted PaymentEvent identity or route is inconsistent");
             try {
                 policy.evaluate(attempt, event, order.getStatus(), Optional.of(previous));
-                persistLinkedCases(previous, null, amountMinor, timestamp, statusResult,
-                        order.getStatus(), receivedAt, fractionalVnd);
-                return new IpnReconciliationResult(IpnClassification.DUPLICATE_CALLBACK, attempt.id(),
-                        order.getId(), previous.id(), null, previous.disposition(), previous.reason(), true);
             } catch (IllegalStateException mismatch) {
-                var priorFingerprint = previous.fingerprint();
                 var conflictFingerprint = event.fingerprint();
                 var existingConflict = conflicts.findByFirstEventIdAndConflictingFingerprint(previous.id(), conflictFingerprint);
                 if (existingConflict.isPresent()) {
@@ -194,6 +193,11 @@ public class VnPayIpnReconciliationService {
                         PaymentEventAudit.Disposition.RECONCILIATION_REQUIRED,
                         null, false);
             }
+            ensureSettlementWork(previous, attempt, order, statusResult);
+            persistLinkedCases(previous, null, amountMinor, timestamp, statusResult,
+                    order.getStatus(), receivedAt, fractionalVnd);
+            return new IpnReconciliationResult(IpnClassification.DUPLICATE_CALLBACK, attempt.id(),
+                    order.getId(), previous.id(), null, previous.disposition(), previous.reason(), true);
         }
 
         var decision = policy.evaluate(attempt, event, order.getStatus(), Optional.empty());
@@ -213,11 +217,85 @@ public class VnPayIpnReconciliationService {
                 throw new ConcurrentPaymentEventInsertException(insertFailure);
             throw insertFailure;
         }
-        persistLinkedCases(paymentMapper.toDomain(savedEvent), null, amountMinor, timestamp, statusResult,
+        var persistedAudit = paymentMapper.toDomain(savedEvent);
+        ensureSettlementWork(persistedAudit, decision.attempt(), order, statusResult);
+        persistLinkedCases(persistedAudit, null, amountMinor, timestamp, statusResult,
                 order.getStatus(), receivedAt, fractionalVnd);
         return new IpnReconciliationResult(classify(decision, order.getStatus(), timestamp.valid(), fractionalVnd,
                 statusResult.classification()), attempt.id(), order.getId(), savedEvent.getId(),
                 null, decision.audit().disposition(), decision.audit().reason(), false);
+    }
+
+    /** Persisted V5 Event and its V9 work item share this reconciliation REQUIRED transaction. */
+    private void ensureSettlementWork(PaymentEventAudit audit, PaymentAttempt attempt,
+                                      OrderJpaEntity order, VnPayPaymentStatusClassifier.Result statusResult) {
+        PaymentEvent event = audit.event();
+        Instant deadline = order.getPaymentExpiresAt();
+        boolean eligible = audit.id() != null
+                && audit.fingerprint().equals(event.fingerprint())
+                && audit.attemptId().equals(attempt.id())
+                && audit.orderId().equals(order.getId())
+                && audit.userId().equals(order.getUserId())
+                && PROVIDER.equals(event.provider())
+                && event.merchantReference().equals(attempt.merchantReference())
+                && Objects.equals(event.transactionReference(), attempt.transactionReference())
+                && event.outcome() == PaymentEvent.Outcome.SUCCEEDED
+                && audit.disposition() == PaymentEventAudit.Disposition.APPLIED
+                && audit.reason() == PaymentAttempt.ReviewReason.NONE
+                && audit.afterStatus() == PaymentStatus.SUCCEEDED
+                && audit.observedOrderStatus() == OrderStatus.PENDING_PAYMENT
+                && statusResult.classification() == VnPayPaymentStatusClassifier.Classification.CONFIRMED_SUCCESS
+                && attempt.status() == PaymentStatus.SUCCEEDED
+                && attempt.reviewReason() == PaymentAttempt.ReviewReason.NONE
+                && Objects.equals(attempt.succeededAt(), event.occurredAt())
+                && attempt.expectedAmountVnd() == order.getTotalVnd()
+                && event.amountVnd() == order.getTotalVnd()
+                && attempt.currency().equals(order.getCurrency())
+                && event.currency().equals(order.getCurrency())
+                && "vnpay-hmac-sha512;paydate=valid".equals(event.verificationReference())
+                && deadline != null
+                && event.occurredAt().isBefore(deadline)
+                && event.receivedAt().isBefore(deadline)
+                && order.getStatus() == OrderStatus.PENDING_PAYMENT
+                && conflicts.findAllByOrderIdAndUserId(order.getId(), order.getUserId()).isEmpty();
+        if (!eligible) return;
+
+        var existing = settlementWorkItems.findByPaymentEventId(audit.id());
+        if (existing.isPresent()) {
+            if (!audit.id().equals(existing.get().getPaymentEventId()))
+                throw new IllegalStateException("Settlement work row has an inconsistent PaymentEvent identity");
+            return; // Do not reopen or reset a ready, leased, or terminal work item.
+        }
+        try {
+            settlementWorkItems.saveAndFlush(PaymentSettlementWorkItemJpaEntity.ready(audit.id(), event.receivedAt()));
+        } catch (RuntimeException insertFailure) {
+            if (isExactSettlementWorkEventDuplicate(insertFailure))
+                throw new ConcurrentSettlementWorkInsertException(insertFailure);
+            throw insertFailure;
+        }
+    }
+
+    static boolean isExactSettlementWorkEventDuplicate(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof SQLException sql) {
+                boolean duplicateKey = "23505".equals(sql.getSQLState())
+                        || ("23000".equals(sql.getSQLState()) && sql.getErrorCode() == 1062);
+                if (duplicateKey && namesConstraint(sql.getMessage(), "uk_payment_settlement_work_event")) return true;
+            }
+            if (current instanceof DataIntegrityViolationException
+                    && namesConstraint(current.getMessage(), "uk_payment_settlement_work_event")) {
+                for (Throwable cause = current.getCause(); cause != null; cause = cause.getCause())
+                    if (cause instanceof SQLException sql && ("23505".equals(sql.getSQLState())
+                            || ("23000".equals(sql.getSQLState()) && sql.getErrorCode() == 1062))) return true;
+            }
+        }
+        return false;
+    }
+
+    static final class ConcurrentSettlementWorkInsertException extends RuntimeException {
+        ConcurrentSettlementWorkInsertException(Throwable cause) {
+            super("Concurrent V9 settlement-work identity insert; transaction must roll back and be retried", cause);
+        }
     }
 
     private void persistLinkedCases(PaymentEventAudit audit, Integer conflictId, long amountMinor,

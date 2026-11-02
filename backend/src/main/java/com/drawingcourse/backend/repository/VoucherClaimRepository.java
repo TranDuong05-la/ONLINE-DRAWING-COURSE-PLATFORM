@@ -5,7 +5,9 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.repository.Repository;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import java.util.Collection;
 import java.util.Optional;
+import java.util.Set;
 
 /** Claim locking foundation. Settlement currently validates but never transitions a claim. */
 public interface VoucherClaimRepository extends Repository<VoucherClaimJpaEntity, Integer> {
@@ -21,6 +23,9 @@ public interface VoucherClaimRepository extends Repository<VoucherClaimJpaEntity
     Optional<LockRoute> findLockRouteByOrderIdAndUserId(@Param("orderId") Integer orderId,@Param("userId") Integer userId);
     Optional<VoucherClaimJpaEntity> findByClaimKeyAndUserId(String claimKey, Integer userId);
     Optional<VoucherClaimJpaEntity> findByClaimKey(String claimKey);
+    boolean existsByVoucherId(Integer voucherId);
+    @Query("select distinct c.voucherId from VoucherClaimJpaEntity c where c.voucherId in :voucherIds")
+    Set<Integer> findVoucherIdsWithClaims(@Param("voucherIds") Collection<Integer> voucherIds);
     <S extends VoucherClaimJpaEntity> S saveAndFlush(S row);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from VoucherClaimJpaEntity c where c.orderId = :orderId and c.userId = :userId")

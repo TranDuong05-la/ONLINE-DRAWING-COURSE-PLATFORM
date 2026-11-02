@@ -10,10 +10,10 @@ class ApiOrderHistoryRepository implements OrderHistoryRepository {
   final ApiClient _apiClient;
 
   @override
-  Future<PaginatedOrderHistory> getOrders({int page = 0, int size = 20}) async {
-    if (page < 0 || size < 1 || size > 100) {
+  Future<PaginatedOrderHistory> getOrders({int page = 0, int size = 10}) async {
+    if (page < 0 || size < 1 || size > 50) {
       throw ArgumentError(
-        'page must be non-negative and size must be between 1 and 100.',
+        'page must be non-negative and size must be between 1 and 50.',
       );
     }
     try {
