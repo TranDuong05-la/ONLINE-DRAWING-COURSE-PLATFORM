@@ -27,8 +27,14 @@ spring:
         format_sql: true
     open-in-view: false
 
+  # Upload ảnh bìa / video / PDF của B và ảnh bài nộp của C (giới hạn chi tiết từng loại kiểm tra trong code)
+  servlet:
+    multipart:
+      max-file-size: 200MB
+      max-request-size: 200MB
+
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
+    host: ${MAIL_HOST}
     port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
@@ -65,7 +71,31 @@ app:
     secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
-  frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
+  # ---- B: file upload của admin lưu trên ổ đĩa server, phục vụ ở /uploads/** ----
+  upload:
+    dir: ${UPLOAD_DIR:uploads}
+    # C: ảnh bài nộp tối đa 5MB (JPEG/PNG)
+    max-image-bytes: 5242880
+  # ---- B: dữ liệu mẫu chỉ nạp khi bảng còn trống. Mặc định tắt; profile h2 bật (xem application-h2.yaml) ----
+  seed:
+    enabled: ${SEED_ENABLED:false}
+    users:
+      enabled: false
+  # ---- C: học tập, bài nộp, chứng nhận ----
+  storage:
+    # Ảnh bài nộp và file PDF chứng nhận: lưu riêng tư (không phục vụ công khai như /uploads)
+    root: ${APP_STORAGE_ROOT:./storage}
+  learning:
+    # Xem đủ 90% thời lượng video thì bài học được tính là hoàn thành
+    complete-ratio: 0.9
+  certificate:
+    email-max-attempts: 5
+    email-cooldown-seconds: 300
+    # Link tải trong app (mở bằng trình xem PDF) và link gửi trong email
+    download-link-ttl-seconds: 300
+    email-link-ttl-seconds: 604800
+  # Địa chỉ đưa vào link tải chứng nhận (10.0.2.2 = máy host khi chạy Android emulator)
+  public-base-url: ${PUBLIC_BASE_URL:http://10.0.2.2:8080}
   google:
     client-id: ${GOOGLE_CLIENT_ID:}
 

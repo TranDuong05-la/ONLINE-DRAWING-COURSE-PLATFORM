@@ -164,6 +164,31 @@ class ProfileScreen extends StatelessWidget {
                 onTap: () => context.push('/profile/addresses'),
               ),
               const Divider(height: 1, indent: 56),
+              // C: admin xem chứng nhận đã cấp cho học viên; học viên xem chứng nhận và bài tập của mình
+              if (user.isAdmin) ...[
+                _buildMenuItem(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Chứng nhận đã cấp cho học viên',
+                  subtitle: 'Danh sách chứng nhận kèm tên học viên, khóa học và mã',
+                  onTap: () => context.push('/admin/certificates'),
+                ),
+                const Divider(height: 1, indent: 56),
+              ] else ...[
+                _buildMenuItem(
+                  icon: Icons.assignment_outlined,
+                  title: 'Bài tập của tôi',
+                  subtitle: 'Bài tập cần làm, đang chờ chấm và đã chấm',
+                  onTap: () => context.push('/profile/assignments'),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Chứng nhận của tôi',
+                  subtitle: 'Xem và tải chứng nhận các khóa học đã hoàn thành',
+                  onTap: () => context.push('/profile/certificates'),
+                ),
+                const Divider(height: 1, indent: 56),
+              ],
               _buildMenuItem(
                 icon: Icons.lock_outline_rounded,
                 title: 'Đổi mật khẩu',
@@ -184,6 +209,22 @@ class ProfileScreen extends StatelessWidget {
                   subtitle:
                       'Xem danh sách, tìm kiếm & quản lý trạng thái tài khoản',
                   onTap: () => context.push('/admin/users'),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
+                  icon: Icons.menu_book_outlined,
+                  iconColor: AppColors.primaryMedium,
+                  title: 'Quản lý khóa học & combo',
+                  subtitle: 'Tạo khóa, module, bài học, quà tặng kèm, xuất bản và combo',
+                  onTap: () => context.push('/admin/courses'),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
+                  icon: Icons.fact_check_outlined,
+                  iconColor: AppColors.primary,
+                  title: 'Chấm bài & đề bài tập',
+                  subtitle: 'Duyệt / yêu cầu sửa bài nộp, soạn đề bài tập cho bài học',
+                  onTap: () => context.push('/admin/learning'),
                 ),
               ]),
               const SizedBox(height: 20),

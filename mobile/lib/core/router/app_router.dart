@@ -4,6 +4,10 @@ import '../../features/address/add_edit_address_screen.dart';
 import '../../features/address/address_list_screen.dart';
 import '../../features/admin/admin_user_detail_screen.dart';
 import '../../features/admin/admin_user_list_screen.dart';
+import '../../features/course_admin/ui/course_admin_home_page.dart';
+import '../../features/learning/my_assignments_screen.dart';
+import '../../features/learning_admin/admin_certificates_screen.dart';
+import '../../features/learning_admin/learning_admin_home_page.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/cart/cart_screen.dart';
@@ -13,6 +17,7 @@ import '../../features/order_history/data/order_history_repository.dart';
 import '../../features/order_history/order_detail_screen.dart';
 import '../../features/order_history/order_history_screen.dart';
 import '../../features/home/main_screen.dart';
+import '../../features/profile/certificates_screen.dart';
 import '../../features/profile/change_password_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
 import '../../features/splash/splash_screen.dart';
@@ -67,6 +72,16 @@ class AppRouter {
           path: '/profile/edit',
           builder: (context, state) => const EditProfileScreen(),
         ),
+        // C: chứng nhận hoàn thành của học viên
+        GoRoute(
+          path: '/profile/certificates',
+          builder: (context, state) => const CertificatesScreen(),
+        ),
+        // C: bài tập của học viên (cần làm / chờ chấm / đã chấm)
+        GoRoute(
+          path: '/profile/assignments',
+          builder: (context, state) => const MyAssignmentsScreen(),
+        ),
         GoRoute(
           path: '/profile/change-password',
           builder: (context, state) => const ChangePasswordScreen(),
@@ -97,6 +112,22 @@ class AppRouter {
             final user = state.extra as UserModel?;
             return AdminUserDetailScreen(userId: id, initialUser: user);
           },
+        ),
+        // B: quản trị khóa học & combo. Đường dẫn /admin đã được Admin guard bên dưới chặn với tài khoản
+        // không phải ADMIN; backend cũng chặn lại bằng JWT (/api/admin/** chỉ cho ADMIN).
+        GoRoute(
+          path: '/admin/courses',
+          builder: (context, state) => const CourseAdminHomePage(),
+        ),
+        // C: chấm bài và soạn đề bài tập
+        GoRoute(
+          path: '/admin/learning',
+          builder: (context, state) => const LearningAdminHomePage(),
+        ),
+        // C: chứng nhận đã cấp cho học viên
+        GoRoute(
+          path: '/admin/certificates',
+          builder: (context, state) => const AdminCertificatesScreen(),
         ),
       ],
       redirect: (context, state) {

@@ -5,11 +5,17 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableAsync;
+
 import com.drawingcourse.backend.config.CourseOnlyCheckoutConfiguration;
 
+// Member C's certificate and notification mail is dispatched asynchronously after commit.
 @SpringBootApplication(scanBasePackages = "com.artacademy")
-@EntityScan(basePackages = {"com.artacademy.entity", "com.drawingcourse.backend.entity"})
-@EnableJpaRepositories(basePackages = {"com.artacademy.repository", "com.drawingcourse.backend.repository"})
+@EnableAsync
+@EntityScan(basePackages = {"com.artacademy.entity", "com.drawingcourse.backend.entity",
+        "com.artacademy.course", "com.artacademy.bundle", "com.artacademy.product", "com.artacademy.learning"})
+@EnableJpaRepositories(basePackages = {"com.artacademy.repository", "com.drawingcourse.backend.repository",
+        "com.artacademy.course", "com.artacademy.bundle", "com.artacademy.product", "com.artacademy.learning"})
 @Import(CourseOnlyCheckoutConfiguration.class)
 public class ArtAcademyApplication {
 

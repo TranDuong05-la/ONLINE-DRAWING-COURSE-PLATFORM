@@ -104,7 +104,16 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs"
                         ).permitAll()
-                        // Admin endpoints
+                        // B: khóa học & combo cho học viên (chỉ GET) và file đã upload (ảnh, video, PDF): công khai.
+                        // Video/ảnh được tải bằng Image.network / video_player nên không gửi kèm token được.
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/courses", "/api/courses/**",
+                                "/api/bundles", "/api/bundles/**",
+                                "/uploads/**"
+                        ).permitAll()
+                        // C: link tải chứng nhận có token ký số ngắn hạn (kiểm tra trong CertificateService)
+                        .requestMatchers(HttpMethod.GET, "/api/files/certificates/*/pdf").permitAll()
+                        // Admin endpoints (gồm quản trị khóa học/combo/upload của B và chấm bài của C)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // All other API endpoints require authentication
                         .anyRequest().authenticated();

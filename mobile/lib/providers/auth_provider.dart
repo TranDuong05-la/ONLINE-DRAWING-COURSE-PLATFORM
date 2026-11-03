@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
 import '../core/network/api_exceptions.dart';
+import '../core/utils/app_logger.dart';
 
 enum AuthStatus {
   initial,
@@ -82,7 +83,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      logDebug('Auth login error: $e');
+      _errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
       _status = AuthStatus.error;
       notifyListeners();
       return false;
@@ -117,7 +119,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      logDebug('Auth register error: $e');
+      _errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
       _status = AuthStatus.error;
       notifyListeners();
       return false;
@@ -166,7 +169,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      logDebug('Auth Google login error: $e');
+      _errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
       _status = AuthStatus.error;
       notifyListeners();
       return false;

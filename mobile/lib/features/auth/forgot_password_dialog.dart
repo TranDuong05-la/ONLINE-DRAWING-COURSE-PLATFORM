@@ -238,7 +238,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
                           if (val == null || val.trim().isEmpty) {
                             return 'Vui lòng nhập email';
                           }
-                          final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                          final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$');
                           if (!emailRegex.hasMatch(val.trim())) {
                             return 'Địa chỉ email không hợp lệ';
                           }
