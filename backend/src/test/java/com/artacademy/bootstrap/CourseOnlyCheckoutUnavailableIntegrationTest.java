@@ -17,8 +17,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Confirms explicit enablement cannot bypass missing real Member B/C ports. */
-@SpringBootTest(classes = ArtAcademyApplication.class, properties = "app.checkout.course-only.enabled=true")
+/** Core composition can be prepared while the customer-facing HTTP boundary remains independently disabled. */
+@SpringBootTest(classes = ArtAcademyApplication.class, properties = {
+        "app.checkout.course-only.enabled=true",
+        "app.checkout.course-only.catalog-adapter.enabled=true"
+})
 @ActiveProfiles("test")
 @AutoConfigureMockMvc
 class CourseOnlyCheckoutUnavailableIntegrationTest {
@@ -26,9 +29,9 @@ class CourseOnlyCheckoutUnavailableIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private MockMvc mvc;
 
-    @Test void missingCourseCatalogAndClaimAdaptersKeepBoundaryUnavailableAndCreateNoOrder() {
-        assertThat(context.getBeansOfType(CheckoutCoordinator.class)).isEmpty();
-        assertThat(context.getBeansOfType(CourseOnlyCheckoutApplicationService.class)).isEmpty();
+    @Test void checkoutCompositionDoesNotRegisterHttpBoundaryWithoutItsIndependentFlag() {
+        assertThat(context.getBeansOfType(CheckoutCoordinator.class)).hasSize(1);
+        assertThat(context.getBeansOfType(CourseOnlyCheckoutApplicationService.class)).hasSize(1);
         assertThat(context.getBeansOfType(CourseOnlyCheckoutController.class)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM orders", Integer.class)).isZero();
     }

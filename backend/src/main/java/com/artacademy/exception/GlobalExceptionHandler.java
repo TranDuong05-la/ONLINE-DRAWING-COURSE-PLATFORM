@@ -126,8 +126,13 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Nội dung gửi lên không đúng định dạng JSON hoặc sai kiểu dữ liệu"));
     }
 
-    @ExceptionHandler({MissingServletRequestParameterException.class, MissingServletRequestPartException.class})
+    @ExceptionHandler({MissingServletRequestParameterException.class, MissingServletRequestPartException.class,
+            org.springframework.web.bind.MissingRequestHeaderException.class})
     public ResponseEntity<ApiResponse<Void>> handleMissingParameter(Exception ex) {
+        if (ex instanceof org.springframework.web.bind.MissingRequestHeaderException header) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error("Thiếu header bắt buộc: " + header.getHeaderName()));
+        }
         return ResponseEntity.badRequest().body(ApiResponse.error("Thiếu tham số hoặc file bắt buộc"));
     }
 

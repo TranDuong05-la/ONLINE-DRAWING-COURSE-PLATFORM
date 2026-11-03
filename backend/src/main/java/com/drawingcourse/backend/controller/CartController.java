@@ -10,6 +10,7 @@ import com.drawingcourse.backend.service.CartState;
 import jakarta.validation.Valid;
 import java.util.Objects;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/cart")
 @ConditionalOnProperty(name = "app.cart.api-enabled", havingValue = "true")
+@ConditionalOnExpression("'${app.cart.course-only.api-enabled:false}' != 'true'")
 public final class CartController {
     private final CartApplicationService carts;
     private final CartAvailabilityProjector projector;

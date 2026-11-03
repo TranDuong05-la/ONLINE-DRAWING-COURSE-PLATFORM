@@ -69,7 +69,9 @@ public class CourseOnlyCheckoutConfiguration {
     @Bean
     @ConditionalOnBean(CheckoutCoordinator.class)
     CourseOnlyCheckoutApplicationService courseOnlyCheckoutApplicationService(
-            AuthenticatedUserIdResolver userIds, CheckoutCoordinator coordinator) {
+            AuthenticatedUserIdResolver userIds,
+            @org.springframework.beans.factory.annotation.Qualifier("courseOnlyCheckoutCoordinator")
+            CheckoutCoordinator coordinator) {
         return new CourseOnlyCheckoutApplicationService(userIds, coordinator);
     }
 

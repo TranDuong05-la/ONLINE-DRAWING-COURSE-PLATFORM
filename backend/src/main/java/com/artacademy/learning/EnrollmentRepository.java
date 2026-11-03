@@ -25,6 +25,8 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
 	List<Enrollment> findByCourseIdAndStatus(Integer courseId, Enrollment.Status status);
 
+	List<Enrollment> findByCourseIdOrderByEnrolledAtDescIdDesc(Integer courseId);
+
 	/** SELECT ... FOR UPDATE: tuần tự hóa việc xét hoàn thành / cấp chứng nhận / thu hồi cho cùng học viên + khóa. */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select e from Enrollment e where e.learnerProfileId = :profileId and e.courseId = :courseId")

@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../models/learning_models.dart';
 import '../../repositories/learning_repository.dart';
+import '../cart/course_ownership_refresh_signal.dart';
 import '../bundle/ui/bundle_list_page.dart';
 import '../course/ui/course_list_page.dart';
 import '../learning/course_detail_screen.dart';
@@ -27,11 +28,20 @@ class CoursesTab extends StatelessWidget {
             labelColor: AppColors.primaryDark,
             unselectedLabelColor: AppColors.textSecondary,
             indicatorColor: AppColors.primary,
-            labelStyle: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14),
-            tabs: const [Tab(text: 'Khóa của tôi'), Tab(text: 'Từng khóa'), Tab(text: 'Combo')],
+            labelStyle: GoogleFonts.plusJakartaSans(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+            ),
+            tabs: const [
+              Tab(text: 'Khóa của tôi'),
+              Tab(text: 'Từng khóa'),
+              Tab(text: 'Combo'),
+            ],
           ),
         ),
-        body: const TabBarView(children: [_MyCoursesView(), CourseListPage(), BundleListPage()]),
+        body: const TabBarView(
+          children: [_MyCoursesView(), CourseListPage(), BundleListPage()],
+        ),
       ),
     );
   }
@@ -45,16 +55,35 @@ class _MyCoursesView extends StatefulWidget {
   State<_MyCoursesView> createState() => _MyCoursesViewState();
 }
 
-class _MyCoursesViewState extends State<_MyCoursesView> with AutomaticKeepAliveClientMixin {
+class _MyCoursesViewState extends State<_MyCoursesView>
+    with AutomaticKeepAliveClientMixin {
   final _repo = LearningRepository();
   int _reloadKey = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    CourseOwnershipRefreshSignal.revision.addListener(_refreshAfterPurchase);
+  }
+
+  @override
+  void dispose() {
+    CourseOwnershipRefreshSignal.revision.removeListener(_refreshAfterPurchase);
+    super.dispose();
+  }
+
+  void _refreshAfterPurchase() {
+    if (mounted) setState(() => _reloadKey++);
+  }
 
   @override
   bool get wantKeepAlive => true;
 
   Future<void> _open(Widget screen) async {
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
-    if (mounted) setState(() => _reloadKey++); // refresh progress after learning
+    if (mounted) {
+      setState(() => _reloadKey++); // refresh progress after learning
+    }
   }
 
   @override
@@ -71,20 +100,36 @@ class _MyCoursesViewState extends State<_MyCoursesView> with AutomaticKeepAliveC
             child: ListView(
               children: [
                 const SizedBox(height: 80),
-                const Icon(Icons.school_outlined, size: 64, color: AppColors.textMuted),
+                const Icon(
+                  Icons.school_outlined,
+                  size: 64,
+                  color: AppColors.textMuted,
+                ),
                 const SizedBox(height: 12),
-                Text('Bạn chưa có khóa học nào',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 16, fontWeight: FontWeight.w700)),
+                Text(
+                  'Bạn chưa có khóa học nào',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
                 const SizedBox(height: 6),
-                Text('Xem tab "Từng khóa" hoặc "Combo" để chọn khóa học phù hợp.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textSecondary)),
+                Text(
+                  'Xem tab "Từng khóa" hoặc "Combo" để chọn khóa học phù hợp.',
+                  textAlign: TextAlign.center,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ],
             ),
           );
         }
-        final learning = courses.where((c) => !c.completed && c.continueLessonId != null).toList();
+        final learning = courses
+            .where((c) => !c.completed && c.continueLessonId != null)
+            .toList();
         return RefreshIndicator(
           onRefresh: reload,
           color: AppColors.primary,
@@ -94,12 +139,17 @@ class _MyCoursesViewState extends State<_MyCoursesView> with AutomaticKeepAliveC
               if (learning.isNotEmpty) ...[
                 _ContinueCard(
                   course: learning.first,
-                  onTap: () => _open(LessonScreen(lessonId: learning.first.continueLessonId!)),
+                  onTap: () => _open(
+                    LessonScreen(lessonId: learning.first.continueLessonId!),
+                  ),
                 ),
                 const SizedBox(height: 18),
               ],
               for (final c in courses)
-                _MyCourseCard(course: c, onTap: () => _open(CourseDetailScreen(courseId: c.courseId))),
+                _MyCourseCard(
+                  course: c,
+                  onTap: () => _open(CourseDetailScreen(courseId: c.courseId)),
+                ),
             ],
           ),
         );
@@ -122,7 +172,9 @@ class _ContinueCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(colors: [AppColors.primaryDark, AppColors.primaryMedium]),
+          gradient: const LinearGradient(
+            colors: [AppColors.primaryDark, AppColors.primaryMedium],
+          ),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Row(
@@ -131,12 +183,24 @@ class _ContinueCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('TIẾP TỤC HỌC',
-                      style: GoogleFonts.plusJakartaSans(
-                          fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.accentYellow, letterSpacing: 1)),
+                  Text(
+                    'TIẾP TỤC HỌC',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.accentYellow,
+                      letterSpacing: 1,
+                    ),
+                  ),
                   const SizedBox(height: 6),
-                  Text(course.title,
-                      style: GoogleFonts.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w700, color: Colors.white)),
+                  Text(
+                    course.title,
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
@@ -144,12 +208,19 @@ class _ContinueCard extends StatelessWidget {
                       value: course.progressPercent / 100,
                       minHeight: 6,
                       backgroundColor: Colors.white24,
-                      valueColor: const AlwaysStoppedAnimation(AppColors.accentYellow),
+                      valueColor: const AlwaysStoppedAnimation(
+                        AppColors.accentYellow,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Text('${course.completedLessons}/${course.totalLessons} bài • ${course.progressPercent}%',
-                      style: GoogleFonts.plusJakartaSans(fontSize: 12, color: Colors.white70)),
+                  Text(
+                    '${course.completedLessons}/${course.totalLessons} bài • ${course.progressPercent}%',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontSize: 12,
+                      color: Colors.white70,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -157,8 +228,15 @@ class _ContinueCard extends StatelessWidget {
             Container(
               width: 48,
               height: 48,
-              decoration: const BoxDecoration(color: AppColors.accentYellow, shape: BoxShape.circle),
-              child: const Icon(Icons.play_arrow_rounded, color: AppColors.primaryDark, size: 30),
+              decoration: const BoxDecoration(
+                color: AppColors.accentYellow,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.play_arrow_rounded,
+                color: AppColors.primaryDark,
+                size: 30,
+              ),
             ),
           ],
         ),
@@ -185,9 +263,14 @@ class _MyCourseCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(course.title,
-                    style: GoogleFonts.plusJakartaSans(
-                        fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.primaryDark)),
+                Text(
+                  course.title,
+                  style: GoogleFonts.plusJakartaSans(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primaryDark,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
@@ -195,17 +278,28 @@ class _MyCourseCard extends StatelessWidget {
                     value: course.progressPercent / 100,
                     minHeight: 6,
                     backgroundColor: AppColors.surfaceMuted,
-                    valueColor: AlwaysStoppedAnimation(course.completed ? AppColors.success : AppColors.primary),
+                    valueColor: AlwaysStoppedAnimation(
+                      course.completed ? AppColors.success : AppColors.primary,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
-                    Text('${course.completedLessons}/${course.totalLessons} bài • ${course.progressPercent}%',
-                        style: GoogleFonts.plusJakartaSans(fontSize: 12, color: AppColors.textSecondary)),
+                    Text(
+                      '${course.completedLessons}/${course.totalLessons} bài • ${course.progressPercent}%',
+                      style: GoogleFonts.plusJakartaSans(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                     const Spacer(),
                     if (course.completed)
-                      const StatusPill(label: 'Hoàn thành', color: AppColors.success, icon: Icons.verified),
+                      const StatusPill(
+                        label: 'Hoàn thành',
+                        color: AppColors.success,
+                        icon: Icons.verified,
+                      ),
                   ],
                 ),
               ],

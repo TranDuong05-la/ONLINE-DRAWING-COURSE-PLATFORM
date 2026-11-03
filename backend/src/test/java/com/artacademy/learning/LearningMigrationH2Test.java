@@ -44,7 +44,8 @@ class LearningMigrationH2Test {
 		ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
 				new ClassPathResource("db/migration/V11__course_catalog.sql"),
 				new ClassPathResource("db/migration/V12__learning.sql"),
-				new ClassPathResource("db/migration/V13__learning_notifications.sql"));
+				new ClassPathResource("db/migration/V13__learning_notifications.sql"),
+				new ClassPathResource("db/migration/V15__lesson_comments.sql"));
 		populator.execute(dataSource);
 
 		StandardServiceRegistry registry = new StandardServiceRegistryBuilder()
@@ -63,10 +64,11 @@ class LearningMigrationH2Test {
 				.addAnnotatedClass(LessonProgress.class).addAnnotatedClass(Assignment.class)
 				.addAnnotatedClass(AssignmentSubmission.class).addAnnotatedClass(Certificate.class)
 				.addAnnotatedClass(com.artacademy.learning.notification.LearningNotification.class)
+				.addAnnotatedClass(com.artacademy.learning.comment.LessonComment.class)
 				.buildMetadata();
 
 		List<String> learningTables = List.of("user_course_enrollments", "course_claims", "user_lesson_progress",
-				"assignments", "assignment_submissions", "certificates", "learning_notifications");
+				"assignments", "assignment_submissions", "certificates", "learning_notifications", "lesson_comments");
 		int checked = 0;
 		try (Connection connection = dataSource.getConnection()) {
 			for (PersistentClass entity : metadata.getEntityBindings()) {

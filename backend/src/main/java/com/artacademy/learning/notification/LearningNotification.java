@@ -37,7 +37,11 @@ public class LearningNotification {
 		/** Bài nộp bị yêu cầu sửa. */
 		GRADED_REVISION,
 		/** Được cấp chứng nhận hoàn thành. */
-		CERTIFICATE
+		CERTIFICATE,
+		/** Học viên bình luận dưới video (gửi ADMIN / STAFF / INSTRUCTOR). */
+		NEW_COMMENT,
+		/** Bình luận của mình được trả lời. */
+		COMMENT_REPLY
 	}
 
 	@Id

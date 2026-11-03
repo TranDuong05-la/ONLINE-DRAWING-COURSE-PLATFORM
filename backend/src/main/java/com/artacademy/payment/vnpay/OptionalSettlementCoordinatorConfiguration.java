@@ -11,10 +11,10 @@ import com.drawingcourse.backend.service.settlement.SettlementCoordinator;
 import com.drawingcourse.backend.service.settlement.SettlementTimeoutProperties;
 import com.drawingcourse.backend.service.settlement.SettlementLedgerPort;
 import com.drawingcourse.backend.service.settlement.VoucherConsumptionPort;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.time.Clock;
 
@@ -24,18 +24,15 @@ import java.time.Clock;
 class OptionalSettlementCoordinatorConfiguration {
     @Bean
     @ConditionalOnProperty(prefix = "app.payment.vnpay", name = "enabled", havingValue = "true")
-    @ConditionalOnBean({OrderRepository.class, PaymentAttemptRepository.class, PaymentEventRepository.class,
-            SettlementLedgerPort.class, CourseOwnershipConfirmationPort.class,
-            InventoryReservationConfirmationPort.class, VoucherConsumptionPort.class})
     SettlementCoordinator settlementCoordinator(OrderRepository orders, PaymentAttemptRepository attempts,
             PaymentEventRepository events, SettlementLedgerPort ledger,
-            CourseOwnershipConfirmationPort courses, InventoryReservationConfirmationPort inventory,
+            CourseOwnershipConfirmationPort courses, ObjectProvider<InventoryReservationConfirmationPort> inventory,
             VoucherConsumptionPort vouchers, Clock paymentSessionClock,
             SettlementTimeoutProperties timeoutProperties,
             org.springframework.transaction.PlatformTransactionManager transactionManager,
             PaymentSettlementWorkItemRepository workItems,
             PaymentSettlementWorkClaimRepository workClaims) {
-        return new SettlementCoordinator(orders, attempts, events, ledger, courses, inventory,
+        return new SettlementCoordinator(orders, attempts, events, ledger, courses, inventory.getIfAvailable(),
                 vouchers, paymentSessionClock, timeoutProperties, transactionManager, workItems, workClaims);
     }
 }

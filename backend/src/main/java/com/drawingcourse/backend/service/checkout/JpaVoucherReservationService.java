@@ -173,12 +173,13 @@ public final class JpaVoucherReservationService implements VoucherReservationPor
 
     @Override
     public void consumeForOrder(Integer userId, Integer orderId, String paymentReference,
-                                Instant verifiedPaidAt, Instant observedAt) {
+                                Instant verifiedPaidAt, Instant verifiedReceivedAt, Instant settledAt) {
         requirePositive(userId, "userId");
         requirePositive(orderId, "orderId");
         Objects.requireNonNull(paymentReference, "paymentReference");
         Objects.requireNonNull(verifiedPaidAt, "verifiedPaidAt");
-        Objects.requireNonNull(observedAt, "observedAt");
+        Objects.requireNonNull(verifiedReceivedAt, "verifiedReceivedAt");
+        Objects.requireNonNull(settledAt, "settledAt");
         inTransaction(() -> {
             OrderJpaEntity order = orders.findForUpdate(orderId, userId)
                     .orElseThrow(() -> new IllegalArgumentException("Order not found for owner"));
@@ -189,7 +190,7 @@ public final class JpaVoucherReservationService implements VoucherReservationPor
             VoucherClaimJpaEntity claim = lockClaimAndCounters(order, userId);
             if (claim == null) return null;
             VoucherClaim.State oldState = claim.getState();
-            claim.redeem(paymentReference, verifiedPaidAt, observedAt); // Enforces the exclusive deadline.
+            claim.redeem(paymentReference, verifiedPaidAt, verifiedReceivedAt, settledAt);
             if (oldState == VoucherClaim.State.RESERVED) {
                 countersFor(claim).redeemOne();
                 userUsage.findForUpdate(claim.getVoucherId(), userId)

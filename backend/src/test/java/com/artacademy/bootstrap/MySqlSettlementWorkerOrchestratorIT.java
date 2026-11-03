@@ -639,7 +639,8 @@ class MySqlSettlementWorkerOrchestratorIT {
         }
 
         @Override
-        public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId, Instant confirmedAt) {
+        public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId,
+                                          Integer orderItemId, Instant confirmedAt) {
             effect("course-confirm", orderId, courseId);
         }
 

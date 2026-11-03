@@ -55,15 +55,51 @@ spring:
           protocol: smtp
 
 app:
+  # ---- D (theo nhánh integration của Klosyus): mọi cờ mua hàng mặc định tắt ----
+  # General Cart requires the Product/stock projection and remains separately gated.
+  cart:
+    api-enabled: ${CART_API_ENABLED:false}
+    # Course-only Cart uses B's sellable catalog and C's ownership/claim reads; disabled by default.
+    course-only:
+      api-enabled: ${COURSE_ONLY_CART_API_ENABLED:false}
   checkout:
+    # Product Checkout composes the existing Course claims, trusted E catalog, inventory and explicit shipping policy.
+    product:
+      enabled: ${PRODUCT_CHECKOUT_ENABLED:false}
+      http-enabled: ${PRODUCT_CHECKOUT_HTTP_ENABLED:false}
+    shipping:
+      flat-fee-vnd: ${PRODUCT_SHIPPING_FLAT_FEE_VND:}
     course-only:
       enabled: ${COURSE_ONLY_CHECKOUT_ENABLED:false}
+      http-enabled: ${COURSE_ONLY_CHECKOUT_HTTP_ENABLED:false}
+      catalog-adapter:
+        enabled: ${COURSE_ONLY_CHECKOUT_CATALOG_ADAPTER_ENABLED:false}
   voucher:
     api-enabled: ${VOUCHER_API_ENABLED:false}
     admin-api-enabled: ${VOUCHER_ADMIN_API_ENABLED:false}
+  order:
+    expiration:
+      enabled: ${ORDER_EXPIRATION_ENABLED:false}
+      scheduler:
+        enabled: ${ORDER_EXPIRATION_SCHEDULER_ENABLED:false}
+        batch-size: ${ORDER_EXPIRATION_BATCH_SIZE:100}
+        initial-delay-ms: ${ORDER_EXPIRATION_SCHEDULER_INITIAL_DELAY_MS:15000}
+        fixed-delay-ms: ${ORDER_EXPIRATION_SCHEDULER_FIXED_DELAY_MS:60000}
   payment:
+    settlement:
+      enabled: ${PAYMENT_SETTLEMENT_ENABLED:false}
+      worker:
+        enabled: ${PAYMENT_SETTLEMENT_WORKER_ENABLED:false}
+        worker-id: ${PAYMENT_SETTLEMENT_WORKER_ID:course-settlement-worker}
+        batch-size: ${PAYMENT_SETTLEMENT_WORKER_BATCH_SIZE:16}
+        scheduler:
+          enabled: ${PAYMENT_SETTLEMENT_SCHEDULER_ENABLED:false}
+          initial-delay-ms: ${PAYMENT_SETTLEMENT_SCHEDULER_INITIAL_DELAY_MS:10000}
+          fixed-delay-ms: ${PAYMENT_SETTLEMENT_SCHEDULER_FIXED_DELAY_MS:10000}
     vnpay:
       enabled: ${VNPAY_ENABLED:false}
+      session-api:
+        enabled: ${VNPAY_SESSION_API_ENABLED:false}
       ipn:
         enabled: ${VNPAY_IPN_ENABLED:false}
       payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}

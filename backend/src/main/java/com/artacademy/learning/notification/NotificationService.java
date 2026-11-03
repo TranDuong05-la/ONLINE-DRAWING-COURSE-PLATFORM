@@ -83,6 +83,7 @@ public class NotificationService {
 
 	private void deliver(NotificationRequest r) {
 		List<Integer> recipients = r.userId() != null ? List.of(r.userId())
+				: r.userIds() != null ? r.userIds().stream().distinct().toList()
 				: enrollments.findByCourseIdAndStatus(r.fanOutCourseId(), Enrollment.Status.ACTIVE).stream()
 						.map(Enrollment::getUserId).distinct().toList();
 		for (Integer userId : recipients) {

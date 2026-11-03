@@ -105,6 +105,8 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs"
                         ).permitAll()
+                        // Trang lỗi của Spring: mở để lỗi 400/404 không bị đổi thành 401
+                        .requestMatchers("/error").permitAll()
                         // Khóa học & combo cho học viên (chỉ GET), ảnh đã upload (ảnh bìa) và link media có chữ ký: công khai.
                         // Ảnh được tải bằng Image.network nên không gửi kèm token được. Video/PDF KHÔNG còn công khai:
                         // chỉ tải được qua /media/{file}?exp&sig (link có hạn do API cấp cho người có quyền xem).

@@ -50,7 +50,8 @@ public final class OrderExpirationCoordinator {
         this.conflicts = Objects.requireNonNull(conflicts);
         this.settlements = Objects.requireNonNull(settlements);
         this.vouchers = Objects.requireNonNull(vouchers);
-        this.inventory = Objects.requireNonNull(inventory);
+        // Null is the explicit Course-only composition; Product-bearing Orders fail closed before writes.
+        this.inventory = inventory;
         this.courses = Objects.requireNonNull(courses);
         this.clock = Objects.requireNonNull(clock);
         this.transaction = new TransactionTemplate(Objects.requireNonNull(transactionManager));
@@ -122,6 +123,12 @@ public final class OrderExpirationCoordinator {
                     ExpirationResult.Reason.PAYMENT_EVIDENCE);
         }
 
+        if (inventory == null && order.getItems().stream()
+                .anyMatch(item -> item.getItemType() == OrderItemType.PRODUCT)) {
+            return result(ExpirationResult.Outcome.REQUIRES_REVIEW, orderId,
+                    ExpirationResult.Reason.FULFILLMENT_ADAPTER_UNAVAILABLE);
+        }
+
         order.expireUnpaid(now);
         vouchers.releaseVoucherForExpiredOrder(userId, orderId, now);
 
@@ -131,8 +138,10 @@ public final class OrderExpirationCoordinator {
             if (item.getItemType() == OrderItemType.PRODUCT) productIds.add(item.getItemId());
             else if (item.getItemType() == OrderItemType.COURSE) courseIds.add(item.getItemId());
         }
-        for (Integer productId : productIds)
+        for (Integer productId : productIds) {
+            if (inventory == null) throw new IllegalStateException("Product expiration requires an Inventory release participant");
             inventory.releaseProductForExpiredOrder(userId, productId, orderId, now);
+        }
         for (Integer courseId : courseIds)
             courses.releaseCourseForExpiredOrder(userId, courseId, orderId, now);
 

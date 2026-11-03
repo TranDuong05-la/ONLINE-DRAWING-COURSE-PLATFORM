@@ -33,13 +33,39 @@ class MockCartRepository implements CartRepository {
     ),
   ];
 
-  List<CartItem> _snapshot() => List.unmodifiable(_items);
+  CartSnapshot _snapshot() => CartSnapshot(
+    revision: 0,
+    items: List.unmodifiable(_items),
+    subtotalVnd: _items.fold(0, (sum, item) => sum + item.subtotalVnd),
+    canCheckout: _items.isNotEmpty,
+    hasUnavailableItems: false,
+  );
 
   @override
-  Future<List<CartItem>> load() async => _snapshot();
+  Future<CartSnapshot> load() async => _snapshot();
 
   @override
-  Future<List<CartItem>> setQuantity(int cartItemId, int quantity) async {
+  Future<CartSnapshot> addCourse(int courseId) async {
+    if (courseId <= 0) throw ArgumentError.value(courseId, 'courseId');
+    if (_items.any(
+      (item) => item.type == CartItemType.course && item.itemId == courseId,
+    )) {
+      return _snapshot();
+    }
+    _items.add(
+      CartItem(
+        id: DateTime.now().microsecondsSinceEpoch,
+        itemId: courseId,
+        type: CartItemType.course,
+        name: 'Course $courseId',
+        unitPriceVnd: 0,
+      ),
+    );
+    return _snapshot();
+  }
+
+  @override
+  Future<CartSnapshot> setQuantity(int cartItemId, int quantity) async {
     final index = _items.indexWhere((item) => item.id == cartItemId);
     if (index < 0) throw StateError('Cart item not found.');
     _items[index] = _items[index].withQuantity(quantity);
@@ -47,13 +73,13 @@ class MockCartRepository implements CartRepository {
   }
 
   @override
-  Future<List<CartItem>> remove(int cartItemId) async {
+  Future<CartSnapshot> remove(int cartItemId) async {
     _items.removeWhere((item) => item.id == cartItemId);
     return _snapshot();
   }
 
   @override
-  Future<List<CartItem>> clear() async {
+  Future<CartSnapshot> clear() async {
     _items = [];
     return _snapshot();
   }

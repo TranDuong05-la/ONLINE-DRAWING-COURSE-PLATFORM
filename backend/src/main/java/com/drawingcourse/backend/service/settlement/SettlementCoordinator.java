@@ -71,7 +71,8 @@ public final class SettlementCoordinator {
         this.events = Objects.requireNonNull(events);
         this.ledger = Objects.requireNonNull(ledger);
         this.courses = Objects.requireNonNull(courses);
-        this.inventory = Objects.requireNonNull(inventory);
+        // Null is an explicit Course-only composition; Product-bearing Orders fail closed before writes.
+        this.inventory = inventory;
         this.vouchers = Objects.requireNonNull(vouchers);
         this.clock = Objects.requireNonNull(clock);
         this.transaction = new SettlementTransactionBoundary(transactionManager, timeoutProperties);
@@ -155,6 +156,7 @@ public final class SettlementCoordinator {
             case ORDER_NOT_ELIGIBLE -> "ORDER_NOT_ELIGIBLE";
             case NON_SUCCESS_CALLBACK, EVENT_NOT_APPLIED, MISSING_EVENT, PAYMENT_EVIDENCE_REJECTED,
                     ROUTE_MISMATCH -> "EVENT_NOT_ELIGIBLE";
+            case FULFILLMENT_ADAPTER_UNAVAILABLE -> "PARTICIPANT_REJECTED";
             default -> "UNCLASSIFIED_FAILURE";
         };
         // A terminal business decision is made durable while this exact unexpired claim is still owned.
@@ -296,6 +298,13 @@ public final class SettlementCoordinator {
             return result(SettlementResult.Outcome.NOT_ELIGIBLE, order.getId(), eventRow.getId(), null,
                     SettlementResult.Reason.ORDER_NOT_ELIGIBLE);
         }
+        // Course-only deployments have no inventory participant. Reject Product and mixed Orders after
+        // evidence validation but before Order confirmation, voucher consumption, or any participant write.
+        if (inventory == null && order.getItems().stream()
+                .anyMatch(item -> item.getItemType() == OrderItemType.PRODUCT)) {
+            return result(SettlementResult.Outcome.REQUIRES_REVIEW, order.getId(), eventRow.getId(), null,
+                    SettlementResult.Reason.FULFILLMENT_ADAPTER_UNAVAILABLE);
+        }
         try {
             order.confirmPayment(attempt, audit);
         } catch (IllegalStateException rejectedEvidence) {
@@ -311,18 +320,23 @@ public final class SettlementCoordinator {
         // Shared acquisition order: Order -> Attempt -> Voucher -> Products by ID -> Courses by ID -> Ledger.
         if (order.getVoucherCode() != null) {
             vouchers.consumeForOrder(order.getUserId(), order.getId(), paymentReference,
-                    audit.event().occurredAt(), now);
+                    audit.event().occurredAt(), audit.event().receivedAt(), now);
         }
         var productIds = new TreeSet<Integer>();
-        var courseIds = new TreeSet<Integer>();
+        var courseItems = new java.util.TreeMap<Integer, Integer>();
         for (var item : order.getItems()) {
             if (item.getItemType() == OrderItemType.PRODUCT) productIds.add(item.getItemId());
-            else if (item.getItemType() == OrderItemType.COURSE) courseIds.add(item.getItemId());
+            else if (item.getItemType() == OrderItemType.COURSE) {
+                if (courseItems.put(item.getItemId(), item.getId()) != null)
+                    throw new IllegalStateException("Order contains duplicate Course item identity");
+            }
         }
-        for (Integer productId : productIds)
+        for (Integer productId : productIds) {
+            if (inventory == null) throw new IllegalStateException("Product settlement requires an Inventory participant");
             inventory.confirmProductForOrder(order.getUserId(), productId, order.getId(), now);
-        for (Integer courseId : courseIds)
-            courses.confirmCourseForOrder(order.getUserId(), courseId, order.getId(), now);
+        }
+        for (var courseItem : courseItems.entrySet())
+            courses.confirmCourseForOrder(order.getUserId(), courseItem.getKey(), order.getId(), courseItem.getValue(), now);
 
         var saved = ledger.insert(order.getId(), attemptRow.getId(), eventRow.getId(), audit.event().occurredAt(), now);
         if (saved == null || saved.id() == null || !order.getId().equals(saved.orderId())

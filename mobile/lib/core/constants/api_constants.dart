@@ -51,6 +51,12 @@ class ApiConstants {
   static const String orders = '/api/orders';
   static String orderDetail(int id) => '$orders/$id';
 
+  // D: giỏ hàng khóa học, thanh toán khóa lẻ, phiên thanh toán VNPay
+  static const String cart = '/api/cart';
+  static String cartItem(int id) => '$cart/items/$id';
+  static const String courseCheckout = '/api/checkout/course-only';
+  static String paymentSession(int orderId) => '$orders/$orderId/payment-session';
+
   // Admin endpoints
   static const String adminUsers = '/api/admin/users';
   static const String adminDashboard = '/api/admin/dashboard';

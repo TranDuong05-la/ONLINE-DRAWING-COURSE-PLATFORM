@@ -3,6 +3,8 @@ package com.drawingcourse.backend.controller;
 import com.artacademy.dto.ApiResponse;
 import com.artacademy.exception.BusinessException;
 import com.drawingcourse.backend.service.CartCatalogUnavailableException;
+import com.drawingcourse.backend.service.CartItemTypeNotSupportedException;
+import com.drawingcourse.backend.service.CartPolicyConflictException;
 import java.util.NoSuchElementException;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -13,7 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Cart-only error mapping; authentication errors remain handled by the existing security chain. */
-@RestControllerAdvice(assignableTypes = CartController.class)
+@RestControllerAdvice(assignableTypes = {CartController.class, CourseOnlyCartController.class})
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public final class CartApiExceptionHandler {
     @ExceptionHandler(CartInvalidRequestException.class)
@@ -33,6 +35,12 @@ public final class CartApiExceptionHandler {
 
     @ExceptionHandler({CartConflictException.class, BusinessException.class, ArithmeticException.class})
     public ResponseEntity<ApiResponse<Void>> conflict(RuntimeException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error("Cart operation conflicts with current state"));
+    }
+
+    @ExceptionHandler({CartPolicyConflictException.class, CartItemTypeNotSupportedException.class})
+    public ResponseEntity<ApiResponse<Void>> policyConflict(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error("Cart operation conflicts with current state"));
     }
