@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/admin_dashboard_model.dart';
 import '../models/user_model.dart';
 import '../repositories/admin_repository.dart';
 import '../core/network/api_exceptions.dart';
@@ -6,7 +7,9 @@ import '../core/network/api_exceptions.dart';
 class AdminProvider extends ChangeNotifier {
   final AdminRepository _adminRepository;
   List<UserModel> _users = [];
+  AdminDashboardModel? _dashboard;
   bool _isLoading = false;
+  bool _isDashboardLoading = false;
   String? _errorMessage;
 
   String _search = '';
@@ -20,7 +23,9 @@ class AdminProvider extends ChangeNotifier {
       : _adminRepository = adminRepository ?? AdminRepository();
 
   List<UserModel> get users => _users;
+  AdminDashboardModel? get dashboard => _dashboard;
   bool get isLoading => _isLoading;
+  bool get isDashboardLoading => _isDashboardLoading;
   String? get errorMessage => _errorMessage;
   String get search => _search;
   String get roleFilter => _roleFilter;
@@ -59,6 +64,23 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> loadDashboard() async {
+    _isDashboardLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      _dashboard = await _adminRepository.getAdminDashboard();
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+    } finally {
+      _isDashboardLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> loadUsers() async {
     _isLoading = true;
     _errorMessage = null;
@@ -93,6 +115,29 @@ class AdminProvider extends ChangeNotifier {
     try {
       final newStatus = !currentStatus;
       final updated = await _adminRepository.updateUserStatus(id, newStatus);
+      final index = _users.indexWhere((u) => u.id == id);
+      if (index != -1) {
+        _users[index] = updated;
+      }
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateUserRole(int id, String newRole, {String? reason}) async {
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final updated = await _adminRepository.updateUserRole(id, newRole, reason: reason);
       final index = _users.indexWhere((u) => u.id == id);
       if (index != -1) {
         _users[index] = updated;

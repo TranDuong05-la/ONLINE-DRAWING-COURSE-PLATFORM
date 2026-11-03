@@ -7,6 +7,15 @@ spring:
     driver-class-name: org.h2.Driver
     username: sa
     password:
+    # H2 (bản trong bộ nhớ) gắn ràng buộc CHECK của bảng với kết nối đã tạo bảng. Mặc định Hikari đóng kết nối
+    # sau 30 phút; khi kết nối đó bị đóng, mọi INSERT/UPDATE vào bảng có CHECK lỗi "Check constraint invalid"
+    # (app báo "Dữ liệu bị trùng"). Giữ cố định các kết nối khi chạy H2. MySQL thật không bị lỗi này.
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 10
+      max-lifetime: 0
+      idle-timeout: 0
+      keepalive-time: 0
   jpa:
     hibernate:
       # Ở MySQL schema do Flyway tạo (ddl-auto=validate); ở H2 trong bộ nhớ thì để Hibernate tự tạo bảng.

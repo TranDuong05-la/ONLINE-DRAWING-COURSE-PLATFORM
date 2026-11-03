@@ -1,0 +1,23 @@
+spring:
+  config:
+    activate:
+      on-profile: mysql-refund-v10-it
+  datasource:
+    url: ${MYSQL_IT_URL}
+    username: ${MYSQL_IT_USERNAME}
+    password: ${MYSQL_IT_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    target: 10
+    locations: classpath:db/migration
+    clean-disabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect

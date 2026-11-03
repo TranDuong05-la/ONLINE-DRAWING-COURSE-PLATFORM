@@ -46,3 +46,20 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Local environment / build-time config (never commit real values)
+.env
+.env.*
+!.env.example
+config/dart_defines.json
+config/*.local.json
+
+# Android Gradle / Kotlin local caches
+android/.gradle/
+android/.kotlin/
+android/local.properties
+
+# Release signing material
+*.jks
+*.keystore
+key.properties

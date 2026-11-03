@@ -37,15 +37,25 @@ class ApiConstants {
 
   // User profile endpoints
   static const String userProfile = '/api/users/me';
+  static const String userAvatar = '/api/users/me/avatar';
+  static const String uploadImage = '/api/upload/image';
   static const String changePassword = '/api/users/me/password';
 
   // Address endpoints
   static const String addresses = '/api/users/me/addresses';
   static String addressDetail(int id) => '/api/users/me/addresses/$id';
-  static String addressSetDefault(int id) => '/api/users/me/addresses/$id/default';
+  static String addressSetDefault(int id) =>
+      '/api/users/me/addresses/$id/default';
+
+  // Read-only Order History endpoints
+  static const String orders = '/api/orders';
+  static String orderDetail(int id) => '$orders/$id';
 
   // Admin endpoints
   static const String adminUsers = '/api/admin/users';
+  static const String adminDashboard = '/api/admin/dashboard';
   static String adminUserDetail(int id) => '/api/admin/users/$id';
+  static String adminUserRole(int id) => '/api/admin/users/$id/role';
   static String adminUserStatus(int id) => '/api/admin/users/$id/status';
+  static String adminUserRoleHistory(int id) => '/api/admin/users/$id/role-history';
 }

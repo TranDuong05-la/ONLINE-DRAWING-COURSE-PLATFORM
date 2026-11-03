@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/network/api_client.dart';
 import '../../providers/auth_provider.dart';
@@ -82,17 +83,38 @@ class ProfileScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: Center(
-                      child: Text(
-                        user.fullName.isNotEmpty
-                            ? user.fullName.substring(0, 1).toUpperCase()
-                            : 'A',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryDark,
-                        ),
-                      ),
+                    child: ClipOval(
+                      child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                          ? Image.network(
+                              user.avatarUrl!,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Center(
+                                child: Text(
+                                  user.fullName.isNotEmpty
+                                      ? user.fullName.substring(0, 1).toUpperCase()
+                                      : 'A',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primaryDark,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                user.fullName.isNotEmpty
+                                    ? user.fullName.substring(0, 1).toUpperCase()
+                                    : 'A',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primaryDark,
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -142,6 +164,14 @@ class ProfileScreen extends StatelessWidget {
             _buildSectionHeader('Quản lý thông tin'),
             _buildMenuCard([
               _buildMenuItem(
+                key: const ValueKey('open-order-history'),
+                icon: Icons.receipt_long_outlined,
+                title: 'Order History',
+                subtitle: 'View your previous purchases',
+                onTap: () => context.push('/orders'),
+              ),
+              const Divider(height: 1, indent: 56),
+              _buildMenuItem(
                 icon: Icons.person_outline_rounded,
                 title: 'Chỉnh sửa hồ sơ',
                 subtitle: 'Cập nhật họ tên, số điện thoại, avatar',
@@ -155,6 +185,31 @@ class ProfileScreen extends StatelessWidget {
                 onTap: () => context.push('/profile/addresses'),
               ),
               const Divider(height: 1, indent: 56),
+              // C: admin xem chứng nhận đã cấp cho học viên; học viên xem chứng nhận và bài tập của mình
+              if (user.isAdmin) ...[
+                _buildMenuItem(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Chứng nhận đã cấp cho học viên',
+                  subtitle: 'Danh sách chứng nhận kèm tên học viên, khóa học và mã',
+                  onTap: () => context.push('/admin/certificates'),
+                ),
+                const Divider(height: 1, indent: 56),
+              ] else ...[
+                _buildMenuItem(
+                  icon: Icons.assignment_outlined,
+                  title: 'Bài tập của tôi',
+                  subtitle: 'Bài tập cần làm, đang chờ chấm và đã chấm',
+                  onTap: () => context.push('/profile/assignments'),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
+                  icon: Icons.workspace_premium_outlined,
+                  title: 'Chứng nhận của tôi',
+                  subtitle: 'Xem và tải chứng nhận các khóa học đã hoàn thành',
+                  onTap: () => context.push('/profile/certificates'),
+                ),
+                const Divider(height: 1, indent: 56),
+              ],
               _buildMenuItem(
                 icon: Icons.lock_outline_rounded,
                 title: 'Đổi mật khẩu',
@@ -169,18 +224,65 @@ class ProfileScreen extends StatelessWidget {
               _buildSectionHeader('Khu vực Quản trị viên (Admin)'),
               _buildMenuCard([
                 _buildMenuItem(
-                  icon: Icons.admin_panel_settings_outlined,
+                  icon: Icons.dashboard_outlined,
                   iconColor: AppColors.accentPeach,
-                  title: 'Quản lý người dùng',
-                  subtitle: 'Xem danh sách, tìm kiếm & quản lý trạng thái tài khoản',
+                  title: 'Bảng điều khiển Quản trị (Dashboard)',
+                  subtitle: 'Thống kê tổng quan, các chỉ số hệ thống ArtNest',
+                  onTap: () => context.push('/admin/dashboard'),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
+                  icon: Icons.manage_accounts_outlined,
+                  iconColor: AppColors.accentPeach,
+                  title: 'Quản lý tài khoản & Phân quyền',
+                  subtitle: 'Danh sách, tìm kiếm, đổi vai trò và khóa tài khoản',
                   onTap: () => context.push('/admin/users'),
                 ),
+                const Divider(height: 1, indent: 56),
                 _buildMenuItem(
                   icon: Icons.menu_book_outlined,
                   iconColor: AppColors.primaryMedium,
                   title: 'Quản lý khóa học & combo',
                   subtitle: 'Tạo khóa, module, bài học, quà tặng kèm, xuất bản và combo',
                   onTap: () => context.push('/admin/courses'),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
+                  icon: Icons.fact_check_outlined,
+                  iconColor: AppColors.primary,
+                  title: 'Chấm bài & đề bài tập',
+                  subtitle: 'Duyệt / yêu cầu sửa bài nộp, soạn đề bài tập cho bài học',
+                  onTap: () => context.push('/admin/learning'),
+                ),
+              ]),
+              const SizedBox(height: 20),
+            ],
+
+            // Instructor Section
+            if (user.isInstructor) ...[
+              _buildSectionHeader('Khu vực Giảng viên (Instructor)'),
+              _buildMenuCard([
+                _buildMenuItem(
+                  icon: Icons.school_outlined,
+                  iconColor: const Color(0xFF0284C7),
+                  title: 'Bàn làm việc Giảng viên',
+                  subtitle: 'Quản lý khóa học, bài giảng và chấm điểm học viên',
+                  onTap: () => context.push('/instructor/dashboard'),
+                ),
+              ]),
+              const SizedBox(height: 20),
+            ],
+
+            // Staff Section
+            if (user.isStaff) ...[
+              _buildSectionHeader('Khu vực Nhân viên Vận hành (Staff)'),
+              _buildMenuCard([
+                _buildMenuItem(
+                  icon: Icons.badge_outlined,
+                  iconColor: const Color(0xFFD97706),
+                  title: 'Bàn làm việc Nhân viên',
+                  subtitle: 'Xử lý đơn hàng, kho họa cụ & điều phối vận chuyển',
+                  onTap: () => context.push('/staff/dashboard'),
                 ),
               ]),
               const SizedBox(height: 20),
@@ -205,7 +307,8 @@ class ProfileScreen extends StatelessWidget {
                     context: context,
                     applicationName: 'ArtNest Mobile App',
                     applicationVersion: '1.0.0',
-                    applicationLegalese: 'Kết nối Spring Boot API (com.artacademy)',
+                    applicationLegalese:
+                        'Kết nối Spring Boot API (com.artacademy)',
                     children: [
                       const SizedBox(height: 12),
                       const Text(
@@ -228,7 +331,9 @@ class ProfileScreen extends StatelessWidget {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: const Text('Đăng xuất'),
-                    content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?'),
+                    content: const Text(
+                      'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?',
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
@@ -236,7 +341,9 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(ctx, true),
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.error,
+                        ),
                         child: const Text('Đăng xuất'),
                       ),
                     ],
@@ -287,6 +394,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildMenuItem({
+    Key? key,
     required IconData icon,
     Color? iconColor,
     required String title,
@@ -294,6 +402,7 @@ class ProfileScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
+      key: key,
       onTap: onTap,
       leading: Container(
         width: 38,
@@ -321,7 +430,11 @@ class ProfileScreen extends StatelessWidget {
           color: AppColors.textSecondary,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 20),
+      trailing: const Icon(
+        Icons.chevron_right,
+        color: AppColors.textMuted,
+        size: 20,
+      ),
     );
   }
 }

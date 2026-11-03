@@ -2,13 +2,12 @@ package com.artacademy.service;
 
 import com.artacademy.entity.User;
 import com.artacademy.repository.UserRepository;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import com.artacademy.security.AuthenticatedUserPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
@@ -25,14 +24,8 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
 
         // Use ROLE_ prefix for Spring Security compatibility with hasRole()
-        return new org.springframework.security.core.userdetails.User(
-                user.getEmail(),
-                user.getPasswordHash(),
-                user.getIsActive(),  // enabled
-                true,                // accountNonExpired
-                true,                // credentialsNonExpired
-                user.getIsActive(),  // accountNonLocked
-                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
-        );
+        return new AuthenticatedUserPrincipal(user.getId(), user.getEmail(), user.getPasswordHash(),
+                user.getRole(), Boolean.TRUE.equals(user.getIsActive()));
+
     }
 }

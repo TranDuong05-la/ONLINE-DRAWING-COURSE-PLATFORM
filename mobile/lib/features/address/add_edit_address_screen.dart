@@ -3,8 +3,11 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/data/vietnam_divisions.dart';
 import '../../models/address_model.dart';
 import '../../providers/address_provider.dart';
+import '../../services/vietnam_address_service.dart';
+import '../../widgets/address_suggestion_field.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_text_field.dart';
 
@@ -27,6 +30,18 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
   late final TextEditingController _streetController;
   late bool _isDefault;
 
+  final VietnamAddressService _addressService = VietnamAddressService();
+  List<VietnamDivision> _provinces = [];
+  List<VietnamDivision> _districts = [];
+  List<VietnamDivision> _wards = [];
+
+  VietnamDivision? _selectedProvince;
+  VietnamDivision? _selectedDistrict;
+
+  bool _isLoadingProvinces = false;
+  bool _isLoadingDistricts = false;
+  bool _isLoadingWards = false;
+
   bool get _isEditing => widget.addressToEdit != null;
 
   @override
@@ -40,6 +55,51 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
     _wardController = TextEditingController(text: addr?.ward ?? '');
     _streetController = TextEditingController(text: addr?.streetAddress ?? '');
     _isDefault = addr?.isDefault ?? false;
+
+    _initAddressData();
+  }
+
+  Future<void> _initAddressData() async {
+    setState(() => _isLoadingProvinces = true);
+    final provinces = await _addressService.getProvinces();
+    if (!mounted) return;
+    setState(() {
+      _provinces = provinces;
+      _isLoadingProvinces = false;
+    });
+
+    final currentProvinceName = _provinceController.text.trim();
+    if (currentProvinceName.isNotEmpty) {
+      final matchedProvince = _addressService.findProvinceByName(currentProvinceName);
+      if (matchedProvince != null) {
+        _selectedProvince = matchedProvince;
+        if (!mounted) return;
+        setState(() => _isLoadingDistricts = true);
+        final districts = await _addressService.getDistricts(matchedProvince.code);
+        if (!mounted) return;
+        setState(() {
+          _districts = districts;
+          _isLoadingDistricts = false;
+        });
+
+        final currentDistrictName = _districtController.text.trim();
+        if (currentDistrictName.isNotEmpty) {
+          final matchedDistrict =
+              _addressService.findDistrictByName(_districts, currentDistrictName);
+          if (matchedDistrict != null) {
+            _selectedDistrict = matchedDistrict;
+            if (!mounted) return;
+            setState(() => _isLoadingWards = true);
+            final wards = await _addressService.getWards(matchedDistrict.code);
+            if (!mounted) return;
+            setState(() {
+              _wards = wards;
+              _isLoadingWards = false;
+            });
+          }
+        }
+      }
+    }
   }
 
   @override
@@ -51,6 +111,68 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
     _wardController.dispose();
     _streetController.dispose();
     super.dispose();
+  }
+
+  Future<void> _onProvinceSelected(VietnamDivision division) async {
+    setState(() {
+      _selectedProvince = division;
+      _selectedDistrict = null;
+      _districtController.clear();
+      _districts = [];
+      _wardController.clear();
+      _wards = [];
+      _isLoadingDistricts = true;
+    });
+
+    final districts = await _addressService.getDistricts(division.code);
+    if (!mounted) return;
+    setState(() {
+      _districts = districts;
+      _isLoadingDistricts = false;
+    });
+  }
+
+  void _onProvinceCleared() {
+    setState(() {
+      _selectedProvince = null;
+      _selectedDistrict = null;
+      _districtController.clear();
+      _districts = [];
+      _wardController.clear();
+      _wards = [];
+    });
+  }
+
+  Future<void> _onDistrictSelected(VietnamDivision division) async {
+    setState(() {
+      _selectedDistrict = division;
+      _wardController.clear();
+      _wards = [];
+      _isLoadingWards = true;
+    });
+
+    final wards = await _addressService.getWards(division.code);
+    if (!mounted) return;
+    setState(() {
+      _wards = wards;
+      _isLoadingWards = false;
+    });
+  }
+
+  void _onDistrictCleared() {
+    setState(() {
+      _selectedDistrict = null;
+      _wardController.clear();
+      _wards = [];
+    });
+  }
+
+  void _onWardSelected(VietnamDivision division) {
+    // Ward đã được chọn vào _wardController
+  }
+
+  void _onWardCleared() {
+    // Ward đã được xóa
   }
 
   Future<void> _handleSave() async {
@@ -136,6 +258,7 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                 const SizedBox(height: 16),
               ],
 
+              // Tên người nhận
               CustomTextField(
                 controller: _receiverNameController,
                 label: 'Tên người nhận',
@@ -151,8 +274,9 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
+              // Số điện thoại nhận hàng
               CustomTextField(
                 controller: _phoneController,
                 label: 'Số điện thoại nhận hàng',
@@ -169,54 +293,70 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomTextField(
-                      controller: _provinceController,
-                      label: 'Tỉnh / Thành phố',
-                      hint: 'vd: Hà Nội',
-                      validator: (val) {
-                        if (val == null || val.trim().isEmpty) {
-                          return 'Nhập Tỉnh/Thành';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: CustomTextField(
-                      controller: _districtController,
-                      label: 'Quận / Huyện',
-                      hint: 'vd: Cầu Giấy',
-                      validator: (val) {
-                        if (val == null || val.trim().isEmpty) {
-                          return 'Nhập Quận/Huyện';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              CustomTextField(
-                controller: _wardController,
-                label: 'Phường / Xã',
-                hint: 'vd: Dịch Vọng Hậu',
+              // Gợi ý sổ xuống: Tỉnh / Thành phố
+              AddressSuggestionField(
+                label: 'Tỉnh / Thành phố',
+                hint: 'Nhập hoặc chọn Tỉnh / Thành phố...',
+                controller: _provinceController,
+                prefixIcon: Icons.location_city_outlined,
+                items: _provinces,
+                isLoading: _isLoadingProvinces,
+                onSelected: _onProvinceSelected,
+                onCleared: _onProvinceCleared,
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) {
-                    return 'Vui lòng nhập Phường/Xã';
+                    return 'Vui lòng chọn hoặc nhập Tỉnh / Thành phố';
                   }
                   return null;
                 },
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
+              // Gợi ý sổ xuống: Quận / Huyện (phụ thuộc Tỉnh / Thành phố)
+              AddressSuggestionField(
+                label: 'Quận / Huyện',
+                hint: 'Nhập hoặc chọn Quận / Huyện...',
+                controller: _districtController,
+                prefixIcon: Icons.apartment_outlined,
+                items: _districts,
+                isLoading: _isLoadingDistricts,
+                enabled: _selectedProvince != null || _provinceController.text.trim().isNotEmpty,
+                disabledHint: 'Vui lòng chọn Tỉnh / Thành phố trước',
+                onSelected: _onDistrictSelected,
+                onCleared: _onDistrictCleared,
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Vui lòng chọn hoặc nhập Quận / Huyện';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Gợi ý sổ xuống: Phường / Xã (phụ thuộc Quận / Huyện)
+              AddressSuggestionField(
+                label: 'Phường / Xã',
+                hint: 'Nhập hoặc chọn Phường / Xã...',
+                controller: _wardController,
+                prefixIcon: Icons.holiday_village_outlined,
+                items: _wards,
+                isLoading: _isLoadingWards,
+                enabled: _selectedDistrict != null || _districtController.text.trim().isNotEmpty,
+                disabledHint: 'Vui lòng chọn Quận / Huyện trước',
+                onSelected: _onWardSelected,
+                onCleared: _onWardCleared,
+                validator: (val) {
+                  if (val == null || val.trim().isEmpty) {
+                    return 'Vui lòng chọn hoặc nhập Phường / Xã';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+
+              // Địa chỉ cụ thể: Nhập tay số nhà, tên đường, tòa nhà
               CustomTextField(
                 controller: _streetController,
                 label: 'Địa chỉ cụ thể (Số nhà, tên đường, tòa nhà)',
@@ -230,8 +370,9 @@ class _AddEditAddressScreenState extends State<AddEditAddressScreen> {
                   return null;
                 },
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
+              // Đặt làm mặc định
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
                 activeColor: AppColors.primary,

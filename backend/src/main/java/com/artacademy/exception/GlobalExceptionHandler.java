@@ -159,6 +159,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(ApiResponse.error(message));
     }
 
+    /** Lỗi upload ảnh của A (Cloudinary). File quá lớn đã xử lý ở handleUploadTooLarge phía trên. */
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {
         log.error("Unexpected error occurred", ex);
