@@ -22,9 +22,9 @@ class ApiClient {
     _dio = Dio(
       BaseOptions(
         baseUrl: _baseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 15),
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -76,6 +76,9 @@ class ApiClient {
               options.headers['Authorization'] = 'Bearer $accessToken';
             }
           }
+          if (options.data is FormData) {
+            options.headers.remove('Content-Type');
+          }
           return handler.next(options);
         },
         onError: (DioException error, handler) async {
@@ -92,6 +95,10 @@ class ApiClient {
             try {
               final newAccessToken = await _handleTokenRefresh();
               if (newAccessToken != null) {
+                // If original request was FormData, stream cannot be replayed directly
+                if (error.requestOptions.data is FormData) {
+                  return handler.reject(error);
+                }
                 // Retry original request with new token
                 final options = error.requestOptions;
                 options.extra[_retriedKey] = true;
