@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../supplies/ui/admin/admin_supply_home.dart';
 
 class StaffDashboardScreen extends StatelessWidget {
   const StaffDashboardScreen({super.key});
@@ -81,29 +82,40 @@ class StaffDashboardScreen extends StatelessWidget {
             _buildPermissionItem('Quản lý Kho & Bộ dụng cụ (Learning Kits)', 'Cập nhật tồn kho họa phẩm và trạng thái xuất kho'),
             _buildPermissionItem('Điều phối vận chuyển (Delivery)', 'Cập nhật trạng thái giao hàng cho học viên'),
             const SizedBox(height: 20),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFD97706).withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: Color(0xFFB45309)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Module Vận hành Kho & Đơn hàng của Nhân viên đang trong quá trình phát triển API backend.',
-                      style: GoogleFonts.plusJakartaSans(
-                        fontSize: 13,
-                        color: const Color(0xFFB45309),
-                        fontWeight: FontWeight.w500,
-                      ),
+            // Phần E: kho học cụ và giao hàng
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFFD97706),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
                     ),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AdminSupplyHome(initialTab: 1)),
+                    ),
+                    icon: const Icon(Icons.local_shipping_outlined),
+                    label: const Text('Đơn cần giao'),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFB45309),
+                      side: const BorderSide(color: Color(0xFFD97706)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const AdminSupplyHome()),
+                    ),
+                    icon: const Icon(Icons.inventory_2_outlined),
+                    label: const Text('Kho học cụ'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
