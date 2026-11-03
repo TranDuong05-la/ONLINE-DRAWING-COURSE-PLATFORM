@@ -2,9 +2,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/address/add_edit_address_screen.dart';
 import '../../features/address/address_list_screen.dart';
+import '../../features/admin/admin_dashboard_screen.dart';
 import '../../features/admin/admin_user_detail_screen.dart';
 import '../../features/admin/admin_user_list_screen.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/course_admin/ui/course_admin_home_page.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/cart/cart_screen.dart';
 import '../../features/cart/mock_cart_repository.dart';
@@ -13,9 +15,11 @@ import '../../features/order_history/data/order_history_repository.dart';
 import '../../features/order_history/order_detail_screen.dart';
 import '../../features/order_history/order_history_screen.dart';
 import '../../features/home/main_screen.dart';
+import '../../features/instructor/instructor_dashboard_screen.dart';
 import '../../features/profile/change_password_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
 import '../../features/splash/splash_screen.dart';
+import '../../features/staff/staff_dashboard_screen.dart';
 import '../../models/address_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
@@ -86,6 +90,19 @@ class AppRouter {
             return AddEditAddressScreen(addressToEdit: address);
           },
         ),
+
+        // Quản trị khóa học & combo (phần B). Đường dẫn bắt đầu bằng /admin nên đã được Admin guard bên dưới chặn
+        // với tài khoản không phải ADMIN; backend cũng chặn lại bằng JWT (/api/admin/** chỉ cho ADMIN).
+        GoRoute(
+          path: '/admin/courses',
+          builder: (context, state) => const CourseAdminHomePage(),
+
+        // Admin Routes
+        GoRoute(
+          path: '/admin/dashboard',
+          builder: (context, state) => const AdminDashboardScreen(),
+
+        ),
         GoRoute(
           path: '/admin/users',
           builder: (context, state) => const AdminUserListScreen(),
@@ -97,6 +114,16 @@ class AppRouter {
             final user = state.extra as UserModel?;
             return AdminUserDetailScreen(userId: id, initialUser: user);
           },
+        ),
+        // Instructor Routes
+        GoRoute(
+          path: '/instructor/dashboard',
+          builder: (context, state) => const InstructorDashboardScreen(),
+        ),
+        // Staff Routes
+        GoRoute(
+          path: '/staff/dashboard',
+          builder: (context, state) => const StaffDashboardScreen(),
         ),
       ],
       redirect: (context, state) {
@@ -116,8 +143,22 @@ class AppRouter {
           return '/';
         }
 
-        // Admin guard: if trying to access /admin and not admin, redirect to home
+        // Admin role guard: /admin/** requires ADMIN
         if (location.startsWith('/admin') && !authProvider.isAdmin) {
+          return '/';
+        }
+
+        // Instructor role guard: /instructor/** requires INSTRUCTOR or ADMIN
+        if (location.startsWith('/instructor') &&
+            !authProvider.isInstructor &&
+            !authProvider.isAdmin) {
+          return '/';
+        }
+
+        // Staff role guard: /staff/** requires STAFF or ADMIN
+        if (location.startsWith('/staff') &&
+            !authProvider.isStaff &&
+            !authProvider.isAdmin) {
           return '/';
         }
 

@@ -22,9 +22,9 @@ class ApiClient {
     _dio = Dio(
       BaseOptions(
         baseUrl: _baseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 15),
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -52,20 +52,32 @@ class ApiClient {
     _tokenStorage.saveBaseUrl(_baseUrl);
   }
 
+  // Endpoints that never carry a Bearer token and never trigger a refresh.
+  static const List<String> _publicAuthPaths = [
+    ApiConstants.login,
+    ApiConstants.register,
+    ApiConstants.refresh,
+    ApiConstants.googleLogin,
+    ApiConstants.forgotPassword,
+    ApiConstants.resetPassword,
+  ];
+  static const String _retriedKey = 'artnest_retried_after_refresh';
+
+  static bool _isPublicAuthPath(String path) =>
+      _publicAuthPaths.any((p) => path.contains(p));
+
   void _setupInterceptors() {
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
-          // Check if request needs Bearer token
-          final isPublicAuth = options.path.contains('/api/auth/login') ||
-              options.path.contains('/api/auth/register') ||
-              options.path.contains('/api/auth/refresh');
-
-          if (!isPublicAuth) {
+          if (!_isPublicAuthPath(options.path)) {
             final accessToken = await _tokenStorage.getAccessToken();
             if (accessToken != null && accessToken.isNotEmpty) {
               options.headers['Authorization'] = 'Bearer $accessToken';
             }
+          }
+          if (options.data is FormData) {
+            options.headers.remove('Content-Type');
           }
           return handler.next(options);
         },
@@ -73,17 +85,23 @@ class ApiClient {
           final statusCode = error.response?.statusCode;
           final requestPath = error.requestOptions.path;
 
-          // If 401 and not an auth attempt, try to refresh token
-          final isAuthAttempt = requestPath.contains('/api/auth/login') ||
-              requestPath.contains('/api/auth/register') ||
-              requestPath.contains('/api/auth/refresh');
+          // If 401 on a protected call, refresh once and retry once.
+          final alreadyRetried =
+              error.requestOptions.extra[_retriedKey] == true;
 
-          if (statusCode == 401 && !isAuthAttempt) {
+          if (statusCode == 401 &&
+              !_isPublicAuthPath(requestPath) &&
+              !alreadyRetried) {
             try {
               final newAccessToken = await _handleTokenRefresh();
               if (newAccessToken != null) {
+                // If original request was FormData, stream cannot be replayed directly
+                if (error.requestOptions.data is FormData) {
+                  return handler.reject(error);
+                }
                 // Retry original request with new token
                 final options = error.requestOptions;
+                options.extra[_retriedKey] = true;
                 options.headers['Authorization'] = 'Bearer $newAccessToken';
                 final response = await _dio.fetch(options);
                 return handler.resolve(response);
@@ -238,6 +256,34 @@ class ApiClient {
         path,
         data: data,
         queryParameters: queryParameters,
+      );
+      return _handleResponse<T>(response, fromJsonT);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
+  // POST multipart/form-data (upload ảnh/video/PDF của phần khóa học).
+  // Video có thể nặng tới 2GB nên cho thời gian gửi dài (3 giờ, đủ cho mạng chậm); onProgress nhận giá trị 0..1.
+  // receiveTimeout là thời gian chờ server lưu file sau khi nhận xong (file lớn cần chuyển vào thư mục upload).
+  Future<ApiResponse<T>> postMultipart<T>(
+    String path, {
+    required FormData formData,
+    void Function(double progress)? onProgress,
+    T Function(dynamic json)? fromJsonT,
+  }) async {
+    try {
+      final response = await _dio.post(
+        path,
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+          sendTimeout: const Duration(hours: 3),
+          receiveTimeout: const Duration(minutes: 10),
+        ),
+        onSendProgress: (sent, total) {
+          if (total > 0) onProgress?.call(sent / total);
+        },
       );
       return _handleResponse<T>(response, fromJsonT);
     } on DioException catch (e) {

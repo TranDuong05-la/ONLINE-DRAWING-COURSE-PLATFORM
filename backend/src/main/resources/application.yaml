@@ -8,8 +8,16 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
+
   flyway:
     enabled: false
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+
 
   datasource:
     url: ${DB_URL}
@@ -27,8 +35,19 @@ spring:
         format_sql: true
     open-in-view: false
 
+  # Upload ảnh bìa / video / PDF của phần khóa học (giới hạn chi tiết từng loại kiểm tra trong code)
+  servlet:
+    multipart:
+      # Video bài học tối đa 2GB (giới hạn từng loại file kiểm tra thêm trong LocalFileStorageService: ảnh 5MB, pdf 20MB).
+      # max-request-size lớn hơn một chút vì request còn gồm phần đầu multipart.
+      # Spring ghi file tạm ra đĩa (không giữ trong RAM). Mặc định thư mục tạm của hệ điều hành (thường ở ổ C:):
+      # đặt UPLOAD_TMP_DIR để chuyển sang ổ còn nhiều chỗ, cùng ổ với thư mục upload thì file được chuyển nhanh hơn.
+      max-file-size: 2GB
+      max-request-size: 2100MB
+      location: ${UPLOAD_TMP_DIR:}
+
   mail:
-    host: ${MAIL_HOST:smtp.gmail.com}
+    host: ${MAIL_HOST}
     port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
@@ -43,6 +62,7 @@ spring:
           protocol: smtp
 
 app:
+
   checkout:
     course-only:
       enabled: ${COURSE_ONLY_CHECKOUT_ENABLED:false}
@@ -61,13 +81,20 @@ app:
       ipn-url: ${VNPAY_IPN_URL:}
       api-version: ${VNPAY_API_VERSION:2.1.0}
       command: ${VNPAY_COMMAND:pay}
+
+  seed:
+    enabled: ${SEED_DATA_ENABLED:true}
+
   jwt:
     secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
-  frontend-url: ${APP_FRONTEND_URL:http://localhost:3000}
   google:
+
     client-id: ${GOOGLE_CLIENT_ID:}
+
+    client-id: ${GOOGLE_CLIENT_ID:631102057997-3ebr6ea99bpulk4isu1g3if2jj2fp9si.apps.googleusercontent.com}
+
 
 springdoc:
   api-docs:
@@ -75,3 +102,8 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
     enabled: true
+
+cloudinary:
+  cloud_name: ${CLOUDINARY_CLOUD_NAME:${cloudinary.cloud_name:}}
+  api_key: ${CLOUDINARY_API_KEY:${cloudinary.api_key:}}
+  api_secret: ${CLOUDINARY_API_SECRET:${cloudinary.api_secret:}}

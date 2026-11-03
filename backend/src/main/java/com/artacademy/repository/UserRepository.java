@@ -33,4 +33,8 @@ public interface UserRepository extends JpaRepository<User, Integer> {
             Pageable pageable);
 
     long countByRoleAndIsActive(Role role, Boolean isActive);
+
+    long countByRole(Role role);
+
+    long countByIsActive(Boolean isActive);
 }

@@ -1,6 +1,8 @@
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
+import '../models/admin_dashboard_model.dart';
 import '../models/page_response.dart';
+import '../models/role_history_model.dart';
 import '../models/user_model.dart';
 
 class AdminRepository {
@@ -77,5 +79,47 @@ class AdminRepository {
       return response.data!;
     }
     throw Exception(response.message.isNotEmpty ? response.message : 'Cập nhật trạng thái người dùng thất bại');
+  }
+
+  Future<UserModel> updateUserRole(int id, String role, {String? reason}) async {
+    final response = await _apiClient.put<UserModel>(
+      ApiConstants.adminUserRole(id),
+      data: {
+        'role': role,
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+      fromJsonT: (json) => UserModel.fromJson(json as Map<String, dynamic>),
+    );
+
+    if (response.data != null) {
+      return response.data!;
+    }
+    throw Exception(response.message.isNotEmpty ? response.message : 'Cập nhật quyền người dùng thất bại');
+  }
+
+  Future<List<RoleHistoryModel>> getRoleHistory(int id) async {
+    final response = await _apiClient.get<List<dynamic>>(
+      ApiConstants.adminUserRoleHistory(id),
+      fromJsonT: (json) => json as List<dynamic>,
+    );
+
+    if (response.data != null) {
+      return response.data!
+          .map((item) => RoleHistoryModel.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+
+  Future<AdminDashboardModel> getAdminDashboard() async {
+    final response = await _apiClient.get<AdminDashboardModel>(
+      ApiConstants.adminDashboard,
+      fromJsonT: (json) => AdminDashboardModel.fromJson(json as Map<String, dynamic>),
+    );
+
+    if (response.data != null) {
+      return response.data!;
+    }
+    throw Exception(response.message.isNotEmpty ? response.message : 'Không thể tải thống kê quản trị');
   }
 }

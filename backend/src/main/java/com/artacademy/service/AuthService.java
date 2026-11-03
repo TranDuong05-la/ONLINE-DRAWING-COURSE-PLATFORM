@@ -23,11 +23,14 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.artacademy.entity.UserProfile;
+import com.artacademy.entity.UserRoleHistory;
 import com.artacademy.enums.AgeGroup;
 import com.artacademy.enums.ProfileType;
 import com.artacademy.repository.UserProfileRepository;
+import com.artacademy.repository.UserRoleHistoryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,11 +66,16 @@ public class AuthService {
     private final UserRepository userRepository;
     private final UserAddressRepository addressRepository;
     private final UserProfileRepository userProfileRepository;
+    private final UserRoleHistoryRepository userRoleHistoryRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+
     private final GoogleTokenInfoClient googleTokenInfoClient;
+
+    private final CloudinaryService cloudinaryService;
+
     private final Map<String, OtpData> passwordResetOtpCache = new ConcurrentHashMap<>();
 
     public static class OtpData {
@@ -91,19 +99,29 @@ public class AuthService {
     public AuthService(UserRepository userRepository,
                        UserAddressRepository addressRepository,
                        UserProfileRepository userProfileRepository,
+                       UserRoleHistoryRepository userRoleHistoryRepository,
                        EmailService emailService,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
+
                        GoogleTokenInfoClient googleTokenInfoClient) {
+
+                       CloudinaryService cloudinaryService) {
+
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.userProfileRepository = userProfileRepository;
+        this.userRoleHistoryRepository = userRoleHistoryRepository;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
+
         this.googleTokenInfoClient = googleTokenInfoClient;
+
+        this.cloudinaryService = cloudinaryService;
+
     }
 
     // ==========================================
@@ -175,6 +193,11 @@ public class AuthService {
             throw new UnauthorizedException("Account has been deactivated");
         }
 
+        Integer versionInToken = jwtService.extractTokenVersion(token);
+        if (versionInToken != null && user.getTokenVersion() != null && !versionInToken.equals(user.getTokenVersion())) {
+            throw new UnauthorizedException("Session expired or revoked. Please log in again.");
+        }
+
         return buildAuthResponse(user);
     }
 
@@ -206,6 +229,15 @@ public class AuthService {
             user.setAvatarUrl(request.getAvatarUrl());
         }
 
+        user = userRepository.save(user);
+        return mapToUserResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateAvatar(String email, MultipartFile file) {
+        User user = findUserByEmail(email);
+        String avatarUrl = cloudinaryService.uploadAvatar(file);
+        user.setAvatarUrl(avatarUrl);
         user = userRepository.save(user);
         return mapToUserResponse(user);
     }
@@ -291,14 +323,18 @@ public class AuthService {
         log.info("Password successfully reset with OTP for user: {}", normalizedEmail);
     }
 
-    private record GoogleUserInfo(String sub, String email, String name, String pictureUrl) {}
+    record GoogleUserInfo(String sub, String email, String name, String pictureUrl) {}
 
-    private GoogleUserInfo verifyGoogleIdToken(String idTokenString) {
+    GoogleUserInfo verifyGoogleIdToken(String idTokenString) {
         if (idTokenString == null || idTokenString.trim().isEmpty()) {
             throw new BusinessException("Mã xác thực Google ID Token không được để trống.");
         }
 
         String targetClientId = getGoogleClientId();
+        if (targetClientId.isBlank()) {
+            log.error("Google Client ID is not configured on the backend!");
+            throw new BusinessException("Hệ thống chưa cấu hình Google Client ID.");
+        }
         GoogleIdToken idToken = null;
 
         try {
@@ -374,8 +410,10 @@ public class AuthService {
         } catch (UnauthorizedException | BusinessException e) {
             throw e;
         } catch (Exception e) {
-            log.error("Google tokeninfo verification failed: {}", e.getMessage());
-            throw new UnauthorizedException("Mã xác thực Google không hợp lệ hoặc đã hết hạn: " + e.getMessage());
+            // Do not log or return e.getMessage(): RestTemplate errors embed the request URL,
+            // which contains the Google ID token.
+            log.error("Google tokeninfo verification failed: {}", e.getClass().getSimpleName());
+            throw new UnauthorizedException("Mã xác thực Google không hợp lệ hoặc đã hết hạn.");
         }
 
         throw new UnauthorizedException("Xác thực token Google thất bại.");
@@ -401,11 +439,19 @@ public class AuthService {
             Optional<User> existingUserByEmail = userRepository.findByEmail(normalizedEmail);
             if (existingUserByEmail.isPresent()) {
                 User emailUser = existingUserByEmail.get();
-                // Safe linking policy: If account was registered via email/password, reject automatic takeover
-                if (emailUser.getGoogleId() == null || !emailUser.getGoogleId().equals(googleSub)) {
-                    throw new BusinessException("Email này (" + normalizedEmail + ") đã được đăng ký bằng mật khẩu. Vui lòng đăng nhập bằng mật khẩu của bạn.");
+                // Link Google account to existing email user if not yet linked
+                if (emailUser.getGoogleId() == null) {
+                    log.info("Linking Google account ({}) to existing email user: {}", googleSub, normalizedEmail);
+                    emailUser.setGoogleId(googleSub);
+                    if (emailUser.getAvatarUrl() == null && avatarUrl != null) {
+                        emailUser.setAvatarUrl(avatarUrl);
+                    }
+                    user = userRepository.save(emailUser);
+                } else if (emailUser.getGoogleId().equals(googleSub)) {
+                    user = emailUser;
+                } else {
+                    throw new BusinessException("Email này (" + normalizedEmail + ") đã được liên kết với một tài khoản Google khác.");
                 }
-                user = emailUser;
             } else {
                 // 3. User does not exist: create a new ArtNest user
                 if (fullName == null || fullName.trim().isEmpty()) {
@@ -455,7 +501,7 @@ public class AuthService {
     public String getGoogleClientId() {
         return googleClientId != null && !googleClientId.isBlank()
                 ? googleClientId.trim()
-                : "4555221892-omq3ncgr2ib4frohuct3mhsv5rs02m1n.apps.googleusercontent.com";
+                : "";
     }
 
     // ==========================================
@@ -543,7 +589,13 @@ public class AuthService {
     // ==========================================
 
     public Page<UserResponse> getAllUsers(String search, Role role, Boolean isActive, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return getAllUsers(search, role, isActive, page, size, "createdAt", "desc");
+    }
+
+    public Page<UserResponse> getAllUsers(String search, Role role, Boolean isActive, int page, int size, String sortBy, String sortDirection) {
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortDirection) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String sortProperty = (sortBy != null && !sortBy.isBlank()) ? sortBy : "createdAt";
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortProperty));
         return userRepository.findAllWithFilters(search, role, isActive, pageable)
                 .map(this::mapToUserResponse);
     }
@@ -552,6 +604,71 @@ public class AuthService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
         return mapToUserResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateUserRole(String adminEmail, Integer targetUserId, UpdateUserRoleRequest request) {
+        User admin = findUserByEmail(adminEmail);
+        if (admin.getRole() != Role.ADMIN) {
+            throw new UnauthorizedException("Only administrators can update user roles");
+        }
+
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", targetUserId));
+
+        Role oldRole = targetUser.getRole();
+        Role newRole = request.getRole();
+
+        if (oldRole == newRole) {
+            return mapToUserResponse(targetUser);
+        }
+
+        // Prevent demoting the last active admin
+        if (oldRole == Role.ADMIN && newRole != Role.ADMIN) {
+            long activeAdminCount = userRepository.countByRoleAndIsActive(Role.ADMIN, true);
+            if (activeAdminCount <= 1) {
+                throw new BusinessException("Cannot change role: this is the last active admin account in the system");
+            }
+        }
+
+        // Prevent admin from accidentally demoting themselves if they are the only active admin
+        if (admin.getId().equals(targetUser.getId()) && newRole != Role.ADMIN) {
+            long activeAdminCount = userRepository.countByRoleAndIsActive(Role.ADMIN, true);
+            if (activeAdminCount <= 1) {
+                throw new BusinessException("You cannot remove your own admin role when you are the last active admin");
+            }
+        }
+
+        targetUser.setRole(newRole);
+        // Invalidate old tokens across devices by incrementing token version
+        targetUser.setTokenVersion(targetUser.getTokenVersion() != null ? targetUser.getTokenVersion() + 1 : 2);
+        targetUser = userRepository.save(targetUser);
+
+        // Record role change history
+        String reason = (request.getReason() != null && !request.getReason().isBlank())
+                ? request.getReason().trim()
+                : "Role changed by admin " + admin.getEmail();
+
+        UserRoleHistory history = UserRoleHistory.builder()
+                .user(targetUser)
+                .changedBy(admin)
+                .oldRole(oldRole)
+                .newRole(newRole)
+                .reason(reason)
+                .build();
+        userRoleHistoryRepository.save(history);
+
+        log.info("Admin {} changed role of user {} (ID: {}) from {} to {}", admin.getEmail(), targetUser.getEmail(), targetUser.getId(), oldRole, newRole);
+        return mapToUserResponse(targetUser);
+    }
+
+    @Transactional
+    public UserResponse updateUserStatus(String adminEmail, Integer targetUserId, UpdateUserStatusRequest request) {
+        Boolean resolvedIsActive = request.resolveIsActive();
+        if (resolvedIsActive == null) {
+            throw new BusinessException("isActive or status field (ACTIVE/INACTIVE/LOCKED) is required");
+        }
+        return updateUserStatus(targetUserId, resolvedIsActive);
     }
 
     @Transactional
@@ -568,9 +685,56 @@ public class AuthService {
         }
 
         user.setIsActive(isActive);
+        // Invalidate tokens immediately
+        user.setTokenVersion(user.getTokenVersion() != null ? user.getTokenVersion() + 1 : 2);
         user = userRepository.save(user);
 
+        log.info("User {} (ID: {}) active status changed to: {}", user.getEmail(), user.getId(), isActive);
         return mapToUserResponse(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RoleHistoryResponse> getUserRoleHistory(Integer userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User", "id", userId);
+        }
+        return userRoleHistoryRepository.findByUserIdOrderByChangedAtDesc(userId)
+                .stream()
+                .map(h -> RoleHistoryResponse.builder()
+                        .id(h.getId())
+                        .userId(h.getUser().getId())
+                        .userEmail(h.getUser().getEmail())
+                        .userFullName(h.getUser().getFullName())
+                        .changedById(h.getChangedBy().getId())
+                        .changedByEmail(h.getChangedBy().getEmail())
+                        .changedByFullName(h.getChangedBy().getFullName())
+                        .oldRole(h.getOldRole())
+                        .newRole(h.getNewRole())
+                        .reason(h.getReason())
+                        .changedAt(h.getChangedAt())
+                        .build())
+                .toList();
+    }
+
+    public AdminDashboardResponse getAdminDashboard() {
+        long totalUsers = userRepository.count();
+        long totalAdmins = userRepository.countByRole(Role.ADMIN);
+        long totalInstructors = userRepository.countByRole(Role.INSTRUCTOR);
+        long totalStaff = userRepository.countByRole(Role.STAFF);
+        long activeUsers = userRepository.countByIsActive(true);
+        long inactiveUsers = userRepository.countByIsActive(false);
+
+        return AdminDashboardResponse.builder()
+                .totalUsers(totalUsers)
+                .totalAdmins(totalAdmins)
+                .totalInstructors(totalInstructors)
+                .totalStaff(totalStaff)
+                .activeUsers(activeUsers)
+                .inactiveUsers(inactiveUsers)
+                .totalCourses(0L)
+                .totalOrders(0L)
+                .totalRevenue(java.math.BigDecimal.ZERO)
+                .build();
     }
 
     // ==========================================
@@ -590,12 +754,13 @@ public class AuthService {
     private AuthResponse buildAuthResponse(User user) {
         UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
-                .password(user.getPasswordHash())
+                .password(user.getPasswordHash() != null ? user.getPasswordHash() : "")
                 .roles(user.getRole().name())
                 .build();
 
-        String accessToken = jwtService.generateAccessToken(userDetails);
-        String refreshTokenValue = jwtService.generateRefreshToken(userDetails);
+        Integer version = user.getTokenVersion() != null ? user.getTokenVersion() : 1;
+        String accessToken = jwtService.generateAccessToken(userDetails, version);
+        String refreshTokenValue = jwtService.generateRefreshToken(userDetails, version);
 
         return AuthResponse.builder()
                 .accessToken(accessToken)

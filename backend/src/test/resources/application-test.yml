@@ -24,4 +24,5 @@ app:
     secret: dGVzdC1zZWNyZXQta2V5LWZvci1hcnQtYWNhZGVteS1hcGktdGVzdGluZy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=
     access-expiration-ms: 900000
     refresh-expiration-ms: 604800000
-  frontend-url: http://localhost:3000
+  google:
+    client-id: 631102057997-4b3jmabbdrrv57dsp1rbuin9vjb9onm1.apps.googleusercontent.com

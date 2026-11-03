@@ -1,24 +1,49 @@
 enum UserRole {
   user,
+  instructor,
+  staff,
   admin;
 
   static UserRole fromString(String? role) {
     if (role == null) return UserRole.user;
-    switch (role.toUpperCase()) {
+    final normalized = role.toUpperCase().replaceAll('ROLE_', '').trim();
+    switch (normalized) {
       case 'ADMIN':
-      case 'ROLE_ADMIN':
         return UserRole.admin;
+      case 'INSTRUCTOR':
+        return UserRole.instructor;
+      case 'STAFF':
+        return UserRole.staff;
+      case 'USER':
       default:
         return UserRole.user;
     }
   }
 
   String toServerString() {
-    return this == UserRole.admin ? 'ADMIN' : 'USER';
+    switch (this) {
+      case UserRole.admin:
+        return 'ADMIN';
+      case UserRole.instructor:
+        return 'INSTRUCTOR';
+      case UserRole.staff:
+        return 'STAFF';
+      case UserRole.user:
+        return 'USER';
+    }
   }
 
   String get displayName {
-    return this == UserRole.admin ? 'Quản trị viên (Admin)' : 'Học viên (User)';
+    switch (this) {
+      case UserRole.admin:
+        return 'Quản trị viên (Admin)';
+      case UserRole.instructor:
+        return 'Giảng viên (Instructor)';
+      case UserRole.staff:
+        return 'Nhân viên (Staff)';
+      case UserRole.user:
+        return 'Học viên (User)';
+    }
   }
 }
 
@@ -46,6 +71,9 @@ class UserModel {
   });
 
   bool get isAdmin => role == UserRole.admin;
+  bool get isInstructor => role == UserRole.instructor;
+  bool get isStaff => role == UserRole.staff;
+  bool get isUser => role == UserRole.user;
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(

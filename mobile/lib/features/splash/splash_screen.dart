@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/artnest_logo.dart';
+import '../../core/utils/app_logger.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -35,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen> {
         context.go('/login');
       }
     } catch (e) {
-      debugPrint('SplashScreen auth check error: $e');
+      logDebug('SplashScreen auth check error: $e');
       if (mounted) {
         context.go('/login');
       }

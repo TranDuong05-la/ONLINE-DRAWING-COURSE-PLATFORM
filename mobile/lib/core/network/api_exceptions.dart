@@ -53,3 +53,21 @@ class NetworkException extends ApiException {
     super.message = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng hoặc địa chỉ máy chủ.',
   });
 }
+
+/// Tiện ích hiển thị lỗi cho các màn của phần khóa học.
+extension ApiExceptionDisplay on ApiException {
+  /// Khi server báo lỗi nhập liệu, message chỉ là "Validation failed";
+  /// lấy thông báo cụ thể của ô sai đầu tiên để hiện cho người dùng.
+  String get displayMessage {
+    final list = errors;
+    if (list != null && list.isNotEmpty && list.first.message.isNotEmpty) {
+      return list.first.message;
+    }
+    return message;
+  }
+
+  /// Lỗi theo từng ô nhập: tên field -> thông báo.
+  Map<String, String> get fieldErrorMap => {
+        for (final e in errors ?? const <ApiFieldError>[]) e.field: e.message,
+      };
+}
