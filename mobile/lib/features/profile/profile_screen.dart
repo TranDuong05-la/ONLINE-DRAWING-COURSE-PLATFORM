@@ -83,17 +83,38 @@ class ProfileScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: Center(
-                      child: Text(
-                        user.fullName.isNotEmpty
-                            ? user.fullName.substring(0, 1).toUpperCase()
-                            : 'A',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryDark,
-                        ),
-                      ),
+                    child: ClipOval(
+                      child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                          ? Image.network(
+                              user.avatarUrl!,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Center(
+                                child: Text(
+                                  user.fullName.isNotEmpty
+                                      ? user.fullName.substring(0, 1).toUpperCase()
+                                      : 'A',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primaryDark,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                user.fullName.isNotEmpty
+                                    ? user.fullName.substring(0, 1).toUpperCase()
+                                    : 'A',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primaryDark,
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(width: 16),

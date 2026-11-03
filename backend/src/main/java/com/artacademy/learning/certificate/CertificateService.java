@@ -80,7 +80,7 @@ public class CertificateService {
 	 * khóa dòng enrollment nên các lần hoàn thành đồng thời chạy lần lượt. Unique constraint là lớp chặn cuối.
 	 */
 	@Transactional(propagation = Propagation.MANDATORY)
-	public Certificate issueIfMissing(Integer learnerProfileId, Long courseId) {
+	public Certificate issueIfMissing(Integer learnerProfileId, Integer courseId) {
 		var existing = certificates.findByLearnerProfileIdAndCourseId(learnerProfileId, courseId);
 		if (existing.isPresent()) {
 			return existing.get();
@@ -131,7 +131,7 @@ public class CertificateService {
 
 	/** Admin: danh sách chứng nhận đã cấp (mọi học viên). */
 	@Transactional(readOnly = true)
-	public org.springframework.data.domain.Page<Certificate> searchAll(Long courseId, String q, int page, int size) {
+	public org.springframework.data.domain.Page<Certificate> searchAll(Integer courseId, String q, int page, int size) {
 		String like = q == null || q.isBlank() ? null : "%" + q.trim().toLowerCase() + "%";
 		return certificates.search(courseId, like,
 				org.springframework.data.domain.PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 50)));

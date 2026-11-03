@@ -47,19 +47,19 @@ public class AdminBundleController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Chi tiết combo cho admin")
-    public ApiResponse<AdminBundleDto> get(@PathVariable Long id) {
+    public ApiResponse<AdminBundleDto> get(@PathVariable Integer id) {
         return ApiResponse.success("OK", bundleService.get(id));
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Sửa combo")
-    public ApiResponse<AdminBundleDto> update(@PathVariable Long id, @Valid @RequestBody BundleRequest req) {
+    public ApiResponse<AdminBundleDto> update(@PathVariable Integer id, @Valid @RequestBody BundleRequest req) {
         return ApiResponse.success("Đã lưu combo", bundleService.update(id, req));
     }
 
     @PatchMapping("/{id}/active")
     @Operation(summary = "Bật/tắt combo")
-    public ApiResponse<AdminBundleDto> setActive(@PathVariable Long id,
+    public ApiResponse<AdminBundleDto> setActive(@PathVariable Integer id,
                                                  @Valid @RequestBody BundleActiveRequest req) {
         return ApiResponse.success("Đã cập nhật combo", bundleService.setActive(id, req.active()));
     }

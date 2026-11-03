@@ -52,7 +52,7 @@ public class Enrollment {
 	private Integer learnerProfileId;
 
 	@Column(name = "course_id", nullable = false)
-	private Long courseId;
+	private Integer courseId;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "user_id", insertable = false, updatable = false,

@@ -214,7 +214,7 @@ class LearningFlowIntegrationTest {
 		new TransactionTemplate(txManager).executeWithoutResult(s ->
 				learnerEnroll(second.getId()));
 		Instant now = Instant.now();
-		var lines = List.of(new CourseClaimContracts.ClaimLine(9001, course.getId(),
+		var lines = List.of(new CourseClaimContracts.ClaimLine(9001, course.getId().longValue(),
 				CourseClaimContracts.ClaimSourceType.COMBO_COMPONENT, 0));
 		tx(() -> claimService.reserve(new CourseClaimContracts.ReservationCommand(learner.getId(), 701, lines, now,
 				now.plus(30, ChronoUnit.MINUTES))));
@@ -412,7 +412,7 @@ class LearningFlowIntegrationTest {
 		tx(() -> claimService.confirmCourseForOrder(u.getId(), course.getId().intValue(), orderId, now));
 	}
 
-	private void learnerEnroll(Long courseId) {
+	private void learnerEnroll(Integer courseId) {
 		Integer profileId = profiles.learnerProfileId(learner.getId());
 		var e = new Enrollment();
 		e.setUserId(learner.getId());

@@ -23,14 +23,14 @@ public class BundlePublicService {
 
     public List<BundleDto> list() {
         List<CourseBundle> bundles = bundleRepository.findByActiveTrueOrderByIdDesc();
-        Map<Long, List<Course>> courses = mapper.coursesByBundle(bundles.stream().map(CourseBundle::getId).toList());
+        Map<Integer, List<Course>> courses = mapper.coursesByBundle(bundles.stream().map(CourseBundle::getId).toList());
         return bundles.stream()
                 .filter(b -> mapper.isVisible(b, courses.getOrDefault(b.getId(), List.of())))
                 .map(b -> mapper.toPublic(b, courses.get(b.getId())))
                 .toList();
     }
 
-    public BundleDto get(Long id) {
+    public BundleDto get(Integer id) {
         CourseBundle bundle = bundleRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy combo"));
         List<Course> courses = mapper.coursesByBundle(List.of(id)).getOrDefault(id, List.of());

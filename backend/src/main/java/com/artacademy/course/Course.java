@@ -20,7 +20,7 @@ public class Course {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     /** Mã khóa học (unique), admin nhập hoặc hệ thống tự sinh. */
     @Column(nullable = false, unique = true, length = 50)
@@ -79,7 +79,7 @@ public class Course {
         return discountPrice != null ? discountPrice : price;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 

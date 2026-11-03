@@ -57,6 +57,9 @@ class AuthServiceTest {
     @Mock
     private GoogleTokenInfoClient googleTokenInfoClient;
 
+    @Mock
+    private CloudinaryService cloudinaryService;
+
     @InjectMocks
     private AuthService authService;
 
@@ -107,8 +110,8 @@ class AuthServiceTest {
         when(userRepository.existsByEmail(anyString())).thenReturn(false);
         when(passwordEncoder.encode(anyString())).thenReturn("$2a$10$hashedpassword");
         when(userRepository.save(any(User.class))).thenReturn(testUser);
-        when(jwtService.generateAccessToken(any())).thenReturn("access-token");
-        when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
+        when(jwtService.generateAccessToken(any(), any())).thenReturn("access-token");
+        when(jwtService.generateRefreshToken(any(), any())).thenReturn("refresh-token");
         when(jwtService.getAccessExpirationMs()).thenReturn(900000L);
 
         AuthResponse response = authService.register(registerRequest);
@@ -139,8 +142,8 @@ class AuthServiceTest {
             saved.setUpdatedAt(LocalDateTime.now());
             return saved;
         });
-        when(jwtService.generateAccessToken(any())).thenReturn("token");
-        when(jwtService.generateRefreshToken(any())).thenReturn("refresh");
+        when(jwtService.generateAccessToken(any(), any())).thenReturn("token");
+        when(jwtService.generateRefreshToken(any(), any())).thenReturn("refresh");
         when(jwtService.getAccessExpirationMs()).thenReturn(900000L);
 
         authService.register(registerRequest);
@@ -170,8 +173,8 @@ class AuthServiceTest {
         Authentication auth = mock(Authentication.class);
         when(auth.isAuthenticated()).thenReturn(true);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(auth);
-        when(jwtService.generateAccessToken(any())).thenReturn("access-token");
-        when(jwtService.generateRefreshToken(any())).thenReturn("refresh-token");
+        when(jwtService.generateAccessToken(any(), any())).thenReturn("access-token");
+        when(jwtService.generateRefreshToken(any(), any())).thenReturn("refresh-token");
         when(jwtService.getAccessExpirationMs()).thenReturn(900000L);
 
         AuthResponse response = authService.login(loginRequest);
@@ -220,9 +223,10 @@ class AuthServiceTest {
     void refresh_success() {
         when(jwtService.isRefreshTokenValid("valid-refresh-token")).thenReturn(true);
         when(jwtService.extractUsername("valid-refresh-token")).thenReturn("user@example.com");
+        when(jwtService.extractTokenVersion("valid-refresh-token")).thenReturn(1);
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
-        when(jwtService.generateAccessToken(any())).thenReturn("new-access-token");
-        when(jwtService.generateRefreshToken(any())).thenReturn("new-refresh-token");
+        when(jwtService.generateAccessToken(any(), any())).thenReturn("new-access-token");
+        when(jwtService.generateRefreshToken(any(), any())).thenReturn("new-refresh-token");
         when(jwtService.getAccessExpirationMs()).thenReturn(900000L);
 
         RefreshTokenRequest request = RefreshTokenRequest.builder()
@@ -323,8 +327,8 @@ class AuthServiceTest {
                 .isActive(true)
                 .build();
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtService.generateAccessToken(any())).thenReturn("google-jwt-access-token");
-        when(jwtService.generateRefreshToken(any())).thenReturn("google-jwt-refresh-token");
+        when(jwtService.generateAccessToken(any(), any())).thenReturn("google-jwt-access-token");
+        when(jwtService.generateRefreshToken(any(), any())).thenReturn("google-jwt-refresh-token");
         when(jwtService.getAccessExpirationMs()).thenReturn(900000L);
 
         GoogleLoginRequest request = GoogleLoginRequest.builder()
@@ -364,8 +368,8 @@ class AuthServiceTest {
                 .isActive(true)
                 .build();
         when(userRepository.findByGoogleId("google-sub-existing")).thenReturn(Optional.of(existingUser));
-        when(jwtService.generateAccessToken(any())).thenReturn("existing-jwt-access");
-        when(jwtService.generateRefreshToken(any())).thenReturn("existing-jwt-refresh");
+        when(jwtService.generateAccessToken(any(), any())).thenReturn("existing-jwt-access");
+        when(jwtService.generateRefreshToken(any(), any())).thenReturn("existing-jwt-refresh");
         when(jwtService.getAccessExpirationMs()).thenReturn(900000L);
 
         GoogleLoginRequest request = GoogleLoginRequest.builder().idToken("valid.mock.token").build();
@@ -400,8 +404,8 @@ class AuthServiceTest {
         when(userRepository.findByGoogleId("google-sub-linked")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("passworduser@example.com")).thenReturn(Optional.of(passwordUser));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(jwtService.generateAccessToken(any())).thenReturn("linked-access-token");
-        when(jwtService.generateRefreshToken(any())).thenReturn("linked-refresh-token");
+        when(jwtService.generateAccessToken(any(), any())).thenReturn("linked-access-token");
+        when(jwtService.generateRefreshToken(any(), any())).thenReturn("linked-refresh-token");
 
         GoogleLoginRequest request = GoogleLoginRequest.builder().idToken("valid.mock.token").build();
 
@@ -553,5 +557,24 @@ class AuthServiceTest {
         assertThat(dashboard.getTotalStaff()).isEqualTo(1L);
         assertThat(dashboard.getActiveUsers()).isEqualTo(8L);
         assertThat(dashboard.getInactiveUsers()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("Update Avatar: Uploads image file to Cloudinary and saves user avatarUrl")
+    void updateAvatar_success() {
+        org.springframework.web.multipart.MultipartFile mockFile = org.mockito.Mockito.mock(org.springframework.web.multipart.MultipartFile.class);
+        String expectedUrl = "https://res.cloudinary.com/test/image/upload/v1/artacademy/avatars/avatar123.jpg";
+        
+        when(userRepository.findByEmail("user@example.com")).thenReturn(java.util.Optional.of(testUser));
+        when(cloudinaryService.uploadAvatar(mockFile)).thenReturn(expectedUrl);
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        com.artacademy.dto.UserResponse response = authService.updateAvatar("user@example.com", mockFile);
+
+        assertThat(response).isNotNull();
+        assertThat(response.getAvatarUrl()).isEqualTo(expectedUrl);
+        assertThat(testUser.getAvatarUrl()).isEqualTo(expectedUrl);
+        verify(cloudinaryService).uploadAvatar(mockFile);
+        verify(userRepository).save(testUser);
     }
 }

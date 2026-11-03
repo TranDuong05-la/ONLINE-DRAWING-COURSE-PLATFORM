@@ -82,7 +82,7 @@ public class AssignmentService {
 	// ---------------------------------------------------------------- học viên
 
 	@Transactional(readOnly = true)
-	public AssignmentDto get(Integer userId, Long lessonId) {
+	public AssignmentDto get(Integer userId, Integer lessonId) {
 		LessonAccess.Granted g = access.requireLesson(userId, lessonId);
 		Assignment a = activeAssignment(lessonId);
 		List<AssignmentSubmission> history = submissions
@@ -100,7 +100,7 @@ public class AssignmentService {
 	 * cùng thành công vì attempt_no là unique theo đề + học viên.
 	 */
 	@Transactional
-	public SubmissionDto submit(Integer userId, Long lessonId, MultipartFile image, String note) {
+	public SubmissionDto submit(Integer userId, Integer lessonId, MultipartFile image, String note) {
 		LessonAccess.Granted g = access.requireLesson(userId, lessonId);
 		Assignment a = activeAssignment(lessonId);
 		if (note != null && note.length() > MAX_NOTE) {
@@ -156,7 +156,7 @@ public class AssignmentService {
 			if (c == null) {
 				continue;
 			}
-			Map<Long, CourseLesson> lessonMap = lessons.findVisibleByCourse(c.getId()).stream()
+			Map<Integer, CourseLesson> lessonMap = lessons.findVisibleByCourse(c.getId()).stream()
 					.collect(Collectors.toMap(CourseLesson::getId, Function.identity()));
 			List<Assignment> list = assignments.findByLessonIdInAndActiveTrue(lessonMap.keySet());
 			Map<Long, AssignmentSubmission> latest = latestSubmissions(profileId,
@@ -179,12 +179,12 @@ public class AssignmentService {
 	// ---------------------------------------------------------------- admin: đề bài
 
 	@Transactional(readOnly = true)
-	public List<AdminLessonAssignmentDto> lessonsWithAssignments(Long courseId) {
+	public List<AdminLessonAssignmentDto> lessonsWithAssignments(Integer courseId) {
 		if (!courses.existsById(courseId)) {
 			throw Errors.notFound("Không tìm thấy khóa học");
 		}
 		List<CourseLesson> all = lessons.findAllByCourse(courseId);
-		Map<Long, Assignment> byLesson = assignments
+		Map<Integer, Assignment> byLesson = assignments
 				.findByLessonIdIn(all.stream().map(CourseLesson::getId).toList()).stream()
 				.collect(Collectors.toMap(Assignment::getLessonId, Function.identity()));
 		return all.stream().map(l -> toAdminLessonDto(l, byLesson.get(l.getId()))).toList();
@@ -192,7 +192,7 @@ public class AssignmentService {
 
 	/** Tạo hoặc sửa đề của một bài học (mỗi bài tối đa một đề). Ẩn đề thay vì xóa để giữ lịch sử bài nộp. */
 	@Transactional
-	public AdminLessonAssignmentDto upsert(Long lessonId, AssignmentRequest req) {
+	public AdminLessonAssignmentDto upsert(Integer lessonId, AssignmentRequest req) {
 		CourseLesson l = lessons.findById(lessonId).orElseThrow(() -> Errors.notFound("Không tìm thấy bài học"));
 		Assignment a = assignments.findByLessonId(lessonId).orElseGet(() -> {
 			Assignment n = new Assignment();
@@ -225,7 +225,7 @@ public class AssignmentService {
 	}
 
 	@Transactional(readOnly = true)
-	public PageDto<AdminSubmissionDto> list(Long courseId, String status, int page, int size) {
+	public PageDto<AdminSubmissionDto> list(Integer courseId, String status, int page, int size) {
 		AssignmentSubmission.Status st = parseStatus(status);
 		Page<AssignmentSubmission> result = submissions.search(courseId, st,
 				PageRequest.of(Math.max(0, page), Math.min(Math.max(1, size), 50)));
@@ -293,7 +293,7 @@ public class AssignmentService {
 
 	// ---------------------------------------------------------------- mapping
 
-	private Assignment activeAssignment(Long lessonId) {
+	private Assignment activeAssignment(Integer lessonId) {
 		return assignments.findByLessonIdAndActiveTrue(lessonId)
 				.orElseThrow(() -> Errors.notFound("Bài học này không có bài tập"));
 	}

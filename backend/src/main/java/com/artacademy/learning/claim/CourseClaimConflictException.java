@@ -11,9 +11,9 @@ public class CourseClaimConflictException extends IllegalStateException {
 	}
 
 	private final Reason reason;
-	private final Long courseId;
+	private final Integer courseId;
 
-	public CourseClaimConflictException(Reason reason, Long courseId, String message) {
+	public CourseClaimConflictException(Reason reason, Integer courseId, String message) {
 		super(message);
 		this.reason = reason;
 		this.courseId = courseId;
@@ -23,7 +23,7 @@ public class CourseClaimConflictException extends IllegalStateException {
 		return reason;
 	}
 
-	public Long getCourseId() {
+	public Integer getCourseId() {
 		return courseId;
 	}
 }

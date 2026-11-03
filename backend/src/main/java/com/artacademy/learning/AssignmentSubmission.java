@@ -41,10 +41,10 @@ public class AssignmentSubmission {
 
 	/** Lưu sẵn để lọc theo khóa / bài mà không cần join. */
 	@Column(name = "lesson_id", nullable = false)
-	private Long lessonId;
+	private Integer lessonId;
 
 	@Column(name = "course_id", nullable = false)
-	private Long courseId;
+	private Integer courseId;
 
 	@Column(name = "learner_profile_id", nullable = false)
 	private Integer learnerProfileId;

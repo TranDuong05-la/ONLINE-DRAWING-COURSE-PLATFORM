@@ -70,11 +70,11 @@ public class NotificationService {
 						|| l.getModule().getCourse().getStatus() == CourseStatus.DRAFT) {
 					return;
 				}
-				Long courseId = l.getModule().getCourse().getId();
+				Integer courseId = l.getModule().getCourse().getId();
 				deliver(NotificationRequest.toCourseLearners(courseId, LearningNotification.Type.NEW_LESSON_VIDEO,
 						"VIDEO:" + l.getId() + ":" + Integer.toHexString(l.getVideoUrl().hashCode()),
 						"Video mới trong khóa học", l.getTitle() + " • " + l.getModule().getCourse().getTitle(),
-						l.getId(), l.getId()));
+						l.getId(), l.getId().longValue()));
 			});
 		} catch (RuntimeException e) {
 			log.warn("Could not create lesson video notification {}: {}", event.lessonId(), e.getMessage());

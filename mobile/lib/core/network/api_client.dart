@@ -22,9 +22,9 @@ class ApiClient {
     _dio = Dio(
       BaseOptions(
         baseUrl: _baseUrl,
-        connectTimeout: const Duration(seconds: 15),
-        receiveTimeout: const Duration(seconds: 15),
-        sendTimeout: const Duration(seconds: 15),
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        sendTimeout: const Duration(seconds: 30),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -76,6 +76,9 @@ class ApiClient {
               options.headers['Authorization'] = 'Bearer $accessToken';
             }
           }
+          if (options.data is FormData) {
+            options.headers.remove('Content-Type');
+          }
           return handler.next(options);
         },
         onError: (DioException error, handler) async {
@@ -92,6 +95,10 @@ class ApiClient {
             try {
               final newAccessToken = await _handleTokenRefresh();
               if (newAccessToken != null) {
+                // If original request was FormData, stream cannot be replayed directly
+                if (error.requestOptions.data is FormData) {
+                  return handler.reject(error);
+                }
                 // Retry original request with new token
                 final options = error.requestOptions;
                 options.extra[_retriedKey] = true;
@@ -257,7 +264,8 @@ class ApiClient {
   }
 
   // POST multipart/form-data (upload ảnh/video/PDF của phần khóa học).
-  // Video có thể rất nặng nên cho thời gian gửi dài; onProgress nhận giá trị 0..1.
+  // Video có thể nặng tới 2GB nên cho thời gian gửi dài (3 giờ, đủ cho mạng chậm); onProgress nhận giá trị 0..1.
+  // receiveTimeout là thời gian chờ server lưu file sau khi nhận xong (file lớn cần chuyển vào thư mục upload).
   Future<ApiResponse<T>> postMultipart<T>(
     String path, {
     required FormData formData,
@@ -270,8 +278,8 @@ class ApiClient {
         data: formData,
         options: Options(
           contentType: 'multipart/form-data',
-          sendTimeout: const Duration(minutes: 10),
-          receiveTimeout: const Duration(minutes: 2),
+          sendTimeout: const Duration(hours: 3),
+          receiveTimeout: const Duration(minutes: 10),
         ),
         onSendProgress: (sent, total) {
           if (total > 0) onProgress?.call(sent / total);

@@ -17,23 +17,23 @@ import com.artacademy.course.CourseLessonRepository;
 import com.artacademy.learning.certificate.CertificateService;
 
 /**
- * Quy tắc tiến độ và hoàn thành khóa (thống nhất ngày 1):
+ * Quy táº¯c tiáº¿n Ä‘á»™ vÃ  hoÃ n thÃ nh khÃ³a (thá»‘ng nháº¥t ngÃ y 1):
  * <ul>
- *   <li>Khóa HOÀN THÀNH khi mọi bài học BẮT BUỘC (cờ is_required của B, chỉ tính bài đang hiển thị) đã hoàn thành
- *       VÀ mọi bài tập bắt buộc đang mở đã được duyệt (APPROVED). Nếu khóa không đánh dấu bài bắt buộc nào thì
- *       mọi bài đang hiển thị đều được coi là bắt buộc. Khóa không có bài nào thì không bao giờ hoàn thành.</li>
- *   <li>Một bài học hoàn thành khi đã xem đủ {@code app.learning.complete-ratio} (90%) thời lượng video.</li>
- *   <li>Phần trăm hiển thị = (bài bắt buộc đã xong + bài tập bắt buộc đã nộp, chờ chấm hoặc đạt) / tổng mục bắt buộc.
- *       Chưa hoàn thành thì tối đa 99%.</li>
+ *   <li>KhÃ³a HOÃ€N THÃ€NH khi má»i bÃ i há»c Báº®T BUá»˜C (cá» is_required cá»§a B, chá»‰ tÃ­nh bÃ i Ä‘ang hiá»ƒn thá»‹) Ä‘Ã£ hoÃ n thÃ nh
+ *       VÃ€ má»i bÃ i táº­p báº¯t buá»™c Ä‘ang má»Ÿ Ä‘Ã£ Ä‘Æ°á»£c duyá»‡t (APPROVED). Náº¿u khÃ³a khÃ´ng Ä‘Ã¡nh dáº¥u bÃ i báº¯t buá»™c nÃ o thÃ¬
+ *       má»i bÃ i Ä‘ang hiá»ƒn thá»‹ Ä‘á»u Ä‘Æ°á»£c coi lÃ  báº¯t buá»™c. KhÃ³a khÃ´ng cÃ³ bÃ i nÃ o thÃ¬ khÃ´ng bao giá» hoÃ n thÃ nh.</li>
+ *   <li>Má»™t bÃ i há»c hoÃ n thÃ nh khi Ä‘Ã£ xem Ä‘á»§ {@code app.learning.complete-ratio} (90%) thá»i lÆ°á»£ng video.</li>
+ *   <li>Pháº§n trÄƒm hiá»ƒn thá»‹ = (bÃ i báº¯t buá»™c Ä‘Ã£ xong + bÃ i táº­p báº¯t buá»™c Ä‘Ã£ ná»™p, chá» cháº¥m hoáº·c Ä‘áº¡t) / tá»•ng má»¥c báº¯t buá»™c.
+ *       ChÆ°a hoÃ n thÃ nh thÃ¬ tá»‘i Ä‘a 99%.</li>
  * </ul>
- * Mọi con số được TÍNH LẠI từ dữ liệu gốc, không cộng dồn, nên gọi lặp lại không bị tăng trùng.
+ * Má»i con sá»‘ Ä‘Æ°á»£c TÃNH Láº I tá»« dá»¯ liá»‡u gá»‘c, khÃ´ng cá»™ng dá»“n, nÃªn gá»i láº·p láº¡i khÃ´ng bá»‹ tÄƒng trÃ¹ng.
  */
 @Service
 public class CompletionService {
 
 	public record CourseProgress(int totalLessons, int completedLessons, int requiredLessons,
 			int completedRequiredLessons, int requiredAssignments, int submittedAssignments, int approvedAssignments,
-			int basisPoints, int percent, boolean complete, Long continueLessonId) {
+			int basisPoints, int percent, boolean complete, Integer continueLessonId) {
 	}
 
 	private static final Set<AssignmentSubmission.Status> SUBMITTED = Set.of(AssignmentSubmission.Status.PENDING,
@@ -58,17 +58,17 @@ public class CompletionService {
 	}
 
 	@Transactional(readOnly = true)
-	public CourseProgress compute(Integer learnerProfileId, Long courseId) {
+	public CourseProgress compute(Integer learnerProfileId, Integer courseId) {
 		return compute(learnerProfileId, lessons.findVisibleByCourse(courseId));
 	}
 
-	/** @param visible bài đang hiển thị của khóa, đúng thứ tự (CourseLessonRepository.findVisibleByCourse). */
+	/** @param visible bÃ i Ä‘ang hiá»ƒn thá»‹ cá»§a khÃ³a, Ä‘Ãºng thá»© tá»± (CourseLessonRepository.findVisibleByCourse). */
 	CourseProgress compute(Integer learnerProfileId, List<CourseLesson> visible) {
 		if (visible.isEmpty()) {
 			return new CourseProgress(0, 0, 0, 0, 0, 0, 0, 0, 0, false, null);
 		}
-		Set<Long> lessonIds = visible.stream().map(CourseLesson::getId).collect(Collectors.toSet());
-		Set<Long> done = progress.findByLearnerProfileIdAndLessonIdIn(learnerProfileId, lessonIds).stream()
+		Set<Integer> lessonIds = visible.stream().map(CourseLesson::getId).collect(Collectors.toSet());
+		Set<Integer> done = progress.findByLearnerProfileIdAndLessonIdIn(learnerProfileId, lessonIds).stream()
 				.filter(p -> Boolean.TRUE.equals(p.getCompleted())).map(LessonProgress::getLessonId)
 				.collect(Collectors.toSet());
 
@@ -77,7 +77,7 @@ public class CompletionService {
 				: visible;
 		int doneRequired = (int) requiredLessons.stream().filter(l -> done.contains(l.getId())).count();
 
-		Map<Long, Assignment> requiredByLesson = assignments.findByLessonIdInAndActiveTrue(lessonIds).stream()
+		Map<Integer, Assignment> requiredByLesson = assignments.findByLessonIdInAndActiveTrue(lessonIds).stream()
 				.filter(a -> Boolean.TRUE.equals(a.getRequired()))
 				.collect(Collectors.toMap(Assignment::getLessonId, Function.identity()));
 		Map<Long, AssignmentSubmission.Status> latest = latestStatus(learnerProfileId,
@@ -91,7 +91,7 @@ public class CompletionService {
 		int basisPoints = totalItems == 0 ? 0 : doneItems * 10_000 / totalItems;
 		int percent = complete ? 100 : Math.min(basisPoints / 100, 99);
 
-		Long next = null;
+		Integer next = null;
 		for (CourseLesson l : visible) {
 			Assignment a = requiredByLesson.get(l.getId());
 			boolean assignmentOk = a == null || latest.get(a.getId()) == AssignmentSubmission.Status.APPROVED;
@@ -104,7 +104,7 @@ public class CompletionService {
 				requiredByLesson.size(), submitted, approved, basisPoints, percent, complete, next);
 	}
 
-	/** Trạng thái của lần nộp mới nhất cho từng đề (assignmentId → status). */
+	/** Tráº¡ng thÃ¡i cá»§a láº§n ná»™p má»›i nháº¥t cho tá»«ng Ä‘á» (assignmentId â†’ status). */
 	Map<Long, AssignmentSubmission.Status> latestStatus(Integer learnerProfileId, List<Long> assignmentIds) {
 		if (assignmentIds.isEmpty()) {
 			return Map.of();
@@ -117,11 +117,11 @@ public class CompletionService {
 	}
 
 	/**
-	 * Tính lại tiến độ, đánh dấu hoàn thành và cấp chứng nhận đúng một lần. Khóa dòng enrollment (FOR UPDATE)
-	 * nên hai request cùng hoàn thành khóa một lúc sẽ chạy lần lượt: request sau thấy chứng nhận đã có.
+	 * TÃ­nh láº¡i tiáº¿n Ä‘á»™, Ä‘Ã¡nh dáº¥u hoÃ n thÃ nh vÃ  cáº¥p chá»©ng nháº­n Ä‘Ãºng má»™t láº§n. KhÃ³a dÃ²ng enrollment (FOR UPDATE)
+	 * nÃªn hai request cÃ¹ng hoÃ n thÃ nh khÃ³a má»™t lÃºc sáº½ cháº¡y láº§n lÆ°á»£t: request sau tháº¥y chá»©ng nháº­n Ä‘Ã£ cÃ³.
 	 */
 	@Transactional(propagation = Propagation.REQUIRED)
-	public CourseProgress evaluate(Integer learnerProfileId, Long courseId) {
+	public CourseProgress evaluate(Integer learnerProfileId, Integer courseId) {
 		Enrollment e = enrollments.findForUpdate(learnerProfileId, courseId).orElse(null);
 		CourseProgress p = compute(learnerProfileId, courseId);
 		if (e == null || !e.isActive()) {

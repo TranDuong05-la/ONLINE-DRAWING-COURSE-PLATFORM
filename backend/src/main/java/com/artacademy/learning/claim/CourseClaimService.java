@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -66,7 +67,7 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 	public boolean isOwnedBy(Integer authenticatedUserId, Integer courseId) {
 		requirePositive(authenticatedUserId, "authenticatedUserId");
 		requirePositive(courseId, "courseId");
-		return enrollmentService.isOwned(authenticatedUserId, courseId.longValue());
+		return enrollmentService.isOwned(authenticatedUserId, courseId);
 	}
 
 	/** Đang có claim RESERVED còn hạn của C cho khóa này (Order khác đang chờ thanh toán). */
@@ -77,7 +78,7 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 		Objects.requireNonNull(observedAt, "observedAt");
 		Integer profileId = profiles.findLearnerProfileId(authenticatedUserId);
 		return profileId != null
-				&& !claims.findActivePendingCourseIds(profileId, List.of(courseId.longValue()), utc(observedAt)).isEmpty();
+				&& !claims.findActivePendingCourseIds(profileId, List.of(courseId), utc(observedAt)).isEmpty();
 	}
 
 	@Override
@@ -87,10 +88,12 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 		requirePositive(authenticatedUserId, "authenticatedUserId");
 		Objects.requireNonNull(observedAt, "observedAt");
 		Set<Long> requested = Set.copyOf(Objects.requireNonNull(candidateCourseIds, "candidateCourseIds"));
-		Set<Long> owned = enrollmentService.ownedCourseIds(authenticatedUserId, requested);
+		// Hợp đồng của D dùng Long; id khóa học của B là Integer.
+		Set<Integer> requestedIds = requested.stream().map(CourseClaimService::toCourseId).collect(Collectors.toSet());
+		Set<Long> owned = toLongs(enrollmentService.ownedCourseIds(authenticatedUserId, requestedIds));
 		Integer profileId = profiles.findLearnerProfileId(authenticatedUserId);
 		Set<Long> pending = profileId == null || requested.isEmpty() ? Set.of()
-				: new HashSet<>(claims.findActivePendingCourseIds(profileId, requested, utc(observedAt)));
+				: toLongs(claims.findActivePendingCourseIds(profileId, requestedIds, utc(observedAt)));
 		return new CourseClaimContracts.EligibilitySnapshot(requested, owned, pending);
 	}
 
@@ -102,7 +105,7 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 		Integer profileId = profiles.learnerProfileId(command.authenticatedUserId());
 		for (ClaimLine line : sortedByCourse(command.lines())) {
 			reserveOne(command.authenticatedUserId(), profileId, command.orderId(), line.orderItemId(),
-					CourseClaim.SourceType.valueOf(line.sourceType().name()), line.componentPosition(), line.courseId(),
+					CourseClaim.SourceType.valueOf(line.sourceType().name()), line.componentPosition(), toCourseId(line.courseId()),
 					command.observedAt(), command.expiresAt());
 		}
 	}
@@ -119,11 +122,11 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 			throw new IllegalArgumentException("claim expiration must be after observation");
 		}
 		reserveOne(authenticatedUserId, profiles.learnerProfileId(authenticatedUserId), orderId, null,
-				CourseClaim.SourceType.STANDALONE_COURSE, null, courseId.longValue(), observedAt, expiresAt);
+				CourseClaim.SourceType.STANDALONE_COURSE, null, courseId, observedAt, expiresAt);
 	}
 
 	private void reserveOne(Integer userId, Integer profileId, Integer orderId, Integer orderItemId,
-			CourseClaim.SourceType sourceType, Integer componentPosition, Long courseId, Instant observedAt,
+			CourseClaim.SourceType sourceType, Integer componentPosition, Integer courseId, Instant observedAt,
 			Instant expiresAt) {
 		CourseClaim same = claims.findForUpdate(orderId, courseId).orElse(null);
 		if (same != null) {
@@ -180,25 +183,25 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void confirm(CourseClaimContracts.ConfirmationCommand command) {
 		for (ClaimLine line : sortedByCourse(command.lines())) {
-			confirmOne(command.authenticatedUserId(), line.courseId(), command.orderId(), command.confirmedAt());
+			confirmOne(command.authenticatedUserId(), toCourseId(line.courseId()), command.orderId(), command.confirmedAt());
 		}
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void confirmForOrder(Integer authenticatedUserId, Integer courseId, Integer orderId, Instant confirmedAt) {
 		requirePositive(courseId, "courseId");
-		confirmOne(authenticatedUserId, courseId.longValue(), orderId, confirmedAt);
+		confirmOne(authenticatedUserId, courseId, orderId, confirmedAt);
 	}
 
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId, Instant confirmedAt) {
 		requirePositive(courseId, "courseId");
-		confirmOne(userId, courseId.longValue(), orderId, confirmedAt);
+		confirmOne(userId, courseId, orderId, confirmedAt);
 	}
 
 	/** Cấp quyền học theo yêu cầu của D sau khi thanh toán đã được xác minh. Idempotent. */
-	private void confirmOne(Integer userId, Long courseId, Integer orderId, Instant confirmedAt) {
+	private void confirmOne(Integer userId, Integer courseId, Integer orderId, Instant confirmedAt) {
 		requirePositive(userId, "userId");
 		requirePositive(orderId, "orderId");
 		Objects.requireNonNull(confirmedAt, "confirmedAt");
@@ -226,7 +229,7 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void release(CourseClaimContracts.TerminalReleaseCommand command) {
 		for (ClaimLine line : sortedByCourse(command.lines())) {
-			releaseOne(command.authenticatedUserId(), line.courseId(), command.orderId(), command.reason().name(),
+			releaseOne(command.authenticatedUserId(), toCourseId(line.courseId()), command.orderId(), command.reason().name(),
 					command.releasedAt());
 		}
 	}
@@ -235,17 +238,17 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 	public void releaseForOrder(Integer authenticatedUserId, Integer courseId, Integer orderId, String terminalReason,
 			Instant releasedAt) {
 		requirePositive(courseId, "courseId");
-		releaseOne(authenticatedUserId, courseId.longValue(), orderId, terminalReason, releasedAt);
+		releaseOne(authenticatedUserId, courseId, orderId, terminalReason, releasedAt);
 	}
 
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void releaseCourseForExpiredOrder(Integer userId, Integer courseId, Integer orderId, Instant releasedAt) {
 		requirePositive(courseId, "courseId");
-		releaseOne(userId, courseId.longValue(), orderId, "EXPIRED", releasedAt);
+		releaseOne(userId, courseId, orderId, "EXPIRED", releasedAt);
 	}
 
-	private void releaseOne(Integer userId, Long courseId, Integer orderId, String reason, Instant releasedAt) {
+	private void releaseOne(Integer userId, Integer courseId, Integer orderId, String reason, Instant releasedAt) {
 		requirePositive(userId, "userId");
 		requirePositive(orderId, "orderId");
 		Objects.requireNonNull(releasedAt, "releasedAt");
@@ -328,6 +331,15 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 
 	private static List<ClaimLine> sortedByCourse(List<ClaimLine> lines) {
 		return lines.stream().sorted(Comparator.comparing(ClaimLine::courseId)).toList();
+	}
+
+	/** Hợp đồng của D truyền id khóa học kiểu Long; B lưu id kiểu INT. */
+	static Integer toCourseId(Long courseId) {
+		return courseId == null ? null : Math.toIntExact(courseId);
+	}
+
+	private static Set<Long> toLongs(java.util.Collection<Integer> ids) {
+		return ids.stream().map(Integer::longValue).collect(Collectors.toCollection(HashSet::new));
 	}
 
 	static LocalDateTime utc(Instant instant) {

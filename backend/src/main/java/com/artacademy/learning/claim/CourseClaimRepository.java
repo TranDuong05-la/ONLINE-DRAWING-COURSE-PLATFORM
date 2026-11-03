@@ -16,7 +16,7 @@ public interface CourseClaimRepository extends JpaRepository<CourseClaim, Long> 
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select c from CourseClaim c where c.orderId = :orderId and c.courseId = :courseId")
-	Optional<CourseClaim> findForUpdate(@Param("orderId") Integer orderId, @Param("courseId") Long courseId);
+	Optional<CourseClaim> findForUpdate(@Param("orderId") Integer orderId, @Param("courseId") Integer courseId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select c from CourseClaim c where c.activeKey = :activeKey")
@@ -33,6 +33,6 @@ public interface CourseClaimRepository extends JpaRepository<CourseClaim, Long> 
 			where c.learnerProfileId = :profileId and c.status = com.artacademy.learning.claim.CourseClaim.Status.RESERVED
 			  and c.expiresAt > :observedAt and c.courseId in :courseIds
 			""")
-	List<Long> findActivePendingCourseIds(@Param("profileId") Integer profileId,
-			@Param("courseIds") Collection<Long> courseIds, @Param("observedAt") LocalDateTime observedAt);
+	List<Integer> findActivePendingCourseIds(@Param("profileId") Integer profileId,
+			@Param("courseIds") Collection<Integer> courseIds, @Param("observedAt") LocalDateTime observedAt);
 }

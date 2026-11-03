@@ -25,7 +25,7 @@ public class Assignment {
 	private Long id;
 
 	@Column(name = "lesson_id", nullable = false)
-	private Long lessonId;
+	private Integer lessonId;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "lesson_id", insertable = false, updatable = false,

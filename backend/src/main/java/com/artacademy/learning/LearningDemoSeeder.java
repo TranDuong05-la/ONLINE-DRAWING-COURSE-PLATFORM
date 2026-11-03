@@ -53,7 +53,7 @@ public class LearningDemoSeeder {
 	@EventListener(ApplicationReadyEvent.class)
 	@Transactional
 	public void seed() {
-		List<Long> demoCourses = new ArrayList<>();
+		List<Integer> demoCourses = new ArrayList<>();
 		for (Course c : courses.findAll()) {
 			switch (c.getCode()) {
 			case "KH-WATERCOLOR" -> {

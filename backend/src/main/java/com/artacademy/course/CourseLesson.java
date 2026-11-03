@@ -17,7 +17,7 @@ public class CourseLesson {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "module_id", nullable = false)
@@ -68,7 +68,7 @@ public class CourseLesson {
         return !hidden && !module.isHidden();
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 

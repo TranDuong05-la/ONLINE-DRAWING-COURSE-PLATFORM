@@ -54,7 +54,7 @@ public class CourseClaim {
 	private Integer learnerProfileId;
 
 	@Column(name = "course_id", nullable = false)
-	private Long courseId;
+	private Integer courseId;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "user_id", insertable = false, updatable = false,
@@ -122,7 +122,7 @@ public class CourseClaim {
 	@Column(nullable = false)
 	private Integer version;
 
-	public static String activeKey(Integer learnerProfileId, Long courseId) {
+	public static String activeKey(Integer learnerProfileId, Integer courseId) {
 		return learnerProfileId + ":" + courseId;
 	}
 }

@@ -41,7 +41,7 @@ public class Certificate {
 	private Integer learnerProfileId;
 
 	@Column(name = "course_id", nullable = false)
-	private Long courseId;
+	private Integer courseId;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "learner_profile_id", insertable = false, updatable = false,

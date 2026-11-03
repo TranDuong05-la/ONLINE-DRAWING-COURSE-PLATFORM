@@ -11,7 +11,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface CertificateRepository extends JpaRepository<Certificate, Long> {
 
-	Optional<Certificate> findByLearnerProfileIdAndCourseId(Integer learnerProfileId, Long courseId);
+	Optional<Certificate> findByLearnerProfileIdAndCourseId(Integer learnerProfileId, Integer courseId);
 
 	boolean existsByCertificateCode(String certificateCode);
 
@@ -24,5 +24,5 @@ public interface CertificateRepository extends JpaRepository<Certificate, Long> 
 			  and (:q is null or lower(c.learnerName) like :q or lower(c.certificateCode) like :q)
 			order by c.issuedAt desc, c.id desc
 			""")
-	Page<Certificate> search(@Param("courseId") Long courseId, @Param("q") String q, Pageable pageable);
+	Page<Certificate> search(@Param("courseId") Integer courseId, @Param("q") String q, Pageable pageable);
 }

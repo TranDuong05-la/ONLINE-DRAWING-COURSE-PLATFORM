@@ -17,7 +17,7 @@ public class CourseModule {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    private Integer id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "course_id", nullable = false)
@@ -41,7 +41,7 @@ public class CourseModule {
         this.sortOrder = sortOrder;
     }
 
-    public Long getId() {
+    public Integer getId() {
         return id;
     }
 

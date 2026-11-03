@@ -70,29 +70,29 @@ public class LearningController {
 	}
 
 	@GetMapping("/courses/{courseId}")
-	public ApiResponse<CourseDetailDto> course(@PathVariable Long courseId) {
+	public ApiResponse<CourseDetailDto> course(@PathVariable Integer courseId) {
 		return ok(query.courseDetail(currentUser.requireUserId(), courseId));
 	}
 
 	@GetMapping("/lessons/{lessonId}")
-	public ApiResponse<LessonContentDto> lesson(@PathVariable Long lessonId) {
+	public ApiResponse<LessonContentDto> lesson(@PathVariable Integer lessonId) {
 		return ok(query.lesson(currentUser.requireUserId(), lessonId));
 	}
 
 	@PutMapping("/lessons/{lessonId}/progress")
-	public ApiResponse<ProgressResponse> saveProgress(@PathVariable Long lessonId,
+	public ApiResponse<ProgressResponse> saveProgress(@PathVariable Integer lessonId,
 			@Valid @RequestBody ProgressRequest req) {
 		return ok(progress.update(currentUser.requireUserId(), lessonId, req.positionSeconds(),
 				req.watchedDeltaSeconds()));
 	}
 
 	@GetMapping("/lessons/{lessonId}/assignment")
-	public ApiResponse<AssignmentDto> assignment(@PathVariable Long lessonId) {
+	public ApiResponse<AssignmentDto> assignment(@PathVariable Integer lessonId) {
 		return ok(assignmentService.get(currentUser.requireUserId(), lessonId));
 	}
 
 	@PostMapping(value = "/lessons/{lessonId}/submissions", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ApiResponse<SubmissionDto> submit(@PathVariable Long lessonId, @RequestPart("image") MultipartFile image,
+	public ApiResponse<SubmissionDto> submit(@PathVariable Integer lessonId, @RequestPart("image") MultipartFile image,
 			@RequestParam(value = "note", required = false) String note) {
 		return ApiResponse.success("Đã nộp bài", assignmentService.submit(currentUser.requireUserId(), lessonId, image, note));
 	}

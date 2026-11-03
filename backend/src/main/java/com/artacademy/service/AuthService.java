@@ -23,6 +23,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.artacademy.entity.UserProfile;
 import com.artacademy.entity.UserRoleHistory;
@@ -71,6 +72,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final GoogleTokenInfoClient googleTokenInfoClient;
+    private final CloudinaryService cloudinaryService;
     private final Map<String, OtpData> passwordResetOtpCache = new ConcurrentHashMap<>();
 
     public static class OtpData {
@@ -99,7 +101,8 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
-                       GoogleTokenInfoClient googleTokenInfoClient) {
+                       GoogleTokenInfoClient googleTokenInfoClient,
+                       CloudinaryService cloudinaryService) {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.userProfileRepository = userProfileRepository;
@@ -109,6 +112,7 @@ public class AuthService {
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.googleTokenInfoClient = googleTokenInfoClient;
+        this.cloudinaryService = cloudinaryService;
     }
 
     // ==========================================
@@ -180,6 +184,11 @@ public class AuthService {
             throw new UnauthorizedException("Account has been deactivated");
         }
 
+        Integer versionInToken = jwtService.extractTokenVersion(token);
+        if (versionInToken != null && user.getTokenVersion() != null && !versionInToken.equals(user.getTokenVersion())) {
+            throw new UnauthorizedException("Session expired or revoked. Please log in again.");
+        }
+
         return buildAuthResponse(user);
     }
 
@@ -211,6 +220,15 @@ public class AuthService {
             user.setAvatarUrl(request.getAvatarUrl());
         }
 
+        user = userRepository.save(user);
+        return mapToUserResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateAvatar(String email, MultipartFile file) {
+        User user = findUserByEmail(email);
+        String avatarUrl = cloudinaryService.uploadAvatar(file);
+        user.setAvatarUrl(avatarUrl);
         user = userRepository.save(user);
         return mapToUserResponse(user);
     }
@@ -731,8 +749,9 @@ public class AuthService {
                 .roles(user.getRole().name())
                 .build();
 
-        String accessToken = jwtService.generateAccessToken(userDetails);
-        String refreshTokenValue = jwtService.generateRefreshToken(userDetails);
+        Integer version = user.getTokenVersion() != null ? user.getTokenVersion() : 1;
+        String accessToken = jwtService.generateAccessToken(userDetails, version);
+        String refreshTokenValue = jwtService.generateRefreshToken(userDetails, version);
 
         return AuthResponse.builder()
                 .accessToken(accessToken)

@@ -13,7 +13,7 @@ import com.artacademy.course.CourseLesson;
 import com.artacademy.course.CourseLevel;
 import com.artacademy.course.CourseModule;
 import com.artacademy.course.CourseStatus;
-import com.artacademy.product.Product;
+import com.artacademy.product.ProductCatalog.KitProduct;
 import com.artacademy.support.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,8 +28,8 @@ class IntegrationServicesTest extends IntegrationTestBase {
     @Test
     void getSellableCourse_returnsPricesAndActiveKits() throws Exception {
         Course c = publishedCourse("Khóa", 600_000, 449_000L, CourseLevel.ADVANCED);
-        Product active = newProduct("SKU-A", true);
-        Product inactive = newProduct("SKU-OFF", false);
+        KitProduct active = newProduct("SKU-A", true);
+        KitProduct inactive = newProduct("SKU-OFF", false);
         newKit(c, active, 2);
         newKit(c, inactive, 1);
 
@@ -51,7 +51,7 @@ class IntegrationServicesTest extends IntegrationTestBase {
 
         assertThrows(NotFoundException.class, () -> sellableService.getSellableCourse(draft.getId()));
         assertThrows(NotFoundException.class, () -> sellableService.getSellableCourse(hidden.getId()));
-        assertThrows(NotFoundException.class, () -> sellableService.getSellableCourse(99999L));
+        assertThrows(NotFoundException.class, () -> sellableService.getSellableCourse(99999));
     }
 
     @Test
@@ -63,8 +63,8 @@ class IntegrationServicesTest extends IntegrationTestBase {
         bundle.setTitle("Combo");
         bundle.setPrice(700_000);
         bundleRepository.save(bundle);
-        bundleItemRepository.save(new BundleItem(bundle, a));
-        bundleItemRepository.save(new BundleItem(bundle, b));
+        bundleItemRepository.save(new BundleItem(bundle, a, 1));
+        bundleItemRepository.save(new BundleItem(bundle, b, 2));
 
         BundleSellableService.SellableBundle s = bundleSellableService.getSellableBundle(bundle.getId());
         assertEquals(700_000, s.price());
@@ -117,7 +117,7 @@ class IntegrationServicesTest extends IntegrationTestBase {
         CourseLesson draftLesson = newLesson(newModule(draft, "M", 1, false), "Bài", 1, VIDEO, false, false);
         assertThrows(NotFoundException.class, () -> contentService.getLessonContent(draftLesson.getId()));
         assertThrows(NotFoundException.class, () -> contentService.getCourseStructure(draft.getId()));
-        assertThrows(NotFoundException.class, () -> contentService.getLessonContent(99999L));
+        assertThrows(NotFoundException.class, () -> contentService.getLessonContent(99999));
     }
 
     @Test

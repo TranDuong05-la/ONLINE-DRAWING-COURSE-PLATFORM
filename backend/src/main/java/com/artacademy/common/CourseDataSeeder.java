@@ -14,9 +14,9 @@ import com.artacademy.course.CourseModule;
 import com.artacademy.course.CourseModuleRepository;
 import com.artacademy.course.CourseRepository;
 import com.artacademy.course.CourseStatus;
-import com.artacademy.product.Product;
-import com.artacademy.product.ProductRepository;
+import com.artacademy.product.InMemoryProductCatalog;
 import java.time.LocalDateTime;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -33,7 +33,8 @@ public class CourseDataSeeder implements CommandLineRunner {
     private static final String VIDEO_1 = "https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4";
     private static final String VIDEO_2 = "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4";
 
-    private final ProductRepository productRepository;
+    /** Danh mục sản phẩm tạm của B; vắng mặt khi E đã tích hợp (app.products.stand-in=false), lúc đó không nạp quà mẫu. */
+    private final ObjectProvider<InMemoryProductCatalog> standInCatalog;
     private final CourseRepository courseRepository;
     private final CourseModuleRepository moduleRepository;
     private final CourseLessonRepository lessonRepository;
@@ -41,11 +42,11 @@ public class CourseDataSeeder implements CommandLineRunner {
     private final BundleRepository bundleRepository;
     private final BundleItemRepository bundleItemRepository;
 
-    public CourseDataSeeder(ProductRepository productRepository, CourseRepository courseRepository,
+    public CourseDataSeeder(ObjectProvider<InMemoryProductCatalog> standInCatalog, CourseRepository courseRepository,
                       CourseModuleRepository moduleRepository, CourseLessonRepository lessonRepository,
                       CourseKitRepository kitRepository, BundleRepository bundleRepository,
                       BundleItemRepository bundleItemRepository) {
-        this.productRepository = productRepository;
+        this.standInCatalog = standInCatalog;
         this.courseRepository = courseRepository;
         this.moduleRepository = moduleRepository;
         this.lessonRepository = lessonRepository;
@@ -57,20 +58,23 @@ public class CourseDataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        if (productRepository.count() == 0) {
-            seedProducts();
-        }
+        // Sản phẩm mẫu nằm trong bộ nhớ nên phải nạp lại mỗi lần chạy (khóa học thì chỉ nạp khi bảng còn trống)
+        standInCatalog.ifAvailable(catalog -> {
+            if (catalog.isEmpty()) {
+                seedProducts(catalog);
+            }
+        });
         if (courseRepository.count() == 0) {
             seedCourses();
         }
     }
 
-    private void seedProducts() {
-        productRepository.save(new Product("BM-WC12", "Bộ màu nước 12 màu", 150_000, null));
-        productRepository.save(new Product("CO-SET3", "Bộ cọ vẽ 3 cây", 90_000, null));
-        productRepository.save(new Product("GV-A4-20", "Giấy vẽ A4 (xấp 20 tờ)", 60_000, null));
-        productRepository.save(new Product("BC-SK6", "Bộ bút chì phác thảo 6 cây", 80_000, null));
-        productRepository.save(new Product("PL-MIX", "Palette pha màu", 45_000, null));
+    private void seedProducts(InMemoryProductCatalog catalog) {
+        catalog.add("BM-WC12", "Bộ màu nước 12 màu", 150_000, true);
+        catalog.add("CO-SET3", "Bộ cọ vẽ 3 cây", 90_000, true);
+        catalog.add("GV-A4-20", "Giấy vẽ A4 (xấp 20 tờ)", 60_000, true);
+        catalog.add("BC-SK6", "Bộ bút chì phác thảo 6 cây", 80_000, true);
+        catalog.add("PL-MIX", "Palette pha màu", 45_000, true);
     }
 
     private void seedCourses() {
@@ -112,8 +116,8 @@ public class CourseDataSeeder implements CommandLineRunner {
         bundle.setDescription("Học trọn bộ kỹ thuật màu nước và phác thảo chân dung với giá ưu đãi.");
         bundle.setPrice(799_000);
         bundleRepository.save(bundle);
-        bundleItemRepository.save(new BundleItem(bundle, watercolor));
-        bundleItemRepository.save(new BundleItem(bundle, portrait));
+        bundleItemRepository.save(new BundleItem(bundle, watercolor, 1));
+        bundleItemRepository.save(new BundleItem(bundle, portrait, 2));
     }
 
     private Course newCourse(String code, String title, String shortDesc, String description, long price,
@@ -151,8 +155,10 @@ public class CourseDataSeeder implements CommandLineRunner {
     }
 
     private void kit(Course course, String sku, int quantity) {
-        Product product = productRepository.findAll().stream()
-                .filter(p -> p.getSku().equals(sku)).findFirst().orElseThrow();
-        kitRepository.save(new CourseIncludedKit(course, product, quantity));
+        // Quà mẫu chỉ có khi dùng danh mục tạm; khi E tích hợp thì admin tự chọn quà qua màn quản trị
+        standInCatalog.ifAvailable(catalog -> {
+            var product = catalog.findBySku(sku).orElseThrow();
+            kitRepository.save(new CourseIncludedKit(course, product.id(), quantity));
+        });
     }
 }

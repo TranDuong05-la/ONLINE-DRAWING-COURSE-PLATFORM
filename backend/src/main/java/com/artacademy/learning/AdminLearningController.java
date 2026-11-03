@@ -49,12 +49,12 @@ public class AdminLearningController {
 	// ---- đề bài
 
 	@GetMapping("/learning/courses/{courseId}/assignments")
-	public ApiResponse<List<AdminLessonAssignmentDto>> lessonAssignments(@PathVariable Long courseId) {
+	public ApiResponse<List<AdminLessonAssignmentDto>> lessonAssignments(@PathVariable Integer courseId) {
 		return LearningController.ok(service.lessonsWithAssignments(courseId));
 	}
 
 	@PutMapping("/lessons/{lessonId}/assignment")
-	public ApiResponse<AdminLessonAssignmentDto> saveAssignment(@PathVariable Long lessonId,
+	public ApiResponse<AdminLessonAssignmentDto> saveAssignment(@PathVariable Integer lessonId,
 			@Valid @RequestBody AssignmentRequest req) {
 		return ApiResponse.success("Đã lưu đề bài tập", service.upsert(lessonId, req));
 	}
@@ -62,7 +62,7 @@ public class AdminLearningController {
 	// ---- chứng nhận đã cấp cho học viên
 
 	@GetMapping("/certificates")
-	public ApiResponse<PageDto<AdminCertificateDto>> certificates(@RequestParam(required = false) Long courseId,
+	public ApiResponse<PageDto<AdminCertificateDto>> certificates(@RequestParam(required = false) Integer courseId,
 			@RequestParam(required = false) String q, @RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "50") int size) {
 		var result = certificateService.searchAll(courseId, q, page, size);
@@ -85,7 +85,7 @@ public class AdminLearningController {
 	// ---- chấm bài
 
 	@GetMapping("/submissions")
-	public ApiResponse<PageDto<AdminSubmissionDto>> list(@RequestParam(required = false) Long courseId,
+	public ApiResponse<PageDto<AdminSubmissionDto>> list(@RequestParam(required = false) Integer courseId,
 			@RequestParam(required = false) String status, @RequestParam(defaultValue = "0") int page,
 			@RequestParam(defaultValue = "20") int size) {
 		return LearningController.ok(service.list(courseId, status, page, size));

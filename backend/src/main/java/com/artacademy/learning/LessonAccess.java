@@ -16,7 +16,7 @@ import com.artacademy.course.CourseStatus;
 public class LessonAccess {
 
 	/** Thông tin đã kiểm tra quyền (dữ liệu thuần, dùng được ngoài transaction). */
-	public record Granted(Integer userId, Integer learnerProfileId, Long lessonId, Long courseId, String lessonTitle,
+	public record Granted(Integer userId, Integer learnerProfileId, Integer lessonId, Integer courseId, String lessonTitle,
 			int durationSeconds) {
 	}
 
@@ -29,19 +29,19 @@ public class LessonAccess {
 	}
 
 	@Transactional(readOnly = true)
-	public Granted requireLesson(Integer userId, Long lessonId) {
+	public Granted requireLesson(Integer userId, Integer lessonId) {
 		CourseLesson l = lessons.findById(lessonId).orElseThrow(() -> Errors.notFound("Không tìm thấy bài học"));
 		if (!l.isVisible() || l.getModule().getCourse().getStatus() == CourseStatus.DRAFT) {
 			throw Errors.notFound("Không tìm thấy bài học");
 		}
-		Long courseId = l.getModule().getCourse().getId();
+		Integer courseId = l.getModule().getCourse().getId();
 		Enrollment e = enrollments.requireActiveEnrollment(userId, courseId);
 		return new Granted(userId, e.getLearnerProfileId(), l.getId(), courseId, l.getTitle(), l.getDurationSeconds());
 	}
 
 	/** Khóa phải tồn tại (không phải nháp) và người dùng có quyền học. Trả về learnerProfileId. */
 	@Transactional(readOnly = true)
-	public Integer requireCourse(Integer userId, Long courseId) {
+	public Integer requireCourse(Integer userId, Integer courseId) {
 		return enrollments.requireActiveEnrollment(userId, courseId).getLearnerProfileId();
 	}
 }

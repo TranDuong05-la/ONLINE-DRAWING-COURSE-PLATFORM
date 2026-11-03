@@ -39,9 +39,9 @@ public interface SubmissionRepository extends JpaRepository<AssignmentSubmission
 			  and (:status is null or s.status = :status)
 			order by s.submittedAt desc, s.id desc
 			""")
-	Page<AssignmentSubmission> search(@Param("courseId") Long courseId,
+	Page<AssignmentSubmission> search(@Param("courseId") Integer courseId,
 			@Param("status") AssignmentSubmission.Status status, Pageable pageable);
 
 	@Query("select distinct s.courseId from AssignmentSubmission s")
-	List<Long> distinctCourseIds();
+	List<Integer> distinctCourseIds();
 }

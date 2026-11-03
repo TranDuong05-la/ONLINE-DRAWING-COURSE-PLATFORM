@@ -70,10 +70,10 @@ public class LearningNotification {
 
 	/** Nơi app chuyển tới khi bấm thông báo. */
 	@Column(name = "course_id")
-	private Long courseId;
+	private Integer courseId;
 
 	@Column(name = "lesson_id")
-	private Long lessonId;
+	private Integer lessonId;
 
 	/** Id chứng nhận / bài nộp / đề bài tùy loại. */
 	@Column(name = "target_id")

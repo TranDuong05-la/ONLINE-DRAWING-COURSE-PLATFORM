@@ -7,6 +7,7 @@ import '../../core/network/api_client.dart';
 import '../../models/user_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../supplies/ui/admin/admin_supply_home.dart';
 import '../../widgets/server_config_dialog.dart';
 import '../../widgets/status_badge.dart';
 
@@ -233,6 +234,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           ),
                         );
                       },
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Phần E: học cụ, tồn kho, giao hàng
+                    _buildActionCard(
+                      title: 'Học cụ, Kho & Giao hàng',
+                      subtitle: 'Tạo/sửa/ẩn học cụ, nhập kho, đóng gói và cập nhật trạng thái giao hàng.',
+                      icon: Icons.inventory_2_rounded,
+                      iconColor: const Color(0xFF7C3AED),
+                      badgeText: 'Sẵn sàng',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AdminSupplyHome()),
+                      ),
                     ),
                     const SizedBox(height: 24),
 

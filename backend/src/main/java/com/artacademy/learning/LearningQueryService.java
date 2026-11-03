@@ -65,9 +65,9 @@ public class LearningQueryService {
 		}
 		List<Enrollment> mine = enrollments.findByLearnerProfileIdAndStatusOrderByEnrolledAtDescIdDesc(profileId,
 				Enrollment.Status.ACTIVE);
-		Map<Long, Course> courseMap = courses.findAllById(mine.stream().map(Enrollment::getCourseId).toList()).stream()
+		Map<Integer, Course> courseMap = courses.findAllById(mine.stream().map(Enrollment::getCourseId).toList()).stream()
 				.collect(Collectors.toMap(Course::getId, Function.identity()));
-		Map<Long, Long> certByCourse = certificates.findByLearnerProfileIdOrderByIssuedAtDesc(profileId).stream()
+		Map<Integer, Long> certByCourse = certificates.findByLearnerProfileIdOrderByIssuedAtDesc(profileId).stream()
 				.collect(Collectors.toMap(Certificate::getCourseId, Certificate::getId, (a, b) -> a));
 		List<MyCourseDto> out = new ArrayList<>();
 		for (Enrollment e : mine) {
@@ -83,14 +83,14 @@ public class LearningQueryService {
 		return out;
 	}
 
-	public CourseDetailDto courseDetail(Integer userId, Long courseId) {
+	public CourseDetailDto courseDetail(Integer userId, Integer courseId) {
 		Integer profileId = access.requireCourse(userId, courseId);
 		Course c = courses.findById(courseId).orElseThrow(() -> Errors.notFound("Không tìm thấy khóa học"));
 		List<CourseLesson> visible = lessons.findVisibleByCourse(courseId);
-		Set<Long> ids = visible.stream().map(CourseLesson::getId).collect(Collectors.toSet());
-		Map<Long, LessonProgress> progressByLesson = progress.findByLearnerProfileIdAndLessonIdIn(profileId, ids)
+		Set<Integer> ids = visible.stream().map(CourseLesson::getId).collect(Collectors.toSet());
+		Map<Integer, LessonProgress> progressByLesson = progress.findByLearnerProfileIdAndLessonIdIn(profileId, ids)
 				.stream().collect(Collectors.toMap(LessonProgress::getLessonId, Function.identity()));
-		Map<Long, Assignment> assignmentByLesson = assignments.findByLessonIdInAndActiveTrue(ids).stream()
+		Map<Integer, Assignment> assignmentByLesson = assignments.findByLessonIdInAndActiveTrue(ids).stream()
 				.collect(Collectors.toMap(Assignment::getLessonId, Function.identity()));
 		Map<Long, AssignmentSubmission.Status> latest = completion.latestStatus(profileId,
 				assignmentByLesson.values().stream().map(Assignment::getId).toList());
@@ -118,13 +118,13 @@ public class LearningQueryService {
 	}
 
 	/** Nội dung bài (có link video/tài liệu) chỉ trả cho người đã có quyền học, kèm vị trí xem tiếp. */
-	public LessonContentDto lesson(Integer userId, Long lessonId) {
+	public LessonContentDto lesson(Integer userId, Integer lessonId) {
 		LessonAccess.Granted g = access.requireLesson(userId, lessonId);
 		LessonContent lc = content.getLessonContent(lessonId);
 		LessonProgress p = progress.findByLearnerProfileIdAndLessonId(g.learnerProfileId(), lessonId).orElse(null);
 		List<CourseLesson> all = lessons.findVisibleByCourse(g.courseId());
-		Long prev = null;
-		Long next = null;
+		Integer prev = null;
+		Integer next = null;
 		for (int i = 0; i < all.size(); i++) {
 			if (all.get(i).getId().equals(lessonId)) {
 				prev = i > 0 ? all.get(i - 1).getId() : null;

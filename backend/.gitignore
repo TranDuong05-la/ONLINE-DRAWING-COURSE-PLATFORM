@@ -24,7 +24,16 @@ logs/
 !.mvn/wrapper/maven-wrapper.jar
 .maven-user-home/
 
+.maven-user-home/
+
+
+
+# File admin upload (ảnh bìa, video, PDF)
+uploads/
+
 
 # Local env variants; keep only the placeholder template tracked
 .env.*
 !.env.example
+
+

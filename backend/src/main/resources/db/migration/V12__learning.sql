@@ -2,7 +2,7 @@
 -- Viết theo mapping JPA của com.artacademy.learning, cùng phong cách V1-V11.
 -- Nối tiếp V11 (phần B). Không sửa file này sau khi đã chạy trên database dùng chung (Flyway kiểm tra checksum);
 -- muốn đổi thì thêm V13.
--- Id của C là BIGINT (cùng kiểu với courses/course_lessons của B); user/profile/order là INT theo A và D.
+-- Id riêng của C là BIGINT; course_id / lesson_id là INT theo courses/course_lessons của B; user/profile/order là INT theo A và D.
 -- course_claims.order_id / order_item_id không có khóa ngoại sang orders/order_items (để hai phần độc lập schema).
 
 -- Section: Quyền học (Course Ownership)
@@ -11,7 +11,7 @@ CREATE TABLE user_course_enrollments (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id INT NOT NULL,
     learner_profile_id INT NOT NULL,
-    course_id BIGINT NOT NULL,
+    course_id INT NOT NULL,
     status VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
     source_type VARCHAR(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
     source_order_id INT NULL,
@@ -44,7 +44,7 @@ CREATE TABLE course_claims (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id INT NOT NULL,
     learner_profile_id INT NOT NULL,
-    course_id BIGINT NOT NULL,
+    course_id INT NOT NULL,
     order_id INT NOT NULL,
     order_item_id INT NULL,
     source_type VARCHAR(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
@@ -82,7 +82,7 @@ CREATE TABLE course_claims (
 CREATE TABLE user_lesson_progress (
     id BIGINT NOT NULL AUTO_INCREMENT,
     learner_profile_id INT NOT NULL,
-    lesson_id BIGINT NOT NULL,
+    lesson_id INT NOT NULL,
     is_completed BOOLEAN NOT NULL,
     watched_seconds INT NOT NULL,
     last_position_seconds INT NOT NULL,
@@ -100,7 +100,7 @@ CREATE TABLE user_lesson_progress (
 
 CREATE TABLE assignments (
     id BIGINT NOT NULL AUTO_INCREMENT,
-    lesson_id BIGINT NOT NULL,
+    lesson_id INT NOT NULL,
     title VARCHAR(200) NOT NULL,
     instructions TEXT NULL,
     is_required BOOLEAN NOT NULL,
@@ -117,8 +117,8 @@ CREATE TABLE assignments (
 CREATE TABLE assignment_submissions (
     id BIGINT NOT NULL AUTO_INCREMENT,
     assignment_id BIGINT NOT NULL,
-    lesson_id BIGINT NOT NULL,
-    course_id BIGINT NOT NULL,
+    lesson_id INT NOT NULL,
+    course_id INT NOT NULL,
     learner_profile_id INT NOT NULL,
     image_key VARCHAR(255) NOT NULL,
     note TEXT NULL,
@@ -148,7 +148,7 @@ CREATE TABLE certificates (
     id BIGINT NOT NULL AUTO_INCREMENT,
     certificate_code VARCHAR(50) NOT NULL,
     learner_profile_id INT NOT NULL,
-    course_id BIGINT NOT NULL,
+    course_id INT NOT NULL,
     learner_name VARCHAR(100) NOT NULL,
     course_title VARCHAR(200) NOT NULL,
     pdf_key VARCHAR(255) NOT NULL,

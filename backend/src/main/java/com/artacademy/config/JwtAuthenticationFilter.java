@@ -72,7 +72,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Integer tokenVersionInJwt = jwtService.extractTokenVersion(jwt);
                     if (tokenVersionInJwt != null) {
                         com.artacademy.entity.User user = userRepository.findByEmail(userEmail).orElse(null);
-                        if (user != null && user.getTokenVersion() != null && !tokenVersionInJwt.equals(user.getTokenVersion())) {
+                        Integer userVersion = (user != null && user.getTokenVersion() != null) ? user.getTokenVersion() : 1;
+                        if (!tokenVersionInJwt.equals(userVersion)) {
                             sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Session expired or revoked due to security changes. Please log in again.");
                             return;
                         }

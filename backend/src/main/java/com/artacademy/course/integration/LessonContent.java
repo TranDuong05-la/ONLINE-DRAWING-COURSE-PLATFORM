@@ -2,8 +2,8 @@ package com.artacademy.course.integration;
 
 /** Nội dung một bài học cho C: có link video và tài liệu (khác với API public). */
 public record LessonContent(
-        Long lessonId,
-        Long courseId,
+        Integer lessonId,
+        Integer courseId,
         String title,
         String description,
         String videoUrl,

@@ -38,7 +38,7 @@ public class ProgressService {
 		this.completeRatio = completeRatio;
 	}
 
-	public ProgressResponse update(Integer userId, Long lessonId, int positionSeconds, int watchedDeltaSeconds) {
+	public ProgressResponse update(Integer userId, Integer lessonId, int positionSeconds, int watchedDeltaSeconds) {
 		LessonAccess.Granted g = access.requireLesson(userId, lessonId);
 		// Lần đầu mở bài, hai request có thể cùng tạo dòng progress -> một cái vi phạm unique. Bắt lỗi và thử lại;
 		// lần sau sẽ thấy dòng đã có và chỉ cập nhật.
@@ -88,7 +88,7 @@ public class ProgressService {
 			p.setCompletedAt(now);
 		}
 		progress.save(p);
-		Long courseId = g.courseId();
+		Integer courseId = g.courseId();
 		CompletionService.CourseProgress cp = (!wasCompleted && nowCompleted) ? completion.evaluate(profileId, courseId)
 				: completion.compute(profileId, courseId);
 		return new ProgressResponse(g.lessonId(), p.getLastPositionSeconds(), p.getWatchedSeconds(), nowCompleted,

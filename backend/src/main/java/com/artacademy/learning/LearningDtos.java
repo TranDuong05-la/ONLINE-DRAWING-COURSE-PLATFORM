@@ -19,53 +19,53 @@ public final class LearningDtos {
 
 	// ---------------------------------------------------------------- học viên
 
-	public record MyCourseDto(Long courseId, String title, String thumbnailUrl, int totalLessons,
-			int completedLessons, int progressPercent, boolean completed, Long continueLessonId, Long certificateId,
+	public record MyCourseDto(Integer courseId, String title, String thumbnailUrl, int totalLessons,
+			int completedLessons, int progressPercent, boolean completed, Integer continueLessonId, Long certificateId,
 			LocalDateTime enrolledAt) {
 	}
 
-	public record LessonItemDto(Long id, String title, int durationSeconds, boolean required, boolean completed,
+	public record LessonItemDto(Integer id, String title, int durationSeconds, boolean required, boolean completed,
 			int lastPositionSeconds, boolean hasAssignment, boolean assignmentRequired, String assignmentStatus) {
 	}
 
-	public record ModuleDto(Long id, String title, List<LessonItemDto> lessons) {
+	public record ModuleDto(Integer id, String title, List<LessonItemDto> lessons) {
 	}
 
-	public record CourseDetailDto(Long courseId, String title, String thumbnailUrl, String description,
+	public record CourseDetailDto(Integer courseId, String title, String thumbnailUrl, String description,
 			int totalLessons, int completedLessons, int requiredLessons, int completedRequiredLessons,
 			int requiredAssignments, int approvedAssignments, int progressPercent, boolean completed,
-			Long continueLessonId, Long certificateId, List<ModuleDto> modules) {
+			Integer continueLessonId, Long certificateId, List<ModuleDto> modules) {
 	}
 
-	public record LessonContentDto(Long id, Long courseId, String title, String description, String videoUrl,
+	public record LessonContentDto(Integer id, Integer courseId, String title, String description, String videoUrl,
 			int durationSeconds, String materialUrl, boolean required, int lastPositionSeconds, int watchedSeconds,
-			boolean completed, boolean hasAssignment, Long previousLessonId, Long nextLessonId) {
+			boolean completed, boolean hasAssignment, Integer previousLessonId, Integer nextLessonId) {
 	}
 
 	public record ProgressRequest(@NotNull @Min(0) Integer positionSeconds,
 			@NotNull @Min(0) @Max(300) Integer watchedDeltaSeconds) {
 	}
 
-	public record ProgressResponse(Long lessonId, int lastPositionSeconds, int watchedSeconds, boolean completed,
+	public record ProgressResponse(Integer lessonId, int lastPositionSeconds, int watchedSeconds, boolean completed,
 			int courseProgressPercent, boolean courseCompleted) {
 	}
 
-	public record SubmissionDto(Long id, Long assignmentId, Long lessonId, int attemptNo, String status, String note,
+	public record SubmissionDto(Long id, Long assignmentId, Integer lessonId, int attemptNo, String status, String note,
 			BigDecimal score, String feedback, LocalDateTime submittedAt, LocalDateTime reviewedAt, String imagePath) {
 	}
 
-	public record AssignmentDto(Long id, Long lessonId, String lessonTitle, Long courseId, String title,
+	public record AssignmentDto(Long id, Integer lessonId, String lessonTitle, Integer courseId, String title,
 			String instructions, boolean required, boolean canSubmit, String latestStatus,
 			List<SubmissionDto> submissions) {
 	}
 
 	/** Một dòng trong tab "Bài tập" của học viên. */
-	public record MyAssignmentDto(Long assignmentId, Long lessonId, String lessonTitle, Long courseId,
+	public record MyAssignmentDto(Long assignmentId, Integer lessonId, String lessonTitle, Integer courseId,
 			String courseTitle, String title, boolean required, String status, BigDecimal score, String feedback,
 			LocalDateTime submittedAt) {
 	}
 
-	public record CertificateDto(Long id, String code, Long courseId, String courseTitle, String learnerName,
+	public record CertificateDto(Long id, String code, Integer courseId, String courseTitle, String learnerName,
 			LocalDateTime issuedAt, String emailStatus, int emailAttempts, LocalDateTime emailSentAt,
 			String emailError, boolean canResendEmail) {
 	}
@@ -75,14 +75,14 @@ public final class LearningDtos {
 
 	/** Thông báo trong app. App dùng type + courseId / lessonId / targetId để mở đúng màn hình khi bấm. */
 	public record NotificationDto(Long id, String type, String title, String body, LocalDateTime createdAt,
-			boolean read, Long courseId, Long lessonId, Long targetId) {
+			boolean read, Integer courseId, Integer lessonId, Long targetId) {
 	}
 
 	public record UnreadCountDto(long unread) {
 	}
 
 	/** Admin: chứng nhận đã cấp cho học viên. */
-	public record AdminCertificateDto(Long id, String code, Long courseId, String courseTitle, String learnerName,
+	public record AdminCertificateDto(Long id, String code, Integer courseId, String courseTitle, String learnerName,
 			String learnerEmail, LocalDateTime issuedAt, String emailStatus, int emailAttempts,
 			LocalDateTime emailSentAt, String emailError) {
 	}
@@ -90,7 +90,7 @@ public final class LearningDtos {
 	// ---------------------------------------------------------------- admin
 
 	public record AdminSubmissionDto(Long id, Long assignmentId, String assignmentTitle,
-			String assignmentInstructions, Long lessonId, String lessonTitle, Long courseId, String courseTitle,
+			String assignmentInstructions, Integer lessonId, String lessonTitle, Integer courseId, String courseTitle,
 			Integer learnerProfileId, String learnerName, String learnerEmail, int attemptNo, String status,
 			String note, BigDecimal score, String feedback, LocalDateTime submittedAt, LocalDateTime reviewedAt,
 			String imagePath, List<SubmissionDto> history) {
@@ -103,7 +103,7 @@ public final class LearningDtos {
 	public record SubmissionSummary(long pending, long needsRevision, long approved) {
 	}
 
-	public record CourseOption(Long id, String title) {
+	public record CourseOption(Integer id, String title) {
 	}
 
 	public record PageDto<T>(List<T> items, long total, int page, int size) {
@@ -114,7 +114,7 @@ public final class LearningDtos {
 			@NotNull Boolean required, @NotNull Boolean active) {
 	}
 
-	public record AdminLessonAssignmentDto(Long lessonId, String lessonTitle, String moduleTitle, boolean lessonHidden,
+	public record AdminLessonAssignmentDto(Integer lessonId, String lessonTitle, String moduleTitle, boolean lessonHidden,
 			Long assignmentId, String title, String instructions, boolean required, boolean active) {
 	}
 }

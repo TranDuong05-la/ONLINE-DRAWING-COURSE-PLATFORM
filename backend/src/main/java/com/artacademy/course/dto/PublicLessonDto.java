@@ -5,7 +5,7 @@ package com.artacademy.course.dto;
  * Chỉ bài học thử (preview = true) mới có previewVideoUrl.
  */
 public record PublicLessonDto(
-        Long id,
+        Integer id,
         String title,
         String description,
         int durationSeconds,

@@ -8,11 +8,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
 
-	Optional<Assignment> findByLessonId(Long lessonId);
+	Optional<Assignment> findByLessonId(Integer lessonId);
 
-	Optional<Assignment> findByLessonIdAndActiveTrue(Long lessonId);
+	Optional<Assignment> findByLessonIdAndActiveTrue(Integer lessonId);
 
-	List<Assignment> findByLessonIdInAndActiveTrue(Collection<Long> lessonIds);
+	List<Assignment> findByLessonIdInAndActiveTrue(Collection<Integer> lessonIds);
 
-	List<Assignment> findByLessonIdIn(Collection<Long> lessonIds);
+	List<Assignment> findByLessonIdIn(Collection<Integer> lessonIds);
 }

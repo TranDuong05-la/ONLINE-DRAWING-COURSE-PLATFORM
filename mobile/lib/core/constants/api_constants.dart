@@ -37,6 +37,8 @@ class ApiConstants {
 
   // User profile endpoints
   static const String userProfile = '/api/users/me';
+  static const String userAvatar = '/api/users/me/avatar';
+  static const String uploadImage = '/api/upload/image';
   static const String changePassword = '/api/users/me/password';
 
   // Address endpoints

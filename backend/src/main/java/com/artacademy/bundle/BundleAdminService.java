@@ -37,12 +37,12 @@ public class BundleAdminService {
     @Transactional(readOnly = true)
     public List<AdminBundleDto> list() {
         List<CourseBundle> bundles = bundleRepository.findAllByOrderByIdDesc();
-        Map<Long, List<Course>> courses = mapper.coursesByBundle(bundles.stream().map(CourseBundle::getId).toList());
+        Map<Integer, List<Course>> courses = mapper.coursesByBundle(bundles.stream().map(CourseBundle::getId).toList());
         return bundles.stream().map(b -> mapper.toAdmin(b, courses.getOrDefault(b.getId(), List.of()))).toList();
     }
 
     @Transactional(readOnly = true)
-    public AdminBundleDto get(Long id) {
+    public AdminBundleDto get(Integer id) {
         return toAdmin(find(id));
     }
 
@@ -56,13 +56,28 @@ public class BundleAdminService {
         return toAdmin(bundle);
     }
 
-    public AdminBundleDto update(Long id, BundleRequest req) {
+    public AdminBundleDto update(Integer id, BundleRequest req) {
         CourseBundle bundle = find(id);
         List<Course> courses = validateCourses(req);
+
+        // Ghi nhớ định nghĩa cũ để biết có cần tăng definitionVersion không
+        String oldCode = bundle.getCode();
+        String oldTitle = bundle.getTitle();
+        long oldPrice = bundle.getPrice();
+        List<Integer> oldCourseIds = mapper.coursesByBundle(List.of(id)).getOrDefault(id, List.of()).stream()
+                .map(Course::getId).toList();
+
         if (req.code() != null && !req.code().isBlank()) {
             bundle.setCode(resolveCode(req.code(), id));
         }
         apply(bundle, req);
+
+        List<Integer> newCourseIds = courses.stream().map(Course::getId).toList();
+        boolean definitionChanged = !oldCode.equals(bundle.getCode()) || !oldTitle.equals(bundle.getTitle())
+                || oldPrice != bundle.getPrice() || !oldCourseIds.equals(newCourseIds);
+        if (definitionChanged) {
+            bundle.increaseDefinitionVersion();
+        }
         bundleRepository.save(bundle);
         // Xóa danh sách khóa cũ rồi thêm danh sách mới (hàm xóa tự flush trước và clear sau)
         itemRepository.deleteByBundle(id);
@@ -71,7 +86,7 @@ public class BundleAdminService {
     }
 
     /** Bật/tắt combo. Tắt = ẩn khỏi học viên. */
-    public AdminBundleDto setActive(Long id, boolean active) {
+    public AdminBundleDto setActive(Integer id, boolean active) {
         CourseBundle bundle = find(id);
         bundle.setActive(active);
         return toAdmin(bundle);
@@ -89,20 +104,24 @@ public class BundleAdminService {
     }
 
     /**
-     * Quy tắc combo: tối thiểu 2 khóa khác nhau, tất cả phải tồn tại và đang PUBLISHED,
+     * Quy tắc combo: từ 2 đến 10 khóa khác nhau, tất cả phải tồn tại và đang PUBLISHED,
      * giá combo phải nhỏ hơn tổng giá thực bán của các khóa (nếu không thì combo vô nghĩa).
      * Trả về khóa theo đúng thứ tự admin chọn.
      */
     private List<Course> validateCourses(BundleRequest req) {
-        List<Long> ids = req.courseIds();
+        List<Integer> ids = req.courseIds();
+        // Kiểm tra lại ở service (ngoài @Size ở API) vì service còn được gọi từ nơi khác
+        if (ids.size() < BundleRules.MIN_COURSES || ids.size() > BundleRules.MAX_COURSES) {
+            throw new BadRequestException(BundleRules.COURSE_COUNT_MESSAGE);
+        }
         if (new HashSet<>(ids).size() != ids.size()) {
             throw new BadRequestException("Một khóa học chỉ được chọn một lần trong combo");
         }
-        Map<Long, Course> byId = new HashMap<>();
+        Map<Integer, Course> byId = new HashMap<>();
         courseRepository.findAllById(ids).forEach(c -> byId.put(c.getId(), c));
 
         List<Course> courses = new ArrayList<>();
-        for (Long id : ids) {
+        for (Integer id : ids) {
             Course course = byId.get(id);
             if (course == null) {
                 throw new BadRequestException("Khóa học id " + id + " không tồn tại");
@@ -122,12 +141,13 @@ public class BundleAdminService {
     }
 
     private void saveItems(CourseBundle bundle, List<Course> courses) {
+        int position = 1;
         for (Course course : courses) {
-            itemRepository.save(new BundleItem(bundle, courseRepository.getReferenceById(course.getId())));
+            itemRepository.save(new BundleItem(bundle, courseRepository.getReferenceById(course.getId()), position++));
         }
     }
 
-    private String resolveCode(String requested, Long selfId) {
+    private String resolveCode(String requested, Integer selfId) {
         if (requested == null || requested.isBlank()) {
             String code;
             do {
@@ -145,7 +165,7 @@ public class BundleAdminService {
         return code;
     }
 
-    private CourseBundle find(Long id) {
+    private CourseBundle find(Integer id) {
         return bundleRepository.findById(id).orElseThrow(() -> new NotFoundException("Không tìm thấy combo"));
     }
 

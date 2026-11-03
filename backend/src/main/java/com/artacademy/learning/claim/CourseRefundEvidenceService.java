@@ -91,7 +91,7 @@ public class CourseRefundEvidenceService implements CourseRefundContracts.Course
 					: enrollments.findByLearnerProfileIdAndCourseId(c.getLearnerProfileId(), c.getCourseId()).orElse(null);
 			int basisPoints = Math.min(10_000,
 					completion.compute(c.getLearnerProfileId(), c.getCourseId()).basisPoints());
-			evidence.add(new CourseEvidence(c.getCourseId(), combo ? c.getComponentPosition() : null, basisPoints,
+			evidence.add(new CourseEvidence(c.getCourseId().longValue(), combo ? c.getComponentPosition() : null, basisPoints,
 					hasAnySubmission(c.getLearnerProfileId(), c.getCourseId()), observedAt, "course-claim:" + c.getId(),
 					e == null ? 0 : e.getVersion()));
 		}
@@ -103,8 +103,8 @@ public class CourseRefundEvidenceService implements CourseRefundContracts.Course
 				fence ? "enrollment-lock:order-item:" + scope.orderItemId() : null);
 	}
 
-	private boolean hasAnySubmission(Integer learnerProfileId, Long courseId) {
-		List<Long> lessonIds = lessons.findAllByCourse(courseId).stream().map(CourseLesson::getId).toList();
+	private boolean hasAnySubmission(Integer learnerProfileId, Integer courseId) {
+		List<Integer> lessonIds = lessons.findAllByCourse(courseId).stream().map(CourseLesson::getId).toList();
 		if (lessonIds.isEmpty()) {
 			return false;
 		}

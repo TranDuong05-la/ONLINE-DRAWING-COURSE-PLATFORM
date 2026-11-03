@@ -13,11 +13,11 @@ import jakarta.persistence.LockModeType;
 
 public interface LessonProgressRepository extends JpaRepository<LessonProgress, Long> {
 
-	Optional<LessonProgress> findByLearnerProfileIdAndLessonId(Integer learnerProfileId, Long lessonId);
+	Optional<LessonProgress> findByLearnerProfileIdAndLessonId(Integer learnerProfileId, Integer lessonId);
 
-	List<LessonProgress> findByLearnerProfileIdAndLessonIdIn(Integer learnerProfileId, Collection<Long> lessonIds);
+	List<LessonProgress> findByLearnerProfileIdAndLessonIdIn(Integer learnerProfileId, Collection<Integer> lessonIds);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select p from LessonProgress p where p.learnerProfileId = :profileId and p.lessonId = :lessonId")
-	Optional<LessonProgress> findForUpdate(@Param("profileId") Integer profileId, @Param("lessonId") Long lessonId);
+	Optional<LessonProgress> findForUpdate(@Param("profileId") Integer profileId, @Param("lessonId") Integer lessonId);
 }

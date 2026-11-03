@@ -7,15 +7,14 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-public interface CourseKitRepository extends JpaRepository<CourseIncludedKit, Long> {
+public interface CourseKitRepository extends JpaRepository<CourseIncludedKit, Integer> {
 
-    @Query("select k from CourseIncludedKit k join fetch k.product where k.course.id = :courseId order by k.id")
-    List<CourseIncludedKit> findByCourse(@Param("courseId") Long courseId);
+    @Query("select k from CourseIncludedKit k where k.course.id = :courseId order by k.id")
+    List<CourseIncludedKit> findByCourse(@Param("courseId") Integer courseId);
 
-    /** Id các khóa có ít nhất 1 món quà còn bán (sản phẩm active). Dùng để hiện nhãn "Tặng kèm dụng cụ". */
-    @Query("select distinct k.course.id from CourseIncludedKit k "
-            + "where k.course.id in :courseIds and k.product.active = true")
-    List<Long> courseIdsWithActiveKits(@Param("courseIds") Collection<Long> courseIds);
+    /** Quà của nhiều khóa trong 1 câu truy vấn (việc kiểm tra sản phẩm còn bán do ProductCatalog làm). */
+    @Query("select k from CourseIncludedKit k where k.course.id in :courseIds order by k.id")
+    List<CourseIncludedKit> findByCourses(@Param("courseIds") Collection<Integer> courseIds);
 
     /**
      * Xóa hết quà của khóa bằng câu DELETE chạy ngay.
@@ -24,5 +23,5 @@ public interface CourseKitRepository extends JpaRepository<CourseIncludedKit, Lo
      */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from CourseIncludedKit k where k.course.id = :courseId")
-    void deleteByCourse(@Param("courseId") Long courseId);
+    void deleteByCourse(@Param("courseId") Integer courseId);
 }

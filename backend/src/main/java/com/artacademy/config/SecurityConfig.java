@@ -7,6 +7,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
@@ -104,7 +105,7 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs"
                         ).permitAll()
-                        // B: khóa học & combo cho học viên (chỉ GET) và file đã upload (ảnh, video, PDF): công khai.
+                        // Khóa học & combo cho học viên (chỉ GET) và file đã upload (ảnh, video, PDF): công khai.
                         // Video/ảnh được tải bằng Image.network / video_player nên không gửi kèm token được.
                         .requestMatchers(HttpMethod.GET,
                                 "/api/courses", "/api/courses/**",
@@ -113,7 +114,7 @@ public class SecurityConfig {
                         ).permitAll()
                         // C: link tải chứng nhận có token ký số ngắn hạn (kiểm tra trong CertificateService)
                         .requestMatchers(HttpMethod.GET, "/api/files/certificates/*/pdf").permitAll()
-                        // Admin endpoints (gồm quản trị khóa học/combo/upload của B và chấm bài của C)
+                        // Admin endpoints (gồm quản trị khóa học, combo, sản phẩm, upload của B và chấm bài của C)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Instructor endpoints
                         .requestMatchers("/api/instructor/**").hasAnyRole("INSTRUCTOR", "ADMIN")

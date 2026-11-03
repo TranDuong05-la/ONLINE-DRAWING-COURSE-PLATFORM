@@ -13,20 +13,20 @@ import jakarta.persistence.LockModeType;
 
 public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
 
-	Optional<Enrollment> findByLearnerProfileIdAndCourseId(Integer learnerProfileId, Long courseId);
+	Optional<Enrollment> findByLearnerProfileIdAndCourseId(Integer learnerProfileId, Integer courseId);
 
 	List<Enrollment> findByLearnerProfileIdAndStatusOrderByEnrolledAtDescIdDesc(Integer learnerProfileId,
 			Enrollment.Status status);
 
 	List<Enrollment> findByLearnerProfileIdAndStatusAndCourseIdIn(Integer learnerProfileId, Enrollment.Status status,
-			Collection<Long> courseIds);
+			Collection<Integer> courseIds);
 
 	List<Enrollment> findBySourceOrderItemIdAndStatus(Integer sourceOrderItemId, Enrollment.Status status);
 
-	List<Enrollment> findByCourseIdAndStatus(Long courseId, Enrollment.Status status);
+	List<Enrollment> findByCourseIdAndStatus(Integer courseId, Enrollment.Status status);
 
 	/** SELECT ... FOR UPDATE: tuần tự hóa việc xét hoàn thành / cấp chứng nhận / thu hồi cho cùng học viên + khóa. */
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query("select e from Enrollment e where e.learnerProfileId = :profileId and e.courseId = :courseId")
-	Optional<Enrollment> findForUpdate(@Param("profileId") Integer profileId, @Param("courseId") Long courseId);
+	Optional<Enrollment> findForUpdate(@Param("profileId") Integer profileId, @Param("courseId") Integer courseId);
 }

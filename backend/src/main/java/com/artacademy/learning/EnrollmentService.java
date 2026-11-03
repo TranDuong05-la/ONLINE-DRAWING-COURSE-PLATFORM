@@ -39,7 +39,7 @@ public class EnrollmentService {
 
 	/** Enrollment còn hiệu lực của user, hoặc 403. Chưa mua / đã bị thu hồi (refund) đều không học được. */
 	@Transactional(readOnly = true)
-	public Enrollment requireActiveEnrollment(Integer userId, Long courseId) {
+	public Enrollment requireActiveEnrollment(Integer userId, Integer courseId) {
 		Integer profileId = profiles.findLearnerProfileId(userId);
 		if (profileId == null) {
 			throw Errors.forbidden("Bạn chưa mua khóa học này");
@@ -49,14 +49,14 @@ public class EnrollmentService {
 	}
 
 	@Transactional(readOnly = true)
-	public boolean isOwned(Integer userId, Long courseId) {
+	public boolean isOwned(Integer userId, Integer courseId) {
 		Integer profileId = profiles.findLearnerProfileId(userId);
 		return profileId != null && enrollments.findByLearnerProfileIdAndCourseId(profileId, courseId)
 				.map(Enrollment::isActive).orElse(false);
 	}
 
 	@Transactional(readOnly = true)
-	public Set<Long> ownedCourseIds(Integer userId, Collection<Long> courseIds) {
+	public Set<Integer> ownedCourseIds(Integer userId, Collection<Integer> courseIds) {
 		Integer profileId = profiles.findLearnerProfileId(userId);
 		if (profileId == null || courseIds.isEmpty()) {
 			return Set.of();
@@ -70,7 +70,7 @@ public class EnrollmentService {
 	 * Đã có quyền ACTIVE thì giữ nguyên (idempotent) và không ghi đè nguồn cấp cũ.
 	 */
 	@Transactional(propagation = Propagation.MANDATORY)
-	public Enrollment activate(Integer userId, Integer learnerProfileId, Long courseId, Enrollment.Source source,
+	public Enrollment activate(Integer userId, Integer learnerProfileId, Integer courseId, Enrollment.Source source,
 			Integer orderId, Integer orderItemId, LocalDateTime at) {
 		String courseTitle = courses.findById(courseId).map(c -> c.getTitle())
 				.orElseThrow(() -> Errors.notFound("Không tìm thấy khóa học " + courseId));
@@ -94,7 +94,7 @@ public class EnrollmentService {
 		e.setRevokeReason(null);
 		e = enrollments.saveAndFlush(e);
 		events.publishEvent(NotificationRequest.toUser(userId, LearningNotification.Type.COURSE_ENROLLED,
-				"ENROLL:" + e.getId() + ":" + at, "Bạn đã có quyền học khóa mới", courseTitle, courseId, null, courseId));
+				"ENROLL:" + e.getId() + ":" + at, "Bạn đã có quyền học khóa mới", courseTitle, courseId, null, courseId.longValue()));
 		return e;
 	}
 
@@ -112,7 +112,7 @@ public class EnrollmentService {
 
 	/** Cấp quyền học thủ công (dữ liệu mẫu / admin), không qua thanh toán. */
 	@Transactional
-	public List<Long> grantManually(Integer userId, Collection<Long> courseIds) {
+	public List<Integer> grantManually(Integer userId, Collection<Integer> courseIds) {
 		Integer profileId = profiles.learnerProfileId(userId);
 		LocalDateTime now = LocalDateTime.now();
 		return courseIds.stream().distinct().sorted()

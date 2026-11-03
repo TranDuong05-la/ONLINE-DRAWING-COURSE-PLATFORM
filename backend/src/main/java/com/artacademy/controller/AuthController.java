@@ -3,15 +3,18 @@ package com.artacademy.controller;
 import com.artacademy.dto.*;
 import com.artacademy.enums.Role;
 import com.artacademy.service.AuthService;
+import com.artacademy.service.CloudinaryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -21,9 +24,11 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final CloudinaryService cloudinaryService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, CloudinaryService cloudinaryService) {
         this.authService = authService;
+        this.cloudinaryService = cloudinaryService;
     }
 
     // ==========================================
@@ -115,6 +120,23 @@ public class AuthController {
             @Valid @RequestBody UpdateProfileRequest request) {
         UserResponse response = authService.updateProfile(userDetails.getUsername(), request);
         return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", response));
+    }
+
+    @PostMapping(value = "/api/users/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload user avatar", description = "Uploads a real image file to Cloudinary and updates user profile avatar.", tags = {"User Profile"})
+    public ResponseEntity<ApiResponse<UserResponse>> uploadAvatar(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam("file") MultipartFile file) {
+        UserResponse response = authService.updateAvatar(userDetails.getUsername(), file);
+        return ResponseEntity.ok(ApiResponse.success("Avatar uploaded successfully", response));
+    }
+
+    @PostMapping(value = "/api/upload/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload single image", description = "Uploads an image file to Cloudinary and returns its secure URL.", tags = {"Upload"})
+    public ResponseEntity<ApiResponse<Map<String, String>>> uploadImage(
+            @RequestParam("file") MultipartFile file) {
+        String url = cloudinaryService.uploadImage(file);
+        return ResponseEntity.ok(ApiResponse.success("Image uploaded successfully", Map.of("url", url)));
     }
 
     @PutMapping("/api/users/me/password")

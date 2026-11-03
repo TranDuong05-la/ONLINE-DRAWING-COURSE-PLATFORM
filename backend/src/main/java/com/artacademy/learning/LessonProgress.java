@@ -31,7 +31,7 @@ public class LessonProgress {
 	private Integer learnerProfileId;
 
 	@Column(name = "lesson_id", nullable = false)
-	private Long lessonId;
+	private Integer lessonId;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "learner_profile_id", insertable = false, updatable = false,
