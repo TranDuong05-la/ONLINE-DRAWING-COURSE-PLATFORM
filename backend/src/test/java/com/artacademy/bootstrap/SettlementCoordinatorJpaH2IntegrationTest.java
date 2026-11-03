@@ -240,6 +240,22 @@ class SettlementCoordinatorJpaH2IntegrationTest {
     }
 
     @Test
+    void courseOnlyCompositionRejectsProductAndMixedOrdersBeforeAnySettlementWrite() {
+        var fixture = fixtureWithWork(); // fixture contains both a Course and a Product line
+        var claim = claimService.claimNext("course-only-worker").orElseThrow();
+        SettlementCoordinator courseOnly = new SettlementCoordinator(orders, attempts, events, jpaLedger,
+                participants, null, participants, Clock.systemUTC(), new SettlementTimeoutProperties(),
+                transactionManager, workItems, workClaims);
+
+        var result = courseOnly.executeClaimedWork(claim);
+
+        assertEquals(SettlementResult.Outcome.REQUIRES_REVIEW, result.outcome());
+        assertEquals(SettlementResult.Reason.FULFILLMENT_ADAPTER_UNAVAILABLE, result.reason());
+        assertPending(fixture);
+        assertEquals(PaymentSettlementWorkState.MANUAL_REVIEW, work(claim.id()).getState());
+    }
+
+    @Test
     void participantFailureRollsBackLedgerOrderEffectsAndWorkCompletion() {
         var fixture = fixtureWithWork();
         var claim = claimService.claimNext("settlement-test-worker").orElseThrow();
@@ -573,7 +589,8 @@ class SettlementCoordinatorJpaH2IntegrationTest {
         private volatile String transientFailAt;
         private TestParticipants(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
-        @Override public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId, Instant at) {
+        @Override public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId,
+                                                    Integer orderItemId, Instant at) {
             effect("course", orderId, courseId);
         }
         @Override public void confirmProductForOrder(Integer userId, Integer productId, Integer orderId, Instant at) {

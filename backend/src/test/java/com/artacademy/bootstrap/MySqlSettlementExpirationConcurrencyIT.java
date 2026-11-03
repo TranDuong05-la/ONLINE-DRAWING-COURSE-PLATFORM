@@ -810,7 +810,8 @@ class MySqlSettlementExpirationConcurrencyIT {
                 await(release);
             }
         }
-        @Override public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId, Instant at) { effect("course-confirm", orderId, courseId); }
+        @Override public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId,
+                                                    Integer orderItemId, Instant at) { effect("course-confirm", orderId, courseId); }
         @Override public void releaseProductForExpiredOrder(Integer userId, Integer productId, Integer orderId, Instant at) { effect("inventory-release", orderId, productId); }
         @Override public void releaseCourseForExpiredOrder(Integer userId, Integer courseId, Integer orderId, Instant at) { effect("course-release", orderId, courseId); }
         private void effect(String kind, Integer orderId, Integer itemId) {

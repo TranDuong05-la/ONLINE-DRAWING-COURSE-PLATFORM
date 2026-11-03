@@ -185,32 +185,51 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void confirm(CourseClaimContracts.ConfirmationCommand command) {
 		for (ClaimLine line : sortedByCourse(command.lines())) {
-			confirmOne(command.authenticatedUserId(), line.courseId(), command.orderId(), command.confirmedAt());
+			confirmOne(command.authenticatedUserId(), line.courseId(), command.orderId(), line.orderItemId(),
+					command.confirmedAt());
 		}
 	}
 
 	@Transactional(propagation = Propagation.MANDATORY)
 	public void confirmForOrder(Integer authenticatedUserId, Integer courseId, Integer orderId, Instant confirmedAt) {
 		requirePositive(courseId, "courseId");
-		confirmOne(authenticatedUserId, courseId.longValue(), orderId, confirmedAt);
+		confirmOne(authenticatedUserId, courseId.longValue(), orderId, null, confirmedAt);
+	}
+
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId, Instant confirmedAt) {
+		requirePositive(courseId, "courseId");
+		confirmOne(userId, courseId.longValue(), orderId, null, confirmedAt);
 	}
 
 	@Override
 	@Transactional(propagation = Propagation.MANDATORY)
-	public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId, Instant confirmedAt) {
+	public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId,
+			Integer orderItemId, Instant confirmedAt) {
 		requirePositive(courseId, "courseId");
-		confirmOne(userId, courseId.longValue(), orderId, confirmedAt);
+		requirePositive(orderItemId, "orderItemId");
+		confirmOne(userId, courseId.longValue(), orderId, orderItemId, confirmedAt);
 	}
 
 	/** Cấp quyền học theo yêu cầu của D sau khi thanh toán đã được xác minh. Idempotent. */
-	private void confirmOne(Integer userId, Long courseId, Integer orderId, Instant confirmedAt) {
+	private void confirmOne(Integer userId, Long courseId, Integer orderId, Integer expectedOrderItemId,
+			Instant confirmedAt) {
 		requirePositive(userId, "userId");
 		requirePositive(orderId, "orderId");
 		Objects.requireNonNull(confirmedAt, "confirmedAt");
 		CourseClaim c = claims.findForUpdate(orderId, courseId).orElseThrow(() -> new IllegalStateException(
 				"Không có claim của Order " + orderId + " cho khóa " + courseId));
 		requireOwner(c, userId);
+		if (expectedOrderItemId != null && !expectedOrderItemId.equals(c.getOrderItemId())) {
+			throw new IllegalStateException("Course claim OrderItem does not match the persisted Order item");
+		}
 		if (c.getStatus() == CourseClaim.Status.CONFIRMED) {
+			Enrollment existing = enrollments.findForUpdate(c.getLearnerProfileId(), courseId).orElse(null);
+			if (existing == null || !existing.isActive() || !Objects.equals(existing.getId(), c.getEnrollmentId())
+					|| !Objects.equals(existing.getSourceOrderId(), c.getOrderId())
+					|| !Objects.equals(existing.getSourceOrderItemId(), c.getOrderItemId())) {
+				throw new IllegalStateException("Confirmed Course claim has inconsistent Enrollment provenance");
+			}
 			return;
 		}
 		if (c.getStatus() != CourseClaim.Status.RESERVED) {
@@ -219,6 +238,10 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 		LocalDateTime at = utc(confirmedAt);
 		Enrollment e = enrollmentService.activate(userId, c.getLearnerProfileId(), courseId, Enrollment.Source.ORDER,
 				orderId, c.getOrderItemId(), LocalDateTime.ofInstant(confirmedAt, java.time.ZoneId.systemDefault()));
+		if (!e.isActive() || !Objects.equals(e.getSourceOrderId(), orderId)
+				|| !Objects.equals(e.getSourceOrderItemId(), c.getOrderItemId())) {
+			throw new IllegalStateException("Enrollment does not identify this Course purchase OrderItem");
+		}
 		c.setStatus(CourseClaim.Status.CONFIRMED);
 		c.setConfirmedAt(at);
 		c.setEnrollmentId(e.getId());

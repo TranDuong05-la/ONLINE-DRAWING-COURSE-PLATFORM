@@ -67,6 +67,8 @@ app:
   payment:
     vnpay:
       enabled: ${VNPAY_ENABLED:false}
+      session-api:
+        enabled: ${VNPAY_SESSION_API_ENABLED:false}
       ipn:
         enabled: ${VNPAY_IPN_ENABLED:false}
       payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
@@ -76,6 +78,24 @@ app:
       ipn-url: ${VNPAY_IPN_URL:}
       api-version: ${VNPAY_API_VERSION:2.1.0}
       command: ${VNPAY_COMMAND:pay}
+    settlement:
+      enabled: ${PAYMENT_SETTLEMENT_ENABLED:false}
+      worker:
+        enabled: ${PAYMENT_SETTLEMENT_WORKER_ENABLED:false}
+        worker-id: ${PAYMENT_SETTLEMENT_WORKER_ID:course-settlement-worker}
+        batch-size: ${PAYMENT_SETTLEMENT_WORKER_BATCH_SIZE:16}
+        scheduler:
+          enabled: ${PAYMENT_SETTLEMENT_SCHEDULER_ENABLED:false}
+          initial-delay-ms: ${PAYMENT_SETTLEMENT_SCHEDULER_INITIAL_DELAY_MS:10000}
+          fixed-delay-ms: ${PAYMENT_SETTLEMENT_SCHEDULER_FIXED_DELAY_MS:10000}
+  order:
+    expiration:
+      enabled: ${ORDER_EXPIRATION_ENABLED:false}
+      scheduler:
+        enabled: ${ORDER_EXPIRATION_SCHEDULER_ENABLED:false}
+        batch-size: ${ORDER_EXPIRATION_BATCH_SIZE:100}
+        initial-delay-ms: ${ORDER_EXPIRATION_SCHEDULER_INITIAL_DELAY_MS:15000}
+        fixed-delay-ms: ${ORDER_EXPIRATION_SCHEDULER_FIXED_DELAY_MS:60000}
   jwt:
     secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
