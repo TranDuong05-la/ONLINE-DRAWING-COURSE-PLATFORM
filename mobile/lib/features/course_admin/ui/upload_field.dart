@@ -109,13 +109,22 @@ class _UploadFieldState extends State<UploadField> {
   Future<void> _openPreview() async {
     final value = widget.value;
     if (value == null || value.isEmpty) return;
+    // Video/PDF đã upload nằm sau link có chữ ký: xin server cấp link xem thử trước khi mở
+    final String url;
+    try {
+      url = await _repo.signMedia(value);
+    } on ApiException catch (e) {
+      if (mounted) showMessage(context, e.displayMessage, error: true);
+      return;
+    }
+    if (!mounted) return;
     if (widget.kind == UploadKind.video) {
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => VideoPlayerPage(title: widget.label, url: value)),
+        MaterialPageRoute(builder: (_) => VideoPlayerPage(title: widget.label, url: url)),
       );
     } else if (widget.kind == UploadKind.document) {
       final ok = await launchUrl(
-        Uri.parse(resolveMediaUrl(value)),
+        Uri.parse(resolveMediaUrl(url)),
         mode: LaunchMode.externalApplication,
       );
       if (!ok && mounted) showMessage(context, 'Không mở được tài liệu', error: true);

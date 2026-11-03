@@ -109,6 +109,16 @@ public interface ProductCatalog {
 - Sản phẩm bị tắt hoặc không còn: không hiện trong danh sách quà cho học viên, được trả ở `unavailableKits`, và **làm khóa/combo không bán được** (`KIT_UNAVAILABLE`). B không tự bỏ quà khỏi khóa hay combo.
 - API công khai vẫn hiển thị khóa và combo đó, kèm cờ `kitsUnavailable` (trong `CourseSummaryDto` và `BundleDto`) để app hiện nhãn "Tạm thiếu quà" và khóa nút thêm vào giỏ. `KitDto.available` cho admin biết quà nào đã ngừng bán.
 
+## 6b. Nội dung bài học cho người đã đăng ký (C) và link video có chữ ký
+
+Video/PDF đã upload **không còn công khai**: `/uploads/**` chỉ phục vụ ảnh. Video/PDF chỉ xem được qua link `/media/{file}?exp=&sig=` do API cấp (HMAC-SHA256, sống 2 giờ).
+
+- `CourseContentService.getLessonContent(lessonId)` trả `videoUrl` và `documentUrl` **đã ký sẵn** cho file trên server (link ngoài giữ nguyên). **C phải kiểm tra Enrollment `ACTIVE` trước khi gọi** (B không biết ai là người gọi); đây là nơi quyết định "chỉ người đăng ký mới xem được". `LessonAccess.requireLesson` của C đã làm đúng việc này, nên C không cần sửa code.
+- Link chỉ có hiệu lực ngắn: app không được lưu lại để dùng lại sau; mỗi lần mở bài học thì gọi lại API của C để lấy link mới. Người học bị thu hồi quyền (REVOKED) thì không lấy được link mới; link đã cấp vẫn dùng được tới khi hết hạn (tối đa 2 giờ).
+- Bài học thử (`isPreview`): ai cũng xem được, nên `GET /api/courses/{id}` trả `previewVideoUrl` đã ký.
+- Cấu hình: `app.media.url-ttl-seconds` (mặc định 7200), `app.media.signing-secret` (mặc định lấy từ `app.jwt.secret`; production nên đặt riêng).
+- Hạn chế: link ngoài (YouTube...) B không bảo vệ được; ai nhận được link còn hạn thì xem được tới khi hết hạn.
+
 ## 7. Migration `V10__course_catalog.sql` (chỉ là tài liệu tham chiếu schema, chưa chạy)
 
 Integration đã có Flyway V1 đến V13 (và V14 của A chưa áp dụng). Theo thống nhất: **không đưa file này vào database chung** và không đổi thành V14; phía integration tự review schema và nếu cần migration mới thì dùng V15 trở đi. File giữ nguyên tên `V10` để làm tài liệu tham chiếu.

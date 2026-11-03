@@ -8,6 +8,7 @@ import com.artacademy.course.dto.CourseSummaryDto;
 import com.artacademy.course.dto.KitDto;
 import com.artacademy.course.dto.PublicLessonDto;
 import com.artacademy.course.dto.PublicModuleDto;
+import com.artacademy.media.MediaUrlSigner;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,9 +26,12 @@ public class CourseMapper {
     private final CourseLessonRepository lessonRepository;
     private final CourseKitLookup kitLookup;
     private final CoursePublishValidator publishValidator;
+    private final MediaUrlSigner mediaSigner;
 
     public CourseMapper(CourseModuleRepository moduleRepository, CourseLessonRepository lessonRepository,
-                        CourseKitLookup kitLookup, CoursePublishValidator publishValidator) {
+                        CourseKitLookup kitLookup, CoursePublishValidator publishValidator,
+                        MediaUrlSigner mediaSigner) {
+        this.mediaSigner = mediaSigner;
         this.moduleRepository = moduleRepository;
         this.lessonRepository = lessonRepository;
         this.kitLookup = kitLookup;
@@ -87,7 +91,8 @@ public class CourseMapper {
     private PublicLessonDto toPublicLesson(CourseLesson l) {
         boolean hasDocument = l.getMaterialUrl() != null && !l.getMaterialUrl().isBlank();
         // Quy tắc quan trọng: chỉ bài học thử mới lộ link video
-        String previewVideoUrl = l.isPreview() ? l.getVideoUrl() : null;
+        // Bài học thử công khai: video trên server được trả dưới dạng link có hạn (không lộ đường dẫn thô /uploads/...)
+        String previewVideoUrl = l.isPreview() ? mediaSigner.signIfProtected(l.getVideoUrl()) : null;
         return new PublicLessonDto(l.getId(), l.getTitle(), l.getDescription(), l.getDurationSeconds(),
                 l.isPreview(), l.isRequired(), hasDocument, previewVideoUrl);
     }
