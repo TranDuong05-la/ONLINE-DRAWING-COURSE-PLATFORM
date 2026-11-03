@@ -52,22 +52,51 @@ class RoleBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = role == UserRole.admin;
+    Color bg;
+    Color border;
+    Color text;
+    String label;
+
+    switch (role) {
+      case UserRole.admin:
+        label = 'ADMIN';
+        bg = const Color(0xFFFDE8E1);
+        border = const Color(0xFFE76F51).withOpacity(0.4);
+        text = const Color(0xFFE76F51);
+        break;
+      case UserRole.instructor:
+        label = 'GIẢNG VIÊN';
+        bg = const Color(0xFFE0F2FE);
+        border = const Color(0xFF0284C7).withOpacity(0.4);
+        text = const Color(0xFF0369A1);
+        break;
+      case UserRole.staff:
+        label = 'NHÂN VIÊN';
+        bg = const Color(0xFFFEF3C7);
+        border = const Color(0xFFD97706).withOpacity(0.4);
+        text = const Color(0xFFB45309);
+        break;
+      case UserRole.user:
+        label = 'HỌC VIÊN';
+        bg = AppColors.pastelTeal;
+        border = AppColors.primary.withOpacity(0.2);
+        text = AppColors.primary;
+        break;
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isAdmin ? AppColors.accentPeachLight : AppColors.pastelTeal,
+        color: bg,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isAdmin ? AppColors.accentPeach.withOpacity(0.4) : AppColors.primary.withOpacity(0.2),
-        ),
+        border: Border.all(color: border),
       ),
       child: Text(
-        isAdmin ? 'ADMIN' : 'HỌC VIÊN',
+        label,
         style: GoogleFonts.plusJakartaSans(
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: isAdmin ? AppColors.accentPeach : AppColors.primary,
+          color: text,
           letterSpacing: 0.3,
         ),
       ),

@@ -9,12 +9,16 @@ import '../core/constants/app_colors.dart';
 import '../core/utils/google_web_wrapper/web_wrapper.dart' as web;
 import '../providers/auth_provider.dart';
 import 'google_icon.dart';
+import '../core/utils/app_logger.dart';
 
 class GoogleSignInSheet extends StatefulWidget {
   const GoogleSignInSheet({super.key});
 
-  static const String googleClientId =
-      '4555221892-omq3ncgr2ib4frohuct3mhsv5rs02m1n.apps.googleusercontent.com';
+  static const String googleClientId = String.fromEnvironment(
+    'GOOGLE_CLIENT_ID',
+    defaultValue:
+        '631102057997-3ebr6ea99bpulk4isu1g3if2jj2fp9si.apps.googleusercontent.com',
+  );
 
   static bool _isGoogleInitialized = false;
   static Future<void>? _initFuture;
@@ -27,13 +31,13 @@ class GoogleSignInSheet extends StatefulWidget {
     return _initFuture ??= () async {
       try {
         await GoogleSignIn.instance.initialize(
-          clientId: googleClientId,
+          clientId: kIsWeb ? googleClientId : null,
           serverClientId: kIsWeb ? null : googleClientId,
         );
-      } catch (e) {
-        debugPrint('GoogleSignIn.initialize notice: $e');
-      } finally {
         _isGoogleInitialized = true;
+      } catch (e) {
+        logDebug('GoogleSignIn.initialize error: $e');
+        _initFuture = null;
       }
     }();
   }
@@ -56,6 +60,7 @@ class GoogleSignInSheet extends StatefulWidget {
 
 class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
   bool _isLoading = false;
+  bool _isProcessing = false;
   String? _errorMessage;
   StreamSubscription<GoogleSignInAuthenticationEvent>? _authSubscription;
 
@@ -72,6 +77,32 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
     super.dispose();
   }
 
+  bool _isCancellation(Object err) {
+    if (err is GoogleSignInException &&
+        err.code == GoogleSignInExceptionCode.canceled) {
+      return true;
+    }
+    final s = err.toString().toLowerCase();
+    return s.contains('canceled') ||
+        s.contains('cancelled') ||
+        s.contains('12501') ||
+        s.contains('16:') ||
+        s.contains('user_canceled') ||
+        s.contains('cancellation');
+  }
+
+  String _mapErrorMessage(Object err) {
+    final s = err.toString().toLowerCase();
+    if (s.contains('28444') ||
+        s.contains('developer console is not set up correctly')) {
+      return 'Lỗi cấu hình Google Cloud (28444): Chưa đăng ký Android OAuth Client ID cho package com.artnest.artnest_app với SHA-1 của thiết bị trong Google Cloud Console.';
+    }
+    if (s.contains('network') || s.contains('connection')) {
+      return 'Lỗi kết nối mạng khi xác thực với Google. Vui lòng kiểm tra lại đường truyền.';
+    }
+    return 'Đăng nhập Google không thành công. Vui lòng thử lại.';
+  }
+
   void _subscribeToAuthEvents() {
     _authSubscription = GoogleSignIn.instance.authenticationEvents.listen(
       (GoogleSignInAuthenticationEvent event) async {
@@ -80,33 +111,46 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
         }
       },
       onError: (err) {
-        debugPrint('Google authenticationEvents error: $err');
+        logDebug('Google authenticationEvents error: $err');
         if (!mounted) return;
+        if (_isCancellation(err)) {
+          setState(() {
+            _isLoading = false;
+          });
+          return;
+        }
         setState(() {
           _isLoading = false;
-          _errorMessage = 'Lỗi xác thực Google: $err';
+          _errorMessage = _mapErrorMessage(err);
         });
       },
     );
   }
 
   Future<void> _processGoogleUser(GoogleSignInAccount account) async {
+    if (_isProcessing) return;
+    _isProcessing = true;
+
     final String? idToken = account.authentication.idToken;
     final String email = account.email;
     final String? displayName = account.displayName;
     final String? photoUrl = account.photoUrl;
 
     if (idToken == null || idToken.trim().isEmpty) {
+      logDebug('Google ID token was empty after sign-in.');
+      _isProcessing = false;
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage =
-            'Không nhận được mã xác thực (ID Token) từ Google. Vui lòng thử lại.';
+        _errorMessage = 'Không nhận được mã xác thực từ Google. Vui lòng thử lại.';
       });
       return;
     }
 
-    if (!mounted) return;
+    if (!mounted) {
+      _isProcessing = false;
+      return;
+    }
     setState(() {
       _isLoading = true;
       _errorMessage = null;
@@ -136,15 +180,17 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
       } else {
         setState(() {
           _errorMessage =
-              authProvider.errorMessage ?? 'Xác thực tài khoản Google thất bại';
+              authProvider.errorMessage ?? 'Xác thực tài khoản Google thất bại.';
         });
       }
     } catch (e) {
+      logDebug('Error during Google sign-in processing: $e');
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Không thể kết nối đến máy chủ ArtNest: $e';
+        _errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.';
       });
     } finally {
+      _isProcessing = false;
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -154,7 +200,7 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
   }
 
   Future<void> _handleMobileGoogleSignIn() async {
-    if (_isLoading) return;
+    if (_isLoading || _isProcessing) return;
 
     setState(() {
       _isLoading = true;
@@ -165,7 +211,6 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
       await GoogleSignInSheet.ensureInitialized();
 
       if (kIsWeb) {
-        // On Web, Google Identity Services uses the rendered button or lightweight attempt
         final account =
             await GoogleSignIn.instance.attemptLightweightAuthentication();
         if (account != null) {
@@ -180,26 +225,59 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
         return;
       }
 
-      // Mobile (Android / iOS): sign out first to allow account selection
+      // Mobile (Android / iOS):
+      GoogleSignInAccount? account;
       try {
-        await GoogleSignIn.instance.signOut();
-      } catch (_) {}
+        account = await GoogleSignIn.instance.authenticate();
+      } catch (e) {
+        logDebug('Google SignIn authenticate error: $e');
+        if (_isCancellation(e)) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+            });
+          }
+          return;
+        }
 
-      final GoogleSignInAccount account =
-          await GoogleSignIn.instance.authenticate(
-        scopeHint: const ['email', 'profile', 'openid'],
-      );
+        // Fast-fail if Developer Console configuration error
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('28444') ||
+            errStr.contains('developer console is not set up correctly')) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _errorMessage = _mapErrorMessage(e);
+            });
+          }
+          return;
+        }
+
+        // Fallback: try lightweight authentication if standard authenticate encountered an error
+        try {
+          account = await GoogleSignIn.instance.attemptLightweightAuthentication();
+        } catch (lightweightError) {
+          logDebug(
+            'Google SignIn lightweight fallback error: $lightweightError',
+          );
+        }
+
+        if (account == null) {
+          if (!mounted) return;
+          setState(() {
+            _isLoading = false;
+            _errorMessage = _mapErrorMessage(e);
+          });
+          return;
+        }
+      }
 
       await _processGoogleUser(account);
     } catch (e) {
-      debugPrint('Google Sign-In error: $e');
+      logDebug('Google Sign-In general error: $e');
       if (!mounted) return;
 
-      final errStr = e.toString();
-      if (errStr.contains('canceled') ||
-          errStr.contains('cancelled') ||
-          errStr.contains('12501')) {
-        // User voluntarily dismissed the Google picker
+      if (_isCancellation(e)) {
         setState(() {
           _isLoading = false;
         });
@@ -207,8 +285,7 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
       }
 
       setState(() {
-        _errorMessage =
-            'Đăng nhập Google không thành công: ${errStr.replaceFirst("Exception: ", "")}';
+        _errorMessage = _mapErrorMessage(e);
       });
     } finally {
       if (mounted) {
@@ -285,8 +362,11 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.error_outline,
-                      color: AppColors.error, size: 20),
+                  const Icon(
+                    Icons.error_outline,
+                    color: AppColors.error,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -312,48 +392,6 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
               child: SizedBox(
                 height: 44,
                 child: web.renderButton(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFEF3C7),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFDE68A)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.warning_amber_rounded,
-                          color: Color(0xFF92400E), size: 18),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Cấu hình Google Cloud cho Web',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF92400E),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Origin hiện tại: ${Uri.base.origin}\n'
-                    'Nếu gặp lỗi 403 "The given origin is not allowed", bạn cần:\n'
-                    '• Thêm "${Uri.base.origin}" vào mục "Authorized JavaScript origins" của Web Client ID trên Google Cloud Console.\n'
-                    '• HOẶC chạy app trên terminal với port 3000 cố định:\n'
-                    '  flutter run -d chrome --web-port=3000',
-                    style: GoogleFonts.plusJakartaSans(
-                      fontSize: 11.5,
-                      color: const Color(0xFF92400E),
-                      height: 1.45,
-                    ),
-                  ),
-                ],
               ),
             ),
           ] else ...[
@@ -413,8 +451,11 @@ class _GoogleSignInSheetState extends State<GoogleSignInSheet> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.shield_outlined,
-                    color: AppColors.primaryDark, size: 18),
+                const Icon(
+                  Icons.shield_outlined,
+                  color: AppColors.primaryDark,
+                  size: 18,
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

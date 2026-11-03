@@ -3,7 +3,7 @@ import '../profile/profile_screen.dart';
 import 'courses_tab.dart';
 import 'favorites_tab.dart';
 import 'home_tab.dart';
-import 'store_tab.dart';
+import '../supplies/ui/supply_shop_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -26,7 +26,7 @@ class _MainScreenState extends State<MainScreen> {
     final screens = [
       HomeTab(onNavigateTab: _onTabSelected),
       const CoursesTab(),
-      const StoreTab(),
+      const SupplyShopScreen(),
       FavoritesTab(onNavigateTab: _onTabSelected),
       const ProfileScreen(),
     ];

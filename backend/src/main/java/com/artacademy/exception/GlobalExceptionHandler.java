@@ -109,6 +109,7 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(message));
     }
 
+
     // ==========================================
     // Lỗi của phần khóa học (B) và lỗi Spring MVC.
     // Nếu không khai báo ở đây, các lỗi này sẽ bị handler Exception bên dưới đổi nhầm thành 500.
@@ -157,6 +158,18 @@ public class GlobalExceptionHandler {
             default -> "Yêu cầu không hợp lệ";
         };
         return ResponseEntity.status(status).body(ApiResponse.error(message));
+
+    @ExceptionHandler(AppException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAppException(AppException ex) {
+        return ResponseEntity.status(ex.getStatus())
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMaxUploadSizeExceeded(org.springframework.web.multipart.MaxUploadSizeExceededException ex) {
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Kích thước tệp vượt quá giới hạn cho phép (tối đa 10MB)"));
+
     }
 
     @ExceptionHandler(Exception.class)

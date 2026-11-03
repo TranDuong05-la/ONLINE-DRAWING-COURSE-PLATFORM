@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
 import '../core/network/api_exceptions.dart';
+import '../core/utils/app_logger.dart';
 
 enum AuthStatus {
   initial,
@@ -25,6 +26,10 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated && _currentUser != null;
   bool get isAdmin => _currentUser?.isAdmin ?? false;
+  bool get isInstructor => _currentUser?.isInstructor ?? false;
+  bool get isStaff => _currentUser?.isStaff ?? false;
+  bool get isUser => _currentUser?.isUser ?? false;
+  UserRole? get currentRole => _currentUser?.role;
   bool get isLoading => _status == AuthStatus.loading;
 
   void clearError() {
@@ -82,7 +87,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      logDebug('Auth login error: $e');
+      _errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
       _status = AuthStatus.error;
       notifyListeners();
       return false;
@@ -117,7 +123,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      logDebug('Auth register error: $e');
+      _errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
       _status = AuthStatus.error;
       notifyListeners();
       return false;
@@ -166,7 +173,8 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+      logDebug('Auth Google login error: $e');
+      _errorMessage = 'Không thể kết nối đến máy chủ. Vui lòng kiểm tra lại kết nối mạng.';
       _status = AuthStatus.error;
       notifyListeners();
       return false;
@@ -189,6 +197,16 @@ class AuthProvider extends ChangeNotifier {
       newPassword: newPassword,
       confirmPassword: confirmPassword,
     );
+  }
+
+  Future<void> refreshCurrentUser() async {
+    try {
+      final user = await _authRepository.getCurrentUser();
+      _currentUser = user;
+      notifyListeners();
+    } catch (e) {
+      logDebug('Failed to refresh current user: $e');
+    }
   }
 
   void updateCurrentUser(UserModel user) {

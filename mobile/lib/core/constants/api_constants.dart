@@ -10,8 +10,14 @@ class ApiConstants {
   static const String _baseUrlOverride = String.fromEnvironment('API_BASE_URL');
 
   static String get defaultBaseUrl {
+
     if (_baseUrlOverride.isNotEmpty) {
       return _baseUrlOverride;
+
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) {
+      return envUrl;
+
     }
     if (kIsWeb) {
       return 'http://localhost:8080';
@@ -37,6 +43,8 @@ class ApiConstants {
 
   // User profile endpoints
   static const String userProfile = '/api/users/me';
+  static const String userAvatar = '/api/users/me/avatar';
+  static const String uploadImage = '/api/upload/image';
   static const String changePassword = '/api/users/me/password';
 
   // Address endpoints
@@ -46,6 +54,9 @@ class ApiConstants {
 
   // Admin endpoints
   static const String adminUsers = '/api/admin/users';
+  static const String adminDashboard = '/api/admin/dashboard';
   static String adminUserDetail(int id) => '/api/admin/users/$id';
+  static String adminUserRole(int id) => '/api/admin/users/$id/role';
   static String adminUserStatus(int id) => '/api/admin/users/$id/status';
+  static String adminUserRoleHistory(int id) => '/api/admin/users/$id/role-history';
 }

@@ -82,17 +82,38 @@ class ProfileScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 2),
                     ),
-                    child: Center(
-                      child: Text(
-                        user.fullName.isNotEmpty
-                            ? user.fullName.substring(0, 1).toUpperCase()
-                            : 'A',
-                        style: GoogleFonts.plusJakartaSans(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.primaryDark,
-                        ),
-                      ),
+                    child: ClipOval(
+                      child: user.avatarUrl != null && user.avatarUrl!.isNotEmpty
+                          ? Image.network(
+                              user.avatarUrl!,
+                              width: 64,
+                              height: 64,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => Center(
+                                child: Text(
+                                  user.fullName.isNotEmpty
+                                      ? user.fullName.substring(0, 1).toUpperCase()
+                                      : 'A',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primaryDark,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                user.fullName.isNotEmpty
+                                    ? user.fullName.substring(0, 1).toUpperCase()
+                                    : 'A',
+                                style: GoogleFonts.plusJakartaSans(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.primaryDark,
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -169,10 +190,18 @@ class ProfileScreen extends StatelessWidget {
               _buildSectionHeader('Khu vực Quản trị viên (Admin)'),
               _buildMenuCard([
                 _buildMenuItem(
-                  icon: Icons.admin_panel_settings_outlined,
+                  icon: Icons.dashboard_outlined,
                   iconColor: AppColors.accentPeach,
-                  title: 'Quản lý người dùng',
-                  subtitle: 'Xem danh sách, tìm kiếm & quản lý trạng thái tài khoản',
+                  title: 'Bảng điều khiển Quản trị (Dashboard)',
+                  subtitle: 'Thống kê tổng quan, các chỉ số hệ thống ArtNest',
+                  onTap: () => context.push('/admin/dashboard'),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
+                  icon: Icons.manage_accounts_outlined,
+                  iconColor: AppColors.accentPeach,
+                  title: 'Quản lý tài khoản & Phân quyền',
+                  subtitle: 'Danh sách, tìm kiếm, đổi vai trò và khóa tài khoản',
                   onTap: () => context.push('/admin/users'),
                 ),
                 _buildMenuItem(
@@ -181,6 +210,36 @@ class ProfileScreen extends StatelessWidget {
                   title: 'Quản lý khóa học & combo',
                   subtitle: 'Tạo khóa, module, bài học, quà tặng kèm, xuất bản và combo',
                   onTap: () => context.push('/admin/courses'),
+                ),
+              ]),
+              const SizedBox(height: 20),
+            ],
+
+            // Instructor Section
+            if (user.isInstructor) ...[
+              _buildSectionHeader('Khu vực Giảng viên (Instructor)'),
+              _buildMenuCard([
+                _buildMenuItem(
+                  icon: Icons.school_outlined,
+                  iconColor: const Color(0xFF0284C7),
+                  title: 'Bàn làm việc Giảng viên',
+                  subtitle: 'Quản lý khóa học, bài giảng và chấm điểm học viên',
+                  onTap: () => context.push('/instructor/dashboard'),
+                ),
+              ]),
+              const SizedBox(height: 20),
+            ],
+
+            // Staff Section
+            if (user.isStaff) ...[
+              _buildSectionHeader('Khu vực Nhân viên Vận hành (Staff)'),
+              _buildMenuCard([
+                _buildMenuItem(
+                  icon: Icons.badge_outlined,
+                  iconColor: const Color(0xFFD97706),
+                  title: 'Bàn làm việc Nhân viên',
+                  subtitle: 'Xử lý đơn hàng, kho họa cụ & điều phối vận chuyển',
+                  onTap: () => context.push('/staff/dashboard'),
                 ),
               ]),
               const SizedBox(height: 20),

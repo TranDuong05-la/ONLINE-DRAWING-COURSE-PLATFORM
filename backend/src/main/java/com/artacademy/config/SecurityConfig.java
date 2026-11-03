@@ -103,6 +103,12 @@ public class SecurityConfig {
                         ).permitAll()
                         // Admin endpoints (gồm quản trị khóa học, combo, sản phẩm, upload của phần B)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        // Instructor endpoints
+                        .requestMatchers("/api/instructor/**").hasAnyRole("INSTRUCTOR", "ADMIN")
+                        // Staff endpoints
+                        .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "ADMIN")
+                        // User endpoints
+                        .requestMatchers("/api/user/**", "/api/users/**").authenticated()
                         // All other API endpoints require authentication
                         .anyRequest().authenticated()
                 )
