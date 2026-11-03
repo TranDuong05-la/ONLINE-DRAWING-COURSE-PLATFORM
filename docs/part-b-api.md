@@ -29,9 +29,9 @@ Lỗi nghiệp vụ trả `success=false` và `message` tiếng Việt; lỗi ki
 | `POST` | `/api/admin/modules/{moduleId}/lessons` | `AdminLessonFormPage` | Thêm bài học. |
 | `PUT` | `/api/admin/modules/{moduleId}/lessons/reorder` | `AdminModulePage` | Sắp xếp bài học. |
 | `PUT` | `/api/admin/lessons/{id}` | `AdminLessonFormPage` | Sửa bài (video, thời lượng, PDF, cờ học thử / bắt buộc / ẩn). |
-| `GET` | `/api/admin/products` | `AdminKitsPage` | Sản phẩm đang bán để chọn làm quà. |
-| `POST` | `/api/admin/uploads` | `UploadField` | `multipart`, field `file`; jpg/png/webp ≤ 5MB, pdf ≤ 20MB, mp4 ≤ 200MB. Trả `data.url`. |
-| `GET`, `POST` | `/api/admin/bundles` | `AdminBundleListPage` (tab Combo), `AdminBundleFormPage` | Combo cần ≥ 2 khóa `PUBLISHED`, giá combo < tổng giá thực bán. |
+| `GET` | `/api/admin/products` | `AdminKitsPage` | Sản phẩm đang bán để chọn làm quà. **Bản tạm của B**; E sẽ cung cấp API thật cùng đường dẫn và dạng `{ id, sku, name, price, thumbnailUrl }`. |
+| `POST` | `/api/admin/uploads` | `UploadField` | `multipart`, field `file`; jpg/png/webp ≤ 5MB, pdf ≤ 20MB, mp4 ≤ 2GB (đổi bằng `app.upload.max-video-mb`). Quá giới hạn trả 413. Trả `data.url`. |
+| `GET`, `POST` | `/api/admin/bundles` | `AdminBundleListPage` (tab Combo), `AdminBundleFormPage` | Combo cần từ 2 đến 10 khóa `PUBLISHED` khác nhau, giá combo < tổng giá thực bán. Kết quả có `definitionVersion`. |
 | `GET`, `PUT` | `/api/admin/bundles/{id}` | `AdminBundleFormPage` | |
 | `PATCH` | `/api/admin/bundles/{id}/active` | `AdminBundleListPage` | Bật / tắt combo (không xóa). |
 
@@ -43,7 +43,7 @@ Khu vực này vào từ `ProfileScreen` → "Quản lý khóa học & combo" (r
   Nút "Thêm vào giỏ" ở Flutter gọi qua `CartGateway` (`lib/features/cart/cart_gateway.dart`), hiện chỉ báo SnackBar.
 - **C (học tập)**: `CourseContentService.getCourseStructure(courseId)` và `getLessonContent(lessonId)` (có link video/PDF).
   **C phải tự kiểm tra người dùng đã mua khóa** trước khi gọi.
-- **E (shop)**: bảng `products` và `course_included_kits` (course_id, product_id, quantity).
+- **E (shop)**: bảng `products` thuộc E (B không tạo bảng này); B chỉ lưu `course_included_kits` (course_id, product_id INT, quantity) và tra sản phẩm qua interface `ProductCatalog`. Chi tiết: [part-b-integration-contract.md](part-b-integration-contract.md).
 
 ### 4.4. Cách chạy thử nhanh (không cần cài MySQL)
 

@@ -9,7 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.artacademy.course.CourseRepository;
 import com.artacademy.course.CourseStatus;
-import com.artacademy.product.ProductRepository;
+import com.artacademy.product.InMemoryProductCatalog;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -40,11 +40,11 @@ class DataSeederTest {
 
     @Autowired MockMvc mvc;
     @Autowired CourseRepository courseRepository;
-    @Autowired ProductRepository productRepository;
+    @Autowired InMemoryProductCatalog productCatalog;
 
     @Test
     void seedData_hasExpectedCoursesProductsAndBundle() throws Exception {
-        assertTrue(productRepository.count() >= 3);
+        assertTrue(productCatalog.listActive().size() >= 3);
         assertEquals(3, courseRepository.count());
         assertEquals(1, courseRepository.findAll().stream().filter(c -> c.getStatus() == CourseStatus.DRAFT).count());
 

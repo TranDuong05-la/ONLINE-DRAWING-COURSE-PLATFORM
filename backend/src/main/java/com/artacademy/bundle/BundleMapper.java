@@ -67,7 +67,8 @@ public class BundleMapper {
             warnings.add("Giá combo không còn rẻ hơn mua lẻ từng khóa, nên kiểm tra lại giá");
         }
         return new AdminBundleDto(bundle.getId(), bundle.getCode(), bundle.getTitle(), bundle.getDescription(),
-                bundle.getPrice(), bundle.isActive(), total, Math.max(0, total - bundle.getPrice()),
+                bundle.getPrice(), bundle.getDefinitionVersion(), bundle.isActive(), total,
+                Math.max(0, total - bundle.getPrice()),
                 isVisible(bundle, courses), warnings, courseMapper.toSummaries(courses), bundle.getCreatedAt(),
                 bundle.getUpdatedAt());
     }

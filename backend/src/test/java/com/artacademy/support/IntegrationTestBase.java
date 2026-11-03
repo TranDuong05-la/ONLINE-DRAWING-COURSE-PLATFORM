@@ -17,8 +17,8 @@ import com.artacademy.course.CourseModule;
 import com.artacademy.course.CourseModuleRepository;
 import com.artacademy.course.CourseRepository;
 import com.artacademy.course.CourseStatus;
-import com.artacademy.product.Product;
-import com.artacademy.product.ProductRepository;
+import com.artacademy.product.InMemoryProductCatalog;
+import com.artacademy.product.ProductCatalog.KitProduct;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -63,7 +63,7 @@ public abstract class IntegrationTestBase {
     @Autowired protected CourseModuleRepository moduleRepository;
     @Autowired protected CourseLessonRepository lessonRepository;
     @Autowired protected CourseKitRepository kitRepository;
-    @Autowired protected ProductRepository productRepository;
+    @Autowired protected InMemoryProductCatalog productCatalog;
     @Autowired protected BundleRepository bundleRepository;
     @Autowired protected BundleItemRepository bundleItemRepository;
 
@@ -76,7 +76,7 @@ public abstract class IntegrationTestBase {
         lessonRepository.deleteAll();
         moduleRepository.deleteAll();
         courseRepository.deleteAll();
-        productRepository.deleteAll();
+        productCatalog.clear();
     }
 
     // ------------------------------------------------------------------ dữ liệu mẫu
@@ -121,14 +121,12 @@ public abstract class IntegrationTestBase {
         return c;
     }
 
-    protected Product newProduct(String sku, boolean active) {
-        Product p = new Product(sku, "Sản phẩm " + sku, 10_000, null);
-        p.setActive(active);
-        return productRepository.save(p);
+    protected KitProduct newProduct(String sku, boolean active) {
+        return productCatalog.add(sku, "Sản phẩm " + sku, 10_000, active).product();
     }
 
-    protected CourseIncludedKit newKit(Course course, Product product, int quantity) {
-        return kitRepository.save(new CourseIncludedKit(course, product, quantity));
+    protected CourseIncludedKit newKit(Course course, KitProduct product, int quantity) {
+        return kitRepository.save(new CourseIncludedKit(course, product.id(), quantity));
     }
 
     // ------------------------------------------------------------------ gọi API

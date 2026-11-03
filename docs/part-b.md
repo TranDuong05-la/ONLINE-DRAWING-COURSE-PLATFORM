@@ -19,7 +19,7 @@ Profile `h2` nạp khóa học mẫu và 2 tài khoản mẫu: `admin@artnest.vn
 |---|---|
 | `backend/.../config/SecurityConfig.java` | `GET /api/courses/**`, `/api/bundles/**`, `/uploads/**` công khai (đặt trước rule `/api/admin/**` = ADMIN) |
 | `backend/.../exception/GlobalExceptionHandler.java` | xử lý lỗi 400/404/405/413/415 và lỗi riêng của B |
-| `backend/src/main/resources/application.yaml` | `spring.servlet.multipart` 200MB, `app.upload.dir`, `app.seed.*` |
+| `backend/src/main/resources/application.yaml` | `spring.servlet.multipart` 2GB (video), `app.upload.dir`, `app.seed.*` |
 | `backend/pom.xml` | H2 đổi scope `test` → `runtime` (cho profile `h2`) |
 | `mobile/pubspec.yaml` (+ `pubspec.lock`) | `video_player`, `chewie`, `file_selector` |
 | `mobile/android/...` | `kotlin.incremental=false`; `<queries>` http/https để mở PDF |
@@ -29,14 +29,16 @@ Profile `h2` nạp khóa học mẫu và 2 tài khoản mẫu: `admin@artnest.vn
 | `mobile/lib/features/home/{courses_tab,home_tab}.dart` | tab Khóa học và "Khóa học nổi bật" dùng dữ liệu thật |
 
 ## Khi ghép với phần D (Spring Boot 4.1.1, Flyway)
-- `backend/src/main/resources/db/migration/V8__course_catalog.sql` là migration các bảng của B cho nhánh của D (nối tiếp V1-V7). Ở nhánh này chưa có Flyway nên file chưa được dùng. Không sửa file này sau khi đã áp dụng (Flyway kiểm tra checksum); muốn đổi thì thêm V9.
+- `backend/src/main/resources/db/migration/V10__course_catalog.sql` là migration **dự kiến** các bảng của B cho nhánh của D (D dành V10; không tạo bảng `products` vì E sở hữu). Ở nhánh này chưa có Flyway nên file chưa được dùng, và chưa chạy ở database nào: cần D và B review trước. Không sửa file này sau khi đã áp dụng (Flyway kiểm tra checksum).
 - Nền Spring Boot 4 chỉ khác import `AutoConfigureMockMvc` trong 2 file test (`IntegrationTestBase`, `DataSeederTest`):
   `org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc` → `org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc`.
 - D quét entity/repository theo danh sách package cố định; cần thêm `com.artacademy` (gồm `course`, `bundle`, `product`) vào `@EntityScan` và `@EnableJpaRepositories` ở `ArtAcademyApplication`.
-- Điểm nối sẵn cho D/C/E: `CourseSellableService.getSellableCourse(id)`, `BundleSellableService.getSellableBundle(id)`, `CourseContentService` (C phải tự kiểm tra đã mua), bảng `products` + `course_included_kits`.
+- Điểm nối cho D/C/E (ID là `Integer`, tiền `long`): `CourseSellableService`, `BundleSellableService.getSnapshot(id)` / `requireSellable(id, expectedVersion)`, `CourseContentService` (C phải tự kiểm tra đã mua), interface `ProductCatalog` (E cài). Xem [part-b-integration-contract.md](part-b-integration-contract.md).
   Nút "Thêm vào giỏ" gọi qua `CartGateway` (`mobile/lib/features/cart/cart_gateway.dart`), hiện chỉ báo thông báo; D thay bằng giỏ thật.
 
 ## Giới hạn hiện tại
-- `/uploads/**` công khai: ai biết link thì xem được video, kể cả bài chưa mua. File upload lưu trên ổ đĩa server (`uploads/`); muốn dùng Cloudinary thì viết thêm một class implements `FileStorageService`.
-- Combo chưa vào giỏ hàng và đơn hàng (nhóm còn đang bàn quy tắc combo và giảm giá).
+- **Upload:** video tối đa **2GB** (`app.upload.max-video-mb`), ảnh 5MB, pdf 20MB. File lớn không nằm trong RAM: Spring ghi file tạm ra đĩa rồi chuyển vào `uploads/`. Đặt `UPLOAD_TMP_DIR` (thư mục tạm) và `UPLOAD_DIR` (thư mục lưu) trên ổ còn nhiều chỗ, cùng ổ với nhau thì chuyển file nhanh hơn. Đã thử thật: 1GB lên trong khoảng 43 giây, 2.040MB trong khoảng 2 phút, 2,2GB bị từ chối ngay bằng lỗi 413. Nhược điểm của cách này: đứt mạng phải tải lại từ đầu, file chỉ nằm trên một máy, chưa sao lưu.
+- `/uploads/**` công khai: ai biết link thì xem được video, kể cả bài chưa mua. Muốn khóa lại hoặc lưu trên đám mây thì viết class khác implements `FileStorageService` (lưu ý Cloudinary gói miễn phí chỉ nhận video tối đa 100MB).
+- **Quà tặng kèm:** sản phẩm thuộc E nên B chỉ lưu `product_id` và tra qua interface `ProductCatalog`. Trong lúc E chưa tích hợp, B dùng bản tạm trong bộ nhớ (`InMemoryProductCatalog`, dữ liệu mẫu chỉ có khi bật `app.seed.enabled`); E đặt `app.products.stand-in=false` để tắt nó.
+- Combo: 2 đến 10 khóa, có `definitionVersion` và vị trí khóa; chưa vào giỏ hàng và đơn hàng (D triển khai sau khi hai bên review hợp đồng).
 - Chưa thử upload file trên Android và trên điện thoại thật.

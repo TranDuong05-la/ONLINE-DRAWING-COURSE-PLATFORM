@@ -23,14 +23,14 @@ public class CourseMapper {
 
     private final CourseModuleRepository moduleRepository;
     private final CourseLessonRepository lessonRepository;
-    private final CourseKitRepository kitRepository;
+    private final CourseKitLookup kitLookup;
     private final CoursePublishValidator publishValidator;
 
     public CourseMapper(CourseModuleRepository moduleRepository, CourseLessonRepository lessonRepository,
-                        CourseKitRepository kitRepository, CoursePublishValidator publishValidator) {
+                        CourseKitLookup kitLookup, CoursePublishValidator publishValidator) {
         this.moduleRepository = moduleRepository;
         this.lessonRepository = lessonRepository;
-        this.kitRepository = kitRepository;
+        this.kitLookup = kitLookup;
         this.publishValidator = publishValidator;
     }
 
@@ -47,7 +47,7 @@ public class CourseMapper {
         for (Object[] row : lessonRepository.visibleStats(ids)) {
             stats.put((Integer) row[0], new long[]{((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
         }
-        Set<Integer> withKits = new HashSet<>(kitRepository.courseIdsWithActiveKits(ids));
+        Set<Integer> withKits = new HashSet<>(kitLookup.courseIdsWithActiveKits(ids));
 
         List<CourseSummaryDto> result = new ArrayList<>();
         for (Course c : courses) {
@@ -78,10 +78,7 @@ public class CourseMapper {
                 .toList();
 
         // Quà của sản phẩm đã bị tắt thì không hiện cho học viên
-        List<KitDto> kits = kitRepository.findByCourse(course.getId()).stream()
-                .filter(k -> k.getProduct().isActive())
-                .map(this::toKit)
-                .toList();
+        List<KitDto> kits = kitLookup.publicKits(course.getId());
         return new CourseDetailDto(toSummary(course), course.getDescription(), modules, kits);
     }
 
@@ -105,7 +102,7 @@ public class CourseMapper {
                 .map(m -> new AdminModuleDto(m.getId(), course.getId(), m.getTitle(), m.getSortOrder(), m.isHidden(),
                         lessonsByModule.getOrDefault(m.getId(), List.of())))
                 .toList();
-        List<KitDto> kits = kitRepository.findByCourse(course.getId()).stream().map(this::toKit).toList();
+        List<KitDto> kits = kitLookup.adminKits(course.getId());
         List<String> problems = publishValidator.findProblems(course, true);
         return new AdminCourseDetailDto(toSummary(course), course.getDescription(), modules, kits, problems);
     }
@@ -119,10 +116,5 @@ public class CourseMapper {
     public AdminModuleDto toAdminModule(CourseModule m, List<CourseLesson> lessons) {
         return new AdminModuleDto(m.getId(), m.getCourse().getId(), m.getTitle(), m.getSortOrder(), m.isHidden(),
                 lessons.stream().map(this::toAdminLesson).toList());
-    }
-
-    public KitDto toKit(CourseIncludedKit k) {
-        return new KitDto(k.getProduct().getId(), k.getProduct().getSku(), k.getProduct().getName(),
-                k.getProduct().getThumbnailUrl(), k.getQuantity());
     }
 }

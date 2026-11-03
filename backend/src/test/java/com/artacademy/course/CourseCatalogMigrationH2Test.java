@@ -8,7 +8,6 @@ import com.artacademy.course.Course;
 import com.artacademy.course.CourseIncludedKit;
 import com.artacademy.course.CourseLesson;
 import com.artacademy.course.CourseModule;
-import com.artacademy.product.Product;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.HashSet;
@@ -25,7 +24,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 /**
- * Bảo vệ hồi quy cho V8__course_catalog.sql khi chưa có MySQL để chạy thật: chạy V8 trên H2 (chế độ MySQL) rồi
+ * Bảo vệ hồi quy cho V10__course_catalog.sql khi chưa có MySQL để chạy thật: chạy V10 trên H2 (chế độ MySQL) rồi
  * đối chiếu từng bảng/cột mà entity phần B ánh xạ. Chỉ kiểm tra tên bảng và cột (không kiểm tra kiểu dữ liệu
  * hay ràng buộc); kiểm tra đầy đủ vẫn cần MySqlSchemaCompatibilityIT trên MySQL thử riêng.
  */
@@ -33,9 +32,9 @@ class CourseCatalogMigrationH2Test {
 
     @Test
     void migrationCreatesEveryTableAndColumnMappedByCatalogEntities() throws Exception {
-        String url = "jdbc:h2:mem:v8_migration_check;MODE=MySQL;DB_CLOSE_DELAY=-1";
+        String url = "jdbc:h2:mem:v10_migration_check;MODE=MySQL;DB_CLOSE_DELAY=-1";
         DriverManagerDataSource dataSource = new DriverManagerDataSource(url, "sa", "");
-        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V8__course_catalog.sql")).execute(dataSource);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V10__course_catalog.sql")).execute(dataSource);
 
         StandardServiceRegistry registry = new StandardServiceRegistryBuilder()
                 .applySetting("hibernate.dialect", "org.hibernate.dialect.H2Dialect")
@@ -47,7 +46,6 @@ class CourseCatalogMigrationH2Test {
                         "org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy")
                 .build();
         Metadata metadata = new MetadataSources(registry)
-                .addAnnotatedClass(Product.class)
                 .addAnnotatedClass(Course.class)
                 .addAnnotatedClass(CourseModule.class)
                 .addAnnotatedClass(CourseLesson.class)
@@ -61,14 +59,14 @@ class CourseCatalogMigrationH2Test {
             for (PersistentClass entity : metadata.getEntityBindings()) {
                 String table = entity.getTable().getName();
                 Set<String> actual = columnsOf(connection, table);
-                assertThat(actual).as("bảng %s phải tồn tại trong V8", table).isNotEmpty();
+                assertThat(actual).as("bảng %s phải tồn tại trong V10", table).isNotEmpty();
 
                 Set<String> expected = new HashSet<>();
                 entity.getTable().getColumns().forEach(c -> expected.add(c.getName().toLowerCase(Locale.ROOT)));
                 assertThat(actual).as("cột của bảng %s", table).containsAll(expected);
                 checked++;
             }
-            assertThat(checked).isEqualTo(7);
+            assertThat(checked).isEqualTo(6);
         }
     }
 

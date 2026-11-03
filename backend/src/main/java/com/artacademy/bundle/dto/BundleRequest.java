@@ -1,5 +1,6 @@
 package com.artacademy.bundle.dto;
 
+import com.artacademy.bundle.BundleRules;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -25,7 +26,7 @@ public record BundleRequest(
         Long price,
 
         @NotNull(message = "Vui lòng chọn khóa học cho combo")
-        @Size(min = 2, message = "Combo cần ít nhất 2 khóa học")
+        @Size(min = BundleRules.MIN_COURSES, max = BundleRules.MAX_COURSES, message = BundleRules.COURSE_COUNT_MESSAGE)
         List<@NotNull(message = "Id khóa học không hợp lệ") Integer> courseIds,
 
         Boolean active) {

@@ -4,31 +4,31 @@ import com.artacademy.common.BadRequestException;
 import com.artacademy.common.NotFoundException;
 import com.artacademy.course.dto.KitDto;
 import com.artacademy.course.dto.KitsRequest;
-import com.artacademy.product.Product;
-import com.artacademy.product.ProductRepository;
-import java.util.ArrayList;
+import com.artacademy.product.ProductCatalog;
+import com.artacademy.product.ProductCatalog.KitProduct;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Cấu hình dụng cụ tặng kèm của khóa học. */
+/** Cấu hình dụng cụ tặng kèm của khóa học. Sản phẩm thuộc E, tra qua {@link ProductCatalog}. */
 @Service
 @Transactional
 public class CourseKitService {
 
     private final CourseRepository courseRepository;
     private final CourseKitRepository kitRepository;
-    private final ProductRepository productRepository;
-    private final CourseMapper mapper;
+    private final ProductCatalog productCatalog;
+    private final CourseKitLookup kitLookup;
 
     public CourseKitService(CourseRepository courseRepository, CourseKitRepository kitRepository,
-                            ProductRepository productRepository, CourseMapper mapper) {
+                            ProductCatalog productCatalog, CourseKitLookup kitLookup) {
         this.courseRepository = courseRepository;
         this.kitRepository = kitRepository;
-        this.productRepository = productRepository;
-        this.mapper = mapper;
+        this.productCatalog = productCatalog;
+        this.kitLookup = kitLookup;
     }
 
     /**
@@ -42,24 +42,27 @@ public class CourseKitService {
 
         // Kiểm tra hết trước khi xóa quà cũ, để lỗi thì không mất dữ liệu cũ
         Set<Integer> seen = new HashSet<>();
-        List<Product> products = new ArrayList<>();
         for (KitsRequest.Item item : req.items()) {
             if (!seen.add(item.productId())) {
                 throw new BadRequestException("Một sản phẩm chỉ được chọn một lần trong danh sách quà");
             }
-            Product product = productRepository.findById(item.productId())
-                    .orElseThrow(() -> new BadRequestException("Sản phẩm id " + item.productId() + " không tồn tại"));
-            if (!product.isActive()) {
-                throw new BadRequestException("Sản phẩm \"" + product.getName() + "\" đã ngừng bán, không thể tặng kèm");
+        }
+        Map<Integer, KitProduct> products = productCatalog.findByIds(seen);
+        for (KitsRequest.Item item : req.items()) {
+            KitProduct product = products.get(item.productId());
+            if (product == null) {
+                throw new BadRequestException("Sản phẩm id " + item.productId() + " không tồn tại");
             }
-            products.add(product);
+            if (!product.active()) {
+                throw new BadRequestException("Sản phẩm \"" + product.name() + "\" đã ngừng bán, không thể tặng kèm");
+            }
         }
 
         kitRepository.deleteByCourse(courseId);
         Course course = courseRepository.getReferenceById(courseId);
-        for (int i = 0; i < products.size(); i++) {
-            kitRepository.save(new CourseIncludedKit(course, products.get(i), req.items().get(i).quantity()));
+        for (KitsRequest.Item item : req.items()) {
+            kitRepository.save(new CourseIncludedKit(course, item.productId(), item.quantity()));
         }
-        return kitRepository.findByCourse(courseId).stream().map(mapper::toKit).toList();
+        return kitLookup.adminKits(courseId);
     }
 }

@@ -35,6 +35,13 @@ public class CourseBundle {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    /**
+     * Phiên bản định nghĩa của combo, bắt đầu từ 1. Tăng khi admin đổi mã, tên, giá hoặc danh sách/thứ tự khóa.
+     * KHÔNG tăng khi chỉ bật/tắt combo hoặc sửa mô tả. Giỏ hàng/đơn hàng dùng số này để biết combo đã đổi chưa.
+     */
+    @Column(name = "definition_version", nullable = false)
+    private int definitionVersion = 1;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -85,6 +92,14 @@ public class CourseBundle {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public int getDefinitionVersion() {
+        return definitionVersion;
+    }
+
+    public void increaseDefinitionVersion() {
+        this.definitionVersion++;
     }
 
     public LocalDateTime getCreatedAt() {

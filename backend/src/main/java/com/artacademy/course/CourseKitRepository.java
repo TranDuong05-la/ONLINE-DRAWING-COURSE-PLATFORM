@@ -9,13 +9,12 @@ import org.springframework.data.repository.query.Param;
 
 public interface CourseKitRepository extends JpaRepository<CourseIncludedKit, Integer> {
 
-    @Query("select k from CourseIncludedKit k join fetch k.product where k.course.id = :courseId order by k.id")
+    @Query("select k from CourseIncludedKit k where k.course.id = :courseId order by k.id")
     List<CourseIncludedKit> findByCourse(@Param("courseId") Integer courseId);
 
-    /** Id các khóa có ít nhất 1 món quà còn bán (sản phẩm active). Dùng để hiện nhãn "Tặng kèm dụng cụ". */
-    @Query("select distinct k.course.id from CourseIncludedKit k "
-            + "where k.course.id in :courseIds and k.product.active = true")
-    List<Integer> courseIdsWithActiveKits(@Param("courseIds") Collection<Integer> courseIds);
+    /** Quà của nhiều khóa trong 1 câu truy vấn (việc kiểm tra sản phẩm còn bán do ProductCatalog làm). */
+    @Query("select k from CourseIncludedKit k where k.course.id in :courseIds order by k.id")
+    List<CourseIncludedKit> findByCourses(@Param("courseIds") Collection<Integer> courseIds);
 
     /**
      * Xóa hết quà của khóa bằng câu DELETE chạy ngay.

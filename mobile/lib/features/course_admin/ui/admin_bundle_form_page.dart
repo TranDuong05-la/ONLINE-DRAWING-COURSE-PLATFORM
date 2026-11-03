@@ -29,6 +29,10 @@ class _AdminBundleFormPageState extends State<AdminBundleFormPage> {
   late final TextEditingController _price;
 
   List<CourseSummary> _publishedCourses = [];
+  // Giới hạn số khóa trong combo (khớp BundleRules ở backend)
+  static const _minCourses = 2;
+  static const _maxCourses = 10;
+
   final List<int> _selectedIds = []; // giữ thứ tự admin tick
   String? _loadError;
   bool _loading = true;
@@ -91,8 +95,8 @@ class _AdminBundleFormPageState extends State<AdminBundleFormPage> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedIds.length < 2) {
-      showMessage(context, 'Combo cần ít nhất 2 khóa học', error: true);
+    if (_selectedIds.length < _minCourses || _selectedIds.length > _maxCourses) {
+      showMessage(context, 'Combo cần từ $_minCourses đến $_maxCourses khóa học', error: true);
       return;
     }
     setState(() => _saving = true);
@@ -162,7 +166,7 @@ class _AdminBundleFormPageState extends State<AdminBundleFormPage> {
               },
             ),
             const SizedBox(height: 16),
-            Text('Chọn khóa học (tối thiểu 2, chỉ khóa đang bán)',
+            Text('Chọn khóa học (từ $_minCourses đến $_maxCourses khóa, chỉ khóa đang bán)',
                 style: theme.textTheme.titleSmall),
             const SizedBox(height: 4),
             Text(
@@ -185,13 +189,19 @@ class _AdminBundleFormPageState extends State<AdminBundleFormPage> {
                   margin: const EdgeInsets.only(bottom: 8),
                   child: CheckboxListTile(
                     value: _selectedIds.contains(course.id),
-                    onChanged: (v) => setState(() {
-                      if (v == true) {
-                        _selectedIds.add(course.id);
-                      } else {
-                        _selectedIds.remove(course.id);
+                    onChanged: (v) {
+                      if (v == true && _selectedIds.length >= _maxCourses) {
+                        showMessage(context, 'Combo tối đa $_maxCourses khóa học', error: true);
+                        return;
                       }
-                    }),
+                      setState(() {
+                        if (v == true) {
+                          _selectedIds.add(course.id);
+                        } else {
+                          _selectedIds.remove(course.id);
+                        }
+                      });
+                    },
                     title: Text(course.title),
                     subtitle: Text(formatPrice(course.effectivePrice)),
                   ),

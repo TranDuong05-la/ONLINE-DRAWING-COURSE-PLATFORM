@@ -73,7 +73,7 @@ class BundleApiTest extends IntegrationTestBase {
 
         postJson("/api/admin/bundles", request(100_000, a.getId()))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.errors[0].message").value("Combo cần ít nhất 2 khóa học"));
+                .andExpect(jsonPath("$.errors[0].message").value("Combo cần từ 2 đến 10 khóa học"));
         postJson("/api/admin/bundles", request(100_000, a.getId(), a.getId()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Một khóa học chỉ được chọn một lần trong combo"));
