@@ -47,14 +47,16 @@ public class CourseMapper {
         for (Object[] row : lessonRepository.visibleStats(ids)) {
             stats.put((Integer) row[0], new long[]{((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
         }
-        Set<Integer> withKits = new HashSet<>(kitLookup.courseIdsWithActiveKits(ids));
+        Map<Integer, CourseKitLookup.KitFlags> kitFlags = kitLookup.flagsFor(ids);
 
         List<CourseSummaryDto> result = new ArrayList<>();
         for (Course c : courses) {
             long[] s = stats.getOrDefault(c.getId(), new long[]{0, 0});
             result.add(new CourseSummaryDto(c.getId(), c.getCode(), c.getSlug(), c.getTitle(),
                     c.getShortDescription(), c.getThumbnailUrl(), c.getPrice(), c.getDiscountPrice(),
-                    c.effectivePrice(), c.getLevel(), c.getStatus(), withKits.contains(c.getId()),
+                    c.effectivePrice(), c.getLevel(), c.getStatus(),
+                    kitFlags.getOrDefault(c.getId(), CourseKitLookup.KitFlags.NONE).hasActive(),
+                    kitFlags.getOrDefault(c.getId(), CourseKitLookup.KitFlags.NONE).hasUnavailable(),
                     s[0], s[1], c.getPublishedAt(), c.getCreatedAt(), c.getUpdatedAt()));
         }
         return result;

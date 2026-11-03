@@ -70,6 +70,13 @@ class BundleCard extends StatelessWidget {
                     ),
                     SmallBadge(text: 'Tiết kiệm ${formatPrice(bundle.savings)}', color: Colors.red.shade700),
                   ],
+                  if (bundle.kitsUnavailable)
+                    SmallBadge(
+                      key: const ValueKey('kits-unavailable-badge'),
+                      text: 'Tạm thiếu quà',
+                      color: Colors.red.shade700,
+                      icon: Icons.inventory_2_outlined,
+                    ),
                 ],
               ),
             ],

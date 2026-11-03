@@ -37,6 +37,19 @@ public class CourseSellableService {
         return toSellable(course);
     }
 
+    /**
+     * Khóa PUBLISHED và bán được (mọi quà còn bán). D dùng hàm này khi thêm vào giỏ và khi checkout.
+     * @throws NotFoundException khóa không tồn tại hoặc không PUBLISHED
+     * @throws CourseNotSellableException có quà tặng kèm không còn bán (HTTP 409, COURSE_NOT_SELLABLE)
+     */
+    public SellableCourse requireSellable(Integer courseId) {
+        SellableCourse course = getSellableCourse(courseId);
+        if (!course.isSellable()) {
+            throw new CourseNotSellableException(course.status(), "Khóa học tạm thiếu quà tặng kèm");
+        }
+        return course;
+    }
+
     /** Dùng chung cho combo (BundleSellableService). */
     public SellableCourse toSellable(Course course) {
         List<SellableCourse.SellableKit> kits = new ArrayList<>();

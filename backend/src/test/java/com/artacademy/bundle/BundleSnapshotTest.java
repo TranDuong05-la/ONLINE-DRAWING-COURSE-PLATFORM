@@ -259,8 +259,9 @@ class BundleSnapshotTest extends IntegrationTestBase {
         BundleChangedException e = assertThrows(BundleChangedException.class, () -> service.requireSellable(id, 1));
 
         assertEquals(1, e.getExpectedVersion());
-        assertEquals(2, e.getActualVersion());
+        assertEquals(2, e.getCurrentVersion());
         assertEquals(409, e.getStatus().value());
+        assertEquals("COMBO_DEFINITION_CHANGED", e.getErrorCode());
         // Với version mới thì mua được
         assertEquals(2, service.requireSellable(id, 2).definitionVersion());
     }
@@ -275,6 +276,7 @@ class BundleSnapshotTest extends IntegrationTestBase {
 
         assertEquals(BundleSellableStatus.INACTIVE, e.getSellableStatus());
         assertEquals(409, e.getStatus().value());
+        assertEquals("COMBO_NOT_SELLABLE", e.getErrorCode());
         BundleSnapshot s = service.getSnapshot(id);
         assertEquals(BundleSellableStatus.INACTIVE, s.status());
         assertFalse(s.isSellable());
@@ -347,7 +349,7 @@ class BundleSnapshotTest extends IntegrationTestBase {
     }
 
     @Test
-    void unavailableKits_areReportedInsteadOfSilentlyDropped() throws Exception {
+    void unavailableKits_areReportedInsteadOfSilentlyDropped_andBlockSelling() throws Exception {
         List<Course> c = courses(2);
         KitProduct active = newProduct("OK", true);
         KitProduct off = newProduct("OFF", true);
@@ -367,8 +369,81 @@ class BundleSnapshotTest extends IntegrationTestBase {
         assertEquals(2, unavailable.get(0).quantity());
         assertEquals(424242, unavailable.get(1).productId());
         assertEquals(UnavailableKit.NOT_FOUND, unavailable.get(1).reason());
-        // Quà không bán được không làm combo mất khả năng bán (chính sách chờ D và E chốt)
-        assertTrue(s.isSellable());
+        // Mọi quà đều bắt buộc: thiếu quà thì combo không bán được, và B không tự bỏ quà đi
+        assertFalse(s.isSellable());
+        assertEquals(BundleSellableStatus.KIT_UNAVAILABLE, s.status());
+        assertEquals(3, kitRepository.count());
+    }
+
+    // ------------------------------------------------------------------ quà ngừng bán => KIT_UNAVAILABLE
+
+    @Test
+    void kitUnavailable_makesBundleNotSellable_andRecoversWhenTheProductIsBackOnSale() throws Exception {
+        List<Course> c = courses(2);
+        KitProduct gift = newProduct("GIFT", true);
+        newKit(c.get(0), gift, 1);
+        int id = create(c);
+        assertEquals(BundleSellableStatus.AVAILABLE, service.getSnapshot(id).status());
+
+        productCatalog.setActive(gift.id(), false);
+
+        BundleSnapshot s = service.getSnapshot(id);
+        assertEquals(BundleSellableStatus.KIT_UNAVAILABLE, s.status());
+        assertEquals("Combo tạm thiếu quà tặng kèm", s.statusReason());
+        assertFalse(s.isSellable());
+        assertEquals(1, s.unavailableKits().size(), "quà không bị ẩn mà được trả ra");
+        BundleNotSellableException e = assertThrows(BundleNotSellableException.class,
+                () -> service.requireSellable(id, 1));
+        assertEquals(BundleSellableStatus.KIT_UNAVAILABLE, e.getSellableStatus());
+        assertEquals("COMBO_NOT_SELLABLE", e.getErrorCode());
+        assertThrows(NotFoundException.class, () -> service.getSellableBundle(id));
+
+        productCatalog.setActive(gift.id(), true);
+
+        assertEquals(BundleSellableStatus.AVAILABLE, service.getSnapshot(id).status());
+        assertTrue(service.requireSellable(id, 1).isSellable());
+    }
+
+    @Test
+    void kitUnavailable_hasLowerPriorityThanInactiveAndUnpublishedCourse() throws Exception {
+        List<Course> c = courses(2);
+        KitProduct gift = newProduct("GIFT", false);
+        newKit(c.get(0), gift, 1);
+        int id = create(c);
+
+        assertEquals(BundleSellableStatus.KIT_UNAVAILABLE, service.getSnapshot(id).status());
+
+        Course first = courseRepository.findById(c.get(0).getId()).orElseThrow();
+        first.setStatus(CourseStatus.HIDDEN);
+        courseRepository.save(first);
+        assertEquals(BundleSellableStatus.COURSE_NOT_PUBLISHED, service.getSnapshot(id).status());
+
+        patchJson("/api/admin/bundles/" + id + "/active", Map.of("active", false)).andExpect(status().isOk());
+        assertEquals(BundleSellableStatus.INACTIVE, service.getSnapshot(id).status());
+    }
+
+    @Test
+    void kitUnavailable_bundleStaysVisibleWithAFlag_andAdminSeesWhy() throws Exception {
+        List<Course> c = courses(2);
+        KitProduct gift = newProduct("GIFT", false);
+        newKit(c.get(0), gift, 1);
+        int id = create(c);
+
+        // Học viên vẫn thấy combo (không ẩn) nhưng có cờ để app hiện "Tạm thiếu quà" và chặn thêm vào giỏ
+        getJson("/api/bundles/" + id)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.kitsUnavailable").value(true))
+                .andExpect(jsonPath("$.data.courses[0].kitsUnavailable").value(true))
+                .andExpect(jsonPath("$.data.courses[0].hasKits").value(false))
+                .andExpect(jsonPath("$.data.courses[1].kitsUnavailable").value(false));
+        getJson("/api/bundles")
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].kitsUnavailable").value(true));
+        // Admin thấy lý do và thấy quà đó (available = false) để tự gỡ hoặc thay
+        getJson("/api/admin/bundles/" + id)
+                .andExpect(jsonPath("$.data.warnings[0]").value(org.hamcrest.Matchers.containsString("quà tặng kèm")));
+        getJson("/api/admin/courses/" + c.get(0).getId())
+                .andExpect(jsonPath("$.data.kits[0].available").value(false));
     }
 
     @Test

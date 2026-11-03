@@ -11,7 +11,8 @@ import java.util.Map;
  *
  * kits: quà tặng kèm CÒN BÁN (sản phẩm vật lý, giá bán trong đơn bằng 0).
  * unavailableKits: quà đã cấu hình nhưng sản phẩm đã ngừng bán hoặc không còn trong danh mục của E.
- * B không tự ẩn đi mà trả ra, để D/E quyết định chặn hay vẫn bán (chưa chốt).
+ * Mọi quà đều bắt buộc (nhóm đã chốt): còn quà không bán được thì status() = KIT_UNAVAILABLE và isSellable() = false.
+ * B không tự bỏ quà để tiếp tục bán. Tồn kho (hết hàng tạm thời) do E quản lý, D kiểm tra lúc checkout.
  */
 public record SellableCourse(
         Integer courseId,
@@ -26,6 +27,15 @@ public record SellableCourse(
     public SellableCourse {
         kits = List.copyOf(kits);
         unavailableKits = List.copyOf(unavailableKits);
+    }
+
+    /** Mọi quà đã cấu hình đều bắt buộc: thiếu một món thì khóa vẫn hiển thị nhưng không bán được (KIT_UNAVAILABLE). */
+    public CourseSellableStatus status() {
+        return unavailableKits.isEmpty() ? CourseSellableStatus.AVAILABLE : CourseSellableStatus.KIT_UNAVAILABLE;
+    }
+
+    public boolean isSellable() {
+        return status() == CourseSellableStatus.AVAILABLE;
     }
 
     /** Quà tặng kèm còn bán, để D/E trừ kho và giao hàng. */

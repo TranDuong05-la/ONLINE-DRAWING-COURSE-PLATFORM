@@ -42,6 +42,7 @@ class CourseSummary {
     required this.level,
     required this.status,
     required this.hasKits,
+    this.kitsUnavailable = false,
     required this.lessonCount,
     required this.totalDurationSeconds,
   });
@@ -57,6 +58,9 @@ class CourseSummary {
   final String level; // BASIC | ADVANCED
   final String status; // DRAFT | PUBLISHED | HIDDEN
   final bool hasKits;
+
+  /// Có quà tặng kèm đã ngừng bán: khóa vẫn hiện nhưng nhãn Tạm thiếu quà và không cho thêm vào giỏ.
+  final bool kitsUnavailable;
   final int lessonCount;
   final int totalDurationSeconds;
 
@@ -75,6 +79,7 @@ class CourseSummary {
       level: json['level'] as String? ?? 'BASIC',
       status: json['status'] as String? ?? 'DRAFT',
       hasKits: json['hasKits'] as bool? ?? false,
+      kitsUnavailable: json['kitsUnavailable'] as bool? ?? false,
       lessonCount: _int(json['lessonCount']),
       totalDurationSeconds: _int(json['totalDurationSeconds']),
     );
@@ -89,6 +94,7 @@ class Kit {
     required this.name,
     this.thumbnailUrl,
     required this.quantity,
+    this.available = true,
   });
 
   final int productId;
@@ -97,6 +103,9 @@ class Kit {
   final String? thumbnailUrl;
   final int quantity;
 
+  /// false: sản phẩm đã ngừng bán hoặc không còn trong danh mục (chỉ admin thấy quà loại này).
+  final bool available;
+
   factory Kit.fromJson(Map<String, dynamic> json) {
     return Kit(
       productId: _int(json['productId']),
@@ -104,6 +113,7 @@ class Kit {
       name: json['name'] as String? ?? '',
       thumbnailUrl: json['thumbnailUrl'] as String?,
       quantity: _int(json['quantity']),
+      available: json['available'] as bool? ?? true,
     );
   }
 }

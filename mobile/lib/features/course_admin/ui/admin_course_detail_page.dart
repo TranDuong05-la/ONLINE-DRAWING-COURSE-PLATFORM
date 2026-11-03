@@ -319,7 +319,11 @@ class _AdminCourseDetailPageState extends State<AdminCourseDetailPage> {
             if (detail.kits.isEmpty)
               Text('Chưa có quà tặng kèm', style: Theme.of(context).textTheme.bodySmall)
             else
-              for (final kit in detail.kits) Text('• ${kit.name} x${kit.quantity}'),
+              for (final kit in detail.kits)
+              Text(
+                '• ${kit.name} x${kit.quantity}${kit.available ? '' : ' (đã ngừng bán, khóa tạm không bán được)'}',
+                style: kit.available ? null : TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
           ],
         ),
       ),
