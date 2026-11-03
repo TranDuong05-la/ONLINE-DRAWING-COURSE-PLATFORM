@@ -9,7 +9,7 @@ public interface CoursePurchasePort extends ActivePendingCoursePurchaseProvider 
     boolean isOwnedBy(Integer authenticatedUserId, Integer courseId);
 
     /** Must serialize competing claims for the same user/course, not rely only on a preceding read. */
-    void claimForOrder(Integer authenticatedUserId, Integer courseId, Integer orderId,
+    void claimForOrder(Integer authenticatedUserId, Integer courseId, Integer orderId, Integer orderItemId,
                        Instant observedAt, Instant expiresAt);
 
     /** Future verified-settlement operation. */

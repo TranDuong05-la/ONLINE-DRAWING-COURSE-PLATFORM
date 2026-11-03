@@ -28,7 +28,7 @@ public record VoucherClaim(String claimKey, Integer voucherId, long definitionVe
             case REDEEMED -> {
                 if (transitionedAt == null || paymentReference == null || paymentReference.isBlank() || paidAt == null
                         || releaseReason != null || paidAt.isBefore(reservedAt) || paidAt.isAfter(transitionedAt)
-                        || transitionedAt.isBefore(reservedAt) || !transitionedAt.isBefore(expiresAt))
+                        || !paidAt.isBefore(expiresAt) || transitionedAt.isBefore(reservedAt))
                     throw new IllegalArgumentException("Invalid redemption metadata");
             }
             case RELEASED -> {
@@ -51,14 +51,20 @@ public record VoucherClaim(String claimKey, Integer voucherId, long definitionVe
     }
 
     /** Pure transition only. Caller must verify settlement and lock/reconcile the Order. */
-    public VoucherClaim redeem(String reference, Instant verifiedPaidAt, Instant observedAt) {
-        Objects.requireNonNull(reference); Objects.requireNonNull(verifiedPaidAt); Objects.requireNonNull(observedAt);
+    public VoucherClaim redeem(String reference, Instant verifiedPaidAt, Instant verifiedReceivedAt,
+                               Instant transitionedAt) {
+        Objects.requireNonNull(reference); Objects.requireNonNull(verifiedPaidAt);
+        Objects.requireNonNull(verifiedReceivedAt); Objects.requireNonNull(transitionedAt);
         if (state == State.REDEEMED && reference.equals(paymentReference) && verifiedPaidAt.equals(paidAt)) return this;
         if (state != State.RESERVED) throw new IllegalStateException("Claim is terminal; reconcile conflicting events");
-        if (!observedAt.isBefore(expiresAt) || !verifiedPaidAt.isBefore(expiresAt))
+        if (!verifiedPaidAt.isBefore(expiresAt) || !verifiedReceivedAt.isBefore(expiresAt))
             throw new IllegalStateException("Late payment requires reconciliation");
+        if (verifiedPaidAt.isBefore(reservedAt) || verifiedReceivedAt.isBefore(verifiedPaidAt)
+                || transitionedAt.isBefore(verifiedReceivedAt))
+            throw new IllegalArgumentException("Invalid redemption timestamp ordering");
         return new VoucherClaim(claimKey, voucherId, definitionVersion, userId, orderId, terms, eligibleSubtotalVnd,
-                discountVnd, orderCreatedAt, expiresAt, reservedAt, State.REDEEMED, observedAt, reference, verifiedPaidAt, null);
+                discountVnd, orderCreatedAt, expiresAt, reservedAt, State.REDEEMED, transitionedAt, reference,
+                verifiedPaidAt, null);
     }
 
     /** Caller must prove final UNPAID cancellation/failure/expiration; never call for a retryable attempt. */

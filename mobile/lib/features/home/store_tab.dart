@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
+
 import '../../core/constants/app_colors.dart';
 
 class StoreTab extends StatelessWidget {
@@ -58,8 +59,8 @@ class StoreTab extends StatelessWidget {
         elevation: 0,
         actions: [
           IconButton(
-            key: const ValueKey('open-demo-cart'),
-            tooltip: 'Open demo cart',
+            key: const ValueKey('open-course-cart'),
+            tooltip: 'Open Course cart',
             onPressed: () => context.push('/cart'),
             icon: const Icon(Icons.shopping_cart_outlined),
           ),
@@ -97,7 +98,9 @@ class StoreTab extends StatelessWidget {
                   width: double.infinity,
                   decoration: BoxDecoration(
                     color: item['color'] as Color,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                    ),
                   ),
                   child: Center(
                     child: Icon(

@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Disabled by default; requires the real B/C integrations and explicit Course-only enablement. */
 @RestController
 @RequestMapping("/api/checkout/course-only")
-@ConditionalOnProperty(name = "app.checkout.course-only.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "app.checkout.course-only.http-enabled", havingValue = "true")
 @ConditionalOnBean({CourseCatalogPort.class, CoursePurchasePort.class, CourseOnlyCheckoutApplicationService.class})
 public final class CourseOnlyCheckoutController {
     private final CourseOnlyCheckoutApplicationService checkout;

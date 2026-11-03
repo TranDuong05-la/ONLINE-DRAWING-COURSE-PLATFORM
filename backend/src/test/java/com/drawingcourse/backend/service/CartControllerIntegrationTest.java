@@ -233,7 +233,7 @@ class CartControllerIntegrationTest {
     @ConditionalOnProperty(name = "app.cart.api-enabled", havingValue = "true")
     static class CartApiTestConfiguration {
         @Bean TestCartFixtures cartTestFixtures() { return new TestCartFixtures(); }
-        @Bean CartCatalog<Integer, Integer> cartCatalog(TestCartFixtures f) {
+        @Bean @Primary CartCatalog<Integer, Integer> cartCatalog(TestCartFixtures f) {
             return (user, item) -> {
                 if (f.catalogUnavailable) throw new CartCatalogUnavailableException("test provider unavailable");
                 if (item.getItemType() == CartItemType.COURSE && (f.rejectedCourseIds.contains(item.getItemId())
@@ -243,28 +243,28 @@ class CartControllerIntegrationTest {
                 if (item.getItemType() == CartItemType.PRODUCT && f.unavailableProducts.contains(item.getItemId())) throw new CartConflictException("Product is unavailable");
             };
         }
-        @Bean CartApplicationService cartApplicationService(CartRepository carts,
+        @Bean @Primary CartApplicationService cartApplicationService(CartRepository carts,
                 com.drawingcourse.backend.repository.CartItemRepository items, CartCurrentUser current,
                 CartCatalog<Integer, Integer> catalog, org.springframework.transaction.PlatformTransactionManager tx) {
             return new CartApplicationService(carts, items, current, catalog, tx);
         }
-        @Bean CourseCartCatalogProvider courseCartCatalogProvider() {
+        @Bean @Primary CourseCartCatalogProvider courseCartCatalogProvider() {
             return id -> Optional.of(new CourseCartCatalogProvider.CourseListing(id, "Course " + id, 50_000, true));
         }
-        @Bean CourseOwnershipProvider courseOwnershipProvider(TestCartFixtures f) {
+        @Bean @Primary CourseOwnershipProvider courseOwnershipProvider(TestCartFixtures f) {
             return (user, course) -> f.rejectedCourseIds.contains(course) && course == 88;
         }
         @Bean @Primary ActivePendingCoursePurchaseProvider pendingCourseProvider(TestCartFixtures f) {
             return (user, course, at) -> f.rejectedCourseIds.contains(course) && course == 89;
         }
-        @Bean ProductCartCatalogProvider productCartCatalogProvider(TestCartFixtures f) {
+        @Bean @Primary ProductCartCatalogProvider productCartCatalogProvider(TestCartFixtures f) {
             return id -> f.unavailableProducts.contains(id) ? Optional.empty()
                     : Optional.of(new ProductCartCatalogProvider.ProductListing(id, "Product " + id, 2_500, true));
         }
-        @Bean ProductStockAvailabilityProvider productStockAvailabilityProvider(TestCartFixtures f) {
+        @Bean @Primary ProductStockAvailabilityProvider productStockAvailabilityProvider(TestCartFixtures f) {
             return id -> { f.stockReads++; return id == 77 ? 0 : 100; };
         }
-        @Bean CartAvailabilityProjector cartAvailabilityProjector(CourseCartCatalogProvider courses,
+        @Bean @Primary CartAvailabilityProjector cartAvailabilityProjector(CourseCartCatalogProvider courses,
                 CourseOwnershipProvider ownership, ActivePendingCoursePurchaseProvider pending,
                 ProductCartCatalogProvider products, ProductStockAvailabilityProvider stock) {
             return new CartAvailabilityProjector(courses, ownership, pending, products, stock,

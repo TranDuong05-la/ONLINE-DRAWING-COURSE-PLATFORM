@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:dio/dio.dart';
+
 import '../constants/api_constants.dart';
 import '../../models/api_response.dart';
 import '../storage/token_storage.dart';
@@ -12,13 +14,14 @@ class ApiClient {
   String _baseUrl = ApiConstants.defaultBaseUrl;
   bool _isRefreshing = false;
   Completer<String?>? _refreshCompleter;
+  FutureOr<void> Function()? onSessionExpired;
 
   factory ApiClient({TokenStorage? tokenStorage}) {
     return _instance ??= ApiClient._internal(tokenStorage: tokenStorage);
   }
 
   ApiClient._internal({TokenStorage? tokenStorage})
-      : _tokenStorage = tokenStorage ?? TokenStorage() {
+    : _tokenStorage = tokenStorage ?? TokenStorage() {
     _dio = Dio(
       BaseOptions(
         baseUrl: _baseUrl,
@@ -108,7 +111,13 @@ class ApiClient {
               }
             } catch (_) {
               await _tokenStorage.clearTokens();
+              await onSessionExpired?.call();
             }
+          } else if (statusCode == 401 &&
+              !_isPublicAuthPath(requestPath) &&
+              alreadyRetried) {
+            await _tokenStorage.clearTokens();
+            await onSessionExpired?.call();
           }
 
           return handler.reject(error);
@@ -177,10 +186,7 @@ class ApiClient {
     T Function(dynamic json)? fromJsonT,
   }) async {
     try {
-      final response = await _dio.get(
-        path,
-        queryParameters: queryParameters,
-      );
+      final response = await _dio.get(path, queryParameters: queryParameters);
       return _handleResponse<T>(response, fromJsonT);
     } on DioException catch (e) {
       throw _handleDioError(e);
@@ -192,6 +198,7 @@ class ApiClient {
     String path, {
     dynamic data,
     Map<String, dynamic>? queryParameters,
+    Map<String, dynamic>? headers,
     T Function(dynamic json)? fromJsonT,
   }) async {
     try {
@@ -199,6 +206,7 @@ class ApiClient {
         path,
         data: data,
         queryParameters: queryParameters,
+        options: headers == null ? null : Options(headers: headers),
       );
       return _handleResponse<T>(response, fromJsonT);
     } on DioException catch (e) {
@@ -305,7 +313,8 @@ class ApiClient {
       );
     }
     return ApiResponse<T>(
-      success: response.statusCode != null &&
+      success:
+          response.statusCode != null &&
           response.statusCode! >= 200 &&
           response.statusCode! < 300,
       message: response.statusMessage ?? 'Success',

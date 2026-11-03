@@ -404,7 +404,7 @@ class MySqlAdminVoucherCompatibilityIT {
             jdbc.update("UPDATE orders SET status='CONFIRMED',payment_status='SUCCEEDED' WHERE id=?", orderRow.getId());
             em.clear();
             reservations.consumeForOrder(user.getId(), orderRow.getId(), "mysql-payment-" + shortId(),
-                    NOW.plusSeconds(1), NOW.plusSeconds(2));
+                    NOW.plusSeconds(1), NOW.plusSeconds(2), NOW.plusSeconds(3));
         } else if (state == VoucherClaim.State.RELEASED) {
             jdbc.update("UPDATE orders SET status='CANCELLED',payment_status='CANCELLED' WHERE id=?", orderRow.getId());
             em.clear();

@@ -12,6 +12,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
@@ -24,6 +25,7 @@ public final class CartApplicationService {
     private final CartItemRepository items;
     private final CartCurrentUser currentUser;
     private final CartCatalog<Integer, Integer> catalog;
+    private final Set<CartItemType> supportedTypes;
     private final CartPersistenceMapper mapper = new CartPersistenceMapper();
     private final TransactionTemplate writes;
     private final TransactionTemplate reads;
@@ -31,10 +33,19 @@ public final class CartApplicationService {
     public CartApplicationService(CartRepository carts, CartItemRepository items,
             CartCurrentUser currentUser, CartCatalog<Integer, Integer> catalog,
             PlatformTransactionManager transactions) {
+        this(carts, items, currentUser, catalog, transactions, Set.of(CartItemType.values()));
+    }
+
+    /** Restricts this API projection to an explicit item set; checked under the Cart write lock. */
+    public CartApplicationService(CartRepository carts, CartItemRepository items,
+            CartCurrentUser currentUser, CartCatalog<Integer, Integer> catalog,
+            PlatformTransactionManager transactions, Set<CartItemType> supportedTypes) {
         this.carts = Objects.requireNonNull(carts);
         this.items = Objects.requireNonNull(items);
         this.currentUser = Objects.requireNonNull(currentUser);
         this.catalog = Objects.requireNonNull(catalog);
+        this.supportedTypes = Set.copyOf(Objects.requireNonNull(supportedTypes));
+        if (this.supportedTypes.isEmpty()) throw new IllegalArgumentException("Cart must support an item type");
         writes = new TransactionTemplate(Objects.requireNonNull(transactions));
         writes.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         reads = new TransactionTemplate(transactions);
@@ -72,6 +83,7 @@ public final class CartApplicationService {
         return writes.execute(status -> {
             var record = carts.findByUserIdForUpdate(user)
                     .orElseThrow(CourseRemovedDuringDuplicateCheck::new);
+            requireSupportedItems(record);
             boolean stillPresent = record.getItems().stream()
                     .anyMatch(row -> row.getItemType() == type && row.getItemId().equals(itemId));
             if (!stillPresent) throw new CourseRemovedDuringDuplicateCheck();
@@ -136,6 +148,7 @@ public final class CartApplicationService {
                     }
                     var record = found.orElseGet(() -> createCart(user));
                     if (!user.equals(record.getUserId())) { throw new SecurityException("Cart owner mismatch"); }
+                    requireSupportedItems(record);
                     var domain = mapper.toDomain(record);
                     action.accept(record, domain);
                     boolean changed = mapper.synchronize(domain, record);
@@ -147,6 +160,12 @@ public final class CartApplicationService {
             } catch (FirstCartRace | PessimisticLockingFailureException conflict) {
                 if (attempt >= MAX_ATTEMPTS) { throw conflict; }
             }
+        }
+    }
+
+    private void requireSupportedItems(CartJpaEntity record) {
+        if (record.getItems().stream().anyMatch(item -> !supportedTypes.contains(item.getItemType()))) {
+            throw new CartItemTypeNotSupportedException("Cart contains an item type unsupported by this Cart API");
         }
     }
 

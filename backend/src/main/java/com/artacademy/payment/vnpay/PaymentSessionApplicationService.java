@@ -39,12 +39,27 @@ public class PaymentSessionApplicationService {
     @Transactional
     public PaymentSession createOrReuse(Integer authenticatedUserId, Integer orderId,
                                        Instant trustedRequestTime, String clientIp) {
+        return createOrReuse(authenticatedUserId, orderId, trustedRequestTime, clientIp, false);
+    }
+
+    /** Course-only HTTP boundary; the immutable item types are checked under the same Order lock. */
+    @Transactional
+    public PaymentSession createOrReuseForCourseOnlyOrder(Integer authenticatedUserId, Integer orderId,
+                                                          Instant trustedRequestTime, String clientIp) {
+        return createOrReuse(authenticatedUserId, orderId, trustedRequestTime, clientIp, true);
+    }
+
+    private PaymentSession createOrReuse(Integer authenticatedUserId, Integer orderId,
+                                         Instant trustedRequestTime, String clientIp, boolean courseOnly) {
         if (authenticatedUserId == null || authenticatedUserId <= 0 || orderId == null || orderId <= 0)
             throw new IllegalArgumentException("Authenticated user and Order IDs are required");
         Objects.requireNonNull(trustedRequestTime, "trustedRequestTime");
         var orderRow = orders.findForUpdate(orderId, authenticatedUserId).orElseThrow(PaymentSessionApplicationService::notFound);
         if (!orderId.equals(orderRow.getId()) || !authenticatedUserId.equals(orderRow.getUserId())) throw notFound();
         var order = orderMapper.toDomain(orderRow);
+        if (courseOnly && order.getItems().stream()
+                .anyMatch(item -> item.catalogSnapshot().itemType() != com.drawingcourse.backend.entity.OrderItemType.COURSE))
+            throw new IllegalStateException("Only Course Orders can create a payment session through this route");
         Instant now = currentTime(trustedRequestTime);
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT)
             throw new IllegalStateException("Order is not awaiting payment");

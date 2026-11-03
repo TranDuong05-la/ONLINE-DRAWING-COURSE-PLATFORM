@@ -67,6 +67,9 @@ class OrderExpirationCoordinatorJpaH2IntegrationTest {
     @Test
     void productionExpirationCoordinatorIsNotRegisteredAsSchedulerOrBean() {
         assertTrue(applicationContext.getBeansOfType(OrderExpirationCoordinator.class).isEmpty());
+        assertTrue(applicationContext.getBeansOfType(SettlementWorkerOrchestrator.class).isEmpty());
+        assertFalse(applicationContext.containsBean("settlementWorkerScheduler"));
+        assertFalse(applicationContext.containsBean("orderExpirationScheduler"));
     }
 
     @Test
@@ -416,13 +419,15 @@ class OrderExpirationCoordinatorJpaH2IntegrationTest {
             InventoryReservationConfirmationPort, VoucherConsumptionPort {
         private final JdbcTemplate jdbc;
         private TestSettlementParticipants(JdbcTemplate jdbc) { this.jdbc = jdbc; }
-        @Override public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId, Instant at) {
+        @Override public void confirmCourseForOrder(Integer userId, Integer courseId, Integer orderId,
+                                                    Integer orderItemId, Instant at) {
             marker("confirm-course", orderId, courseId);
         }
         @Override public void confirmProductForOrder(Integer userId, Integer productId, Integer orderId, Instant at) {
             marker("confirm-inventory", orderId, productId);
         }
-        @Override public void consumeForOrder(Integer userId, Integer orderId, String reference, Instant paidAt, Instant at) {
+        @Override public void consumeForOrder(Integer userId, Integer orderId, String reference, Instant paidAt,
+                                              Instant receivedAt, Instant settledAt) {
             marker("confirm-voucher", orderId, 0);
         }
         private void marker(String kind, Integer orderId, Integer itemId) {

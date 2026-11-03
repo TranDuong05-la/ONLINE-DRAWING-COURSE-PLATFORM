@@ -5,6 +5,8 @@ import com.drawingcourse.backend.entity.OrderStatus;
 import com.drawingcourse.backend.entity.PaymentStatus;
 import com.drawingcourse.backend.repository.OrderRepository;
 import com.drawingcourse.backend.repository.OrderItemRepository;
+import com.drawingcourse.backend.repository.OrderShippingAddressRepository;
+import com.drawingcourse.backend.service.checkout.CheckoutRequest;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -17,15 +19,23 @@ public final class OrderPersistenceService {
     private final OrderRepository orders;
     private final OrderItemRepository items;
     private final OrderCurrentUser currentUser;
+    private final OrderShippingAddressRepository shippingAddresses;
     private final OrderPersistenceMapper mapper = new OrderPersistenceMapper();
     private final TransactionTemplate reads;
     private final TransactionTemplate writes;
 
     public OrderPersistenceService(OrderRepository orders, OrderItemRepository items, OrderCurrentUser currentUser,
                                    PlatformTransactionManager transactions) {
+        this(orders, items, currentUser, transactions, null);
+    }
+
+    public OrderPersistenceService(OrderRepository orders, OrderItemRepository items, OrderCurrentUser currentUser,
+                                   PlatformTransactionManager transactions,
+                                   OrderShippingAddressRepository shippingAddresses) {
         this.orders = Objects.requireNonNull(orders);
         this.items = Objects.requireNonNull(items);
         this.currentUser = Objects.requireNonNull(currentUser);
+        this.shippingAddresses = shippingAddresses;
         reads = new TransactionTemplate(Objects.requireNonNull(transactions));
         reads.setReadOnly(true);
         reads.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -63,8 +73,13 @@ public final class OrderPersistenceService {
      * Every call inserts a new order, so never expose this directly as a checkout API.
      */
     public StoredOrder insertNew(Order snapshot) {
+        return insertNew(snapshot, java.util.Optional.empty());
+    }
+
+    public StoredOrder insertNew(Order snapshot, java.util.Optional<CheckoutRequest.Address> address) {
         Integer owner = userId();
         Objects.requireNonNull(snapshot, "snapshot");
+        Objects.requireNonNull(address, "address");
         if (!owner.equals(snapshot.getUserId())) throw new SecurityException("Order owner mismatch");
         if (snapshot.getStatus() != OrderStatus.PENDING_PAYMENT || snapshot.getPaymentStatus() != PaymentStatus.CREATED) {
             throw new IllegalArgumentException("Only new pending orders can be inserted");
@@ -72,7 +87,16 @@ public final class OrderPersistenceService {
         if (!snapshot.getCreatedAt().plus(Duration.ofMinutes(30)).equals(snapshot.getExpiresAt())) {
             throw new IllegalArgumentException("New orders require the fixed 30-minute deadline");
         }
-        return writes.execute(status -> mapper.toStored(orders.saveAndFlush(mapper.toNewEntity(snapshot))));
+        return writes.execute(status -> {
+            var persisted = orders.saveAndFlush(mapper.toNewEntity(snapshot));
+            if (address.isPresent()) {
+                if (shippingAddresses == null)
+                    throw new IllegalStateException("Shipping address persistence is not configured");
+                shippingAddresses.saveAndFlush(new com.drawingcourse.backend.entity.OrderShippingAddressJpaEntity(
+                        persisted, address.orElseThrow()));
+            }
+            return mapper.toStored(persisted);
+        });
     }
 
     private Integer userId() {

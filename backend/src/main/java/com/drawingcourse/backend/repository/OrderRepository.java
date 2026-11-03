@@ -11,6 +11,7 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 import java.util.Optional;
+import java.util.List;
 import java.time.Instant;
 
 /** Deliberately excludes delete and unscoped read methods. */
@@ -19,6 +20,12 @@ public interface OrderRepository extends Repository<OrderJpaEntity, Integer> {
     Optional<Integer> findUserIdById(@Param("id") Integer id);
 
     Optional<OrderJpaEntity> findByIdAndUserId(Integer id, Integer userId);
+
+    /** Bounded candidate scan uses V3's (status, payment_expires_at) index; each ID is revalidated under locks. */
+    @Query("select o.id from OrderJpaEntity o where o.status=:status and o.paymentExpiresAt<=:cutoff " +
+            "order by o.paymentExpiresAt asc, o.id asc")
+    List<Integer> findDueOrderIds(@Param("status") OrderStatus status, @Param("cutoff") Instant cutoff,
+                                  Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select o from OrderJpaEntity o where o.id=:id and o.userId=:userId")

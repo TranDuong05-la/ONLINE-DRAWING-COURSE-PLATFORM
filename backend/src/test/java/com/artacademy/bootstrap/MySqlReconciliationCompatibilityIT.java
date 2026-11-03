@@ -511,6 +511,9 @@ class MySqlReconciliationCompatibilityIT {
         @Override public Optional<OrderJpaEntity> findByIdAndUserId(Integer id, Integer userId) {
             return delegate.findByIdAndUserId(id, userId);
         }
+        @Override public List<Integer> findDueOrderIds(OrderStatus status, Instant cutoff, Pageable pageable) {
+            return delegate.findDueOrderIds(status, cutoff, pageable);
+        }
         @Override public Optional<OrderJpaEntity> findForUpdate(Integer id, Integer userId) {
             var current = barrier;
             if (current != null && current.orderId.equals(id)) current.awaitBoth();

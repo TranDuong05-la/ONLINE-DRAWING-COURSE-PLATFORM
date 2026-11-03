@@ -94,7 +94,7 @@ void main() {
       home: Scaffold(
         body: Builder(
           builder: (context) => TextButton(
-            onPressed: () => cartGateway.addCourse(context, courseId: 1, title: 'Khóa'),
+            onPressed: () => const PlaceholderCartGateway().addCourse(context, courseId: 1, title: 'Khóa'),
             child: const Text('Thêm vào giỏ'),
           ),
         ),

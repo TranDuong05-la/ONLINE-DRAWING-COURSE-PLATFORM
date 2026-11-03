@@ -84,5 +84,24 @@ void main() {
       expect(adapter.requests, hasLength(1));
       expect(await storage.getRefreshToken(), 'test-refresh');
     });
+
+    test('rejected refresh clears credentials and notifies auth session', () async {
+      var expiredNotifications = 0;
+      client.onSessionExpired = () => expiredNotifications++;
+      await storage.clearTokens();
+      await storage.saveAccessToken('invalidated-access');
+      adapter.statusCode = 401;
+
+      await expectLater(
+        client.get(ApiConstants.authMe),
+        throwsA(isA<UnauthorizedException>()),
+      );
+
+      expect(expiredNotifications, 1);
+      expect(await storage.getAccessToken(), isNull);
+      expect(await storage.getRefreshToken(), isNull);
+      expect(adapter.requests, hasLength(1));
+      client.onSessionExpired = null;
+    });
   });
 }

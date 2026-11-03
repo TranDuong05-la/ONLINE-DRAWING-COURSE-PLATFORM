@@ -29,6 +29,11 @@ class PaymentDomainTest {
         assertEquals(20,attempt.orderId()); assertEquals(1,attempt.id());
         assertEquals(29,order.getItems().getFirst().netAmountVnd());
     }
+    @Test void attemptCreationCannotPrecedePersistedOrderCreation() {
+        var order = order();
+        assertThrows(IllegalArgumentException.class, () -> PaymentAttempt.create(20, order, "vnpay", "merchant-early",
+                Clock.fixed(now.minusSeconds(1), ZoneOffset.UTC)));
+    }
     @Test void verifiedOnTimeSuccessRecordsAttemptOnly() {
         var order=order(); var result=apply(attempt(),event("e1",PaymentEvent.Outcome.SUCCEEDED,34,"VND",60,61));
         assertEquals(PaymentStatus.SUCCEEDED,result.attempt().status());
@@ -88,6 +93,14 @@ class PaymentDomainTest {
             assertEquals(PaymentEventAudit.Disposition.RECONCILIATION_REQUIRED,late.audit().disposition());
             assertEquals(now.plusSeconds(1800),late.attempt().expiresAt());
         }
+    }
+    @Test void successExactlyAtExclusiveDeadlineRequiresLateReview() {
+        var result = policy.evaluate(attempt(), event("deadline", PaymentEvent.Outcome.SUCCEEDED,
+                34, "VND", 1800, 1801), OrderStatus.PENDING_PAYMENT, Optional.empty());
+        assertEquals(PaymentAttempt.ReviewReason.LATE_SUCCESS, result.audit().reason());
+        assertEquals(PaymentEventAudit.Disposition.RECONCILIATION_REQUIRED, result.audit().disposition());
+        assertEquals(PaymentStatus.SUCCEEDED, result.attempt().status());
+        assertEquals(OrderStatus.PENDING_PAYMENT, order().getStatus());
     }
     @Test void successOnCancelledOrAlreadyFulfilledOrderNeedsReview() {
         for (var status:List.of(OrderStatus.CANCELLED,OrderStatus.CONFIRMED,OrderStatus.COMPLETED)) {
