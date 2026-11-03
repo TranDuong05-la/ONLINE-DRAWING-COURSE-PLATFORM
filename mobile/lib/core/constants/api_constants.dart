@@ -10,14 +10,8 @@ class ApiConstants {
   static const String _baseUrlOverride = String.fromEnvironment('API_BASE_URL');
 
   static String get defaultBaseUrl {
-
     if (_baseUrlOverride.isNotEmpty) {
       return _baseUrlOverride;
-
-    const envUrl = String.fromEnvironment('API_BASE_URL');
-    if (envUrl.isNotEmpty) {
-      return envUrl;
-
     }
     if (kIsWeb) {
       return 'http://localhost:8080';

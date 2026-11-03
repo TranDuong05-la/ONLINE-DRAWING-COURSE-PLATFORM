@@ -157,7 +157,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       if (val == null || val.trim().isEmpty) {
                         return 'Vui lòng nhập email';
                       }
-                      final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+                      final emailRegExp = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$');
                       if (!emailRegExp.hasMatch(val.trim())) {
                         return 'Định dạng email không hợp lệ';
                       }

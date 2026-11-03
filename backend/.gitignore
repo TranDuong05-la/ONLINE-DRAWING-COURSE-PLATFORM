@@ -22,6 +22,7 @@ logs/
 
 # Maven wrapper
 !.mvn/wrapper/maven-wrapper.jar
+.maven-user-home/
 
 .maven-user-home/
 

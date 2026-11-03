@@ -55,9 +55,9 @@ class AuthServiceTest {
     private AuthenticationManager authenticationManager;
 
     @Mock
-
     private GoogleTokenInfoClient googleTokenInfoClient;
 
+    @Mock
     private CloudinaryService cloudinaryService;
 
     @InjectMocks

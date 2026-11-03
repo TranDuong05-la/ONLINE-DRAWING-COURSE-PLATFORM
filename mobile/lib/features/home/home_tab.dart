@@ -10,6 +10,7 @@ import '../../widgets/artnest_logo.dart';
 import '../course/data/course_repository.dart';
 import '../course/models/course_models.dart';
 import '../course/ui/course_detail_page.dart';
+import '../learning/notifications_screen.dart';
 
 class HomeTab extends StatefulWidget {
   final Function(int)? onNavigateTab;
@@ -157,45 +158,8 @@ class _HomeTabState extends State<HomeTab> {
                       ),
                     ],
                   ),
-                  Stack(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: AppColors.surfaceMuted,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: AppColors.textPrimary,
-                          size: 24,
-                        ),
-                      ),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: const BoxDecoration(
-                            color: AppColors.accentPeach,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              '2',
-                              style: GoogleFonts.plusJakartaSans(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  // C: chuông thông báo thật (số chưa đọc, bấm để xem và mở đúng màn hình)
+                  const NotificationBell(),
                 ],
               ),
               const SizedBox(height: 16),

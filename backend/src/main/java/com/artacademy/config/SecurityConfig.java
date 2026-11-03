@@ -112,7 +112,9 @@ public class SecurityConfig {
                                 "/api/bundles", "/api/bundles/**",
                                 "/uploads/**"
                         ).permitAll()
-                        // Admin endpoints (gồm quản trị khóa học, combo, sản phẩm, upload của phần B)
+                        // C: link tải chứng nhận có token ký số ngắn hạn (kiểm tra trong CertificateService)
+                        .requestMatchers(HttpMethod.GET, "/api/files/certificates/*/pdf").permitAll()
+                        // Admin endpoints (gồm quản trị khóa học, combo, sản phẩm, upload của B và chấm bài của C)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // Instructor endpoints
                         .requestMatchers("/api/instructor/**").hasAnyRole("INSTRUCTOR", "ADMIN")

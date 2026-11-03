@@ -71,11 +71,8 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
-
     private final GoogleTokenInfoClient googleTokenInfoClient;
-
     private final CloudinaryService cloudinaryService;
-
     private final Map<String, OtpData> passwordResetOtpCache = new ConcurrentHashMap<>();
 
     public static class OtpData {
@@ -104,11 +101,8 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
-
-                       GoogleTokenInfoClient googleTokenInfoClient) {
-
+                       GoogleTokenInfoClient googleTokenInfoClient,
                        CloudinaryService cloudinaryService) {
-
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.userProfileRepository = userProfileRepository;
@@ -117,11 +111,8 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
-
         this.googleTokenInfoClient = googleTokenInfoClient;
-
         this.cloudinaryService = cloudinaryService;
-
     }
 
     // ==========================================

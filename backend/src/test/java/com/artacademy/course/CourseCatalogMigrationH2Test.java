@@ -24,7 +24,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 
 /**
- * Bảo vệ hồi quy cho V10__course_catalog.sql khi chưa có MySQL để chạy thật: chạy V10 trên H2 (chế độ MySQL) rồi
+ * Bảo vệ hồi quy cho V11__course_catalog.sql khi chưa có MySQL để chạy thật: chạy V10 trên H2 (chế độ MySQL) rồi
  * đối chiếu từng bảng/cột mà entity phần B ánh xạ. Chỉ kiểm tra tên bảng và cột (không kiểm tra kiểu dữ liệu
  * hay ràng buộc); kiểm tra đầy đủ vẫn cần MySqlSchemaCompatibilityIT trên MySQL thử riêng.
  */
@@ -34,7 +34,7 @@ class CourseCatalogMigrationH2Test {
     void migrationCreatesEveryTableAndColumnMappedByCatalogEntities() throws Exception {
         String url = "jdbc:h2:mem:v10_migration_check;MODE=MySQL;DB_CLOSE_DELAY=-1";
         DriverManagerDataSource dataSource = new DriverManagerDataSource(url, "sa", "");
-        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V10__course_catalog.sql")).execute(dataSource);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V11__course_catalog.sql")).execute(dataSource);
 
         StandardServiceRegistry registry = new StandardServiceRegistryBuilder()
                 .applySetting("hibernate.dialect", "org.hibernate.dialect.H2Dialect")

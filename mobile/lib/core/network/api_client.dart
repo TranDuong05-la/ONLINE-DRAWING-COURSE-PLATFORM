@@ -291,6 +291,9 @@ class ApiClient {
     }
   }
 
+  /// C: địa chỉ đầy đủ cho một đường dẫn trên server (video, ảnh tải ngoài Dio cần header đăng nhập).
+  String url(String path) => path.startsWith('http') ? path : '$_baseUrl$path';
+
   ApiResponse<T> _handleResponse<T>(
     Response response,
     T Function(dynamic json)? fromJsonT,

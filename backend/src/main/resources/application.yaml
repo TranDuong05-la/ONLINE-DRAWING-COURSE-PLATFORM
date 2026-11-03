@@ -8,16 +8,8 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
-
   flyway:
     enabled: false
-
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 10MB
-      max-request-size: 10MB
-
 
   datasource:
     url: ${DB_URL}
@@ -35,7 +27,8 @@ spring:
         format_sql: true
     open-in-view: false
 
-  # Upload ảnh bìa / video / PDF của phần khóa học (giới hạn chi tiết từng loại kiểm tra trong code)
+  # Upload của B (ảnh bìa / video / PDF), ảnh bài nộp của C (5MB, ImageValidator) và avatar của A
+  # (10MB, CloudinaryService). Giới hạn chi tiết từng loại kiểm tra trong code.
   servlet:
     multipart:
       # Video bài học tối đa 2GB (giới hạn từng loại file kiểm tra thêm trong LocalFileStorageService: ảnh 5MB, pdf 20MB).
@@ -62,7 +55,6 @@ spring:
           protocol: smtp
 
 app:
-
   checkout:
     course-only:
       enabled: ${COURSE_ONLY_CHECKOUT_ENABLED:false}
@@ -81,20 +73,38 @@ app:
       ipn-url: ${VNPAY_IPN_URL:}
       api-version: ${VNPAY_API_VERSION:2.1.0}
       command: ${VNPAY_COMMAND:pay}
-
-  seed:
-    enabled: ${SEED_DATA_ENABLED:true}
-
   jwt:
     secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
+  # ---- B: file upload của admin lưu trên ổ đĩa server, phục vụ ở /uploads/** ----
+  upload:
+    dir: ${UPLOAD_DIR:uploads}
+    # C: ảnh bài nộp tối đa 5MB (JPEG/PNG)
+    max-image-bytes: 5242880
+  # ---- B: dữ liệu mẫu chỉ nạp khi bảng còn trống. Mặc định tắt; profile h2 bật (xem application-h2.yaml) ----
+  # A (DataInitializer, 4 tài khoản test) dùng chung cờ app.seed.enabled này
+  seed:
+    enabled: ${SEED_ENABLED:false}
+    users:
+      enabled: false
+  # ---- C: học tập, bài nộp, chứng nhận ----
+  storage:
+    # Ảnh bài nộp và file PDF chứng nhận: lưu riêng tư (không phục vụ công khai như /uploads)
+    root: ${APP_STORAGE_ROOT:./storage}
+  learning:
+    # Xem đủ 90% thời lượng video thì bài học được tính là hoàn thành
+    complete-ratio: 0.9
+  certificate:
+    email-max-attempts: 5
+    email-cooldown-seconds: 300
+    # Link tải trong app (mở bằng trình xem PDF) và link gửi trong email
+    download-link-ttl-seconds: 300
+    email-link-ttl-seconds: 604800
+  # Địa chỉ đưa vào link tải chứng nhận (10.0.2.2 = máy host khi chạy Android emulator)
+  public-base-url: ${PUBLIC_BASE_URL:http://10.0.2.2:8080}
   google:
-
-    client-id: ${GOOGLE_CLIENT_ID:}
-
     client-id: ${GOOGLE_CLIENT_ID:631102057997-3ebr6ea99bpulk4isu1g3if2jj2fp9si.apps.googleusercontent.com}
-
 
 springdoc:
   api-docs:
@@ -104,6 +114,7 @@ springdoc:
     enabled: true
 
 cloudinary:
-  cloud_name: ${CLOUDINARY_CLOUD_NAME:${cloudinary.cloud_name:}}
-  api_key: ${CLOUDINARY_API_KEY:${cloudinary.api_key:}}
-  api_secret: ${CLOUDINARY_API_SECRET:${cloudinary.api_secret:}}
+  # A: đọc từ .env. Không tự tham chiếu cloudinary.* nữa (thiếu biến môi trường sẽ báo lỗi vòng lặp placeholder).
+  cloud_name: ${CLOUDINARY_CLOUD_NAME:}
+  api_key: ${CLOUDINARY_API_KEY:}
+  api_secret: ${CLOUDINARY_API_SECRET:}
