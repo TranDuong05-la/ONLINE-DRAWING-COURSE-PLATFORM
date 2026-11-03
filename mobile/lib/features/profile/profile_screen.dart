@@ -204,6 +204,13 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: 'Danh sách, tìm kiếm, đổi vai trò và khóa tài khoản',
                   onTap: () => context.push('/admin/users'),
                 ),
+                _buildMenuItem(
+                  icon: Icons.menu_book_outlined,
+                  iconColor: AppColors.primaryMedium,
+                  title: 'Quản lý khóa học & combo',
+                  subtitle: 'Tạo khóa, module, bài học, quà tặng kèm, xuất bản và combo',
+                  onTap: () => context.push('/admin/courses'),
+                ),
               ]),
               const SizedBox(height: 20),
             ],

@@ -263,6 +263,34 @@ class ApiClient {
     }
   }
 
+  // POST multipart/form-data (upload ảnh/video/PDF của phần khóa học).
+  // Video có thể nặng tới 2GB nên cho thời gian gửi dài (3 giờ, đủ cho mạng chậm); onProgress nhận giá trị 0..1.
+  // receiveTimeout là thời gian chờ server lưu file sau khi nhận xong (file lớn cần chuyển vào thư mục upload).
+  Future<ApiResponse<T>> postMultipart<T>(
+    String path, {
+    required FormData formData,
+    void Function(double progress)? onProgress,
+    T Function(dynamic json)? fromJsonT,
+  }) async {
+    try {
+      final response = await _dio.post(
+        path,
+        data: formData,
+        options: Options(
+          contentType: 'multipart/form-data',
+          sendTimeout: const Duration(hours: 3),
+          receiveTimeout: const Duration(minutes: 10),
+        ),
+        onSendProgress: (sent, total) {
+          if (total > 0) onProgress?.call(sent / total);
+        },
+      );
+      return _handleResponse<T>(response, fromJsonT);
+    } on DioException catch (e) {
+      throw _handleDioError(e);
+    }
+  }
+
   ApiResponse<T> _handleResponse<T>(
     Response response,
     T Function(dynamic json)? fromJsonT,
