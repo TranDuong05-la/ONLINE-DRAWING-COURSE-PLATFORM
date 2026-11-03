@@ -83,8 +83,9 @@ class OrderHistoryApiIntegrationTest {
                 .andExpect(jsonPath("$.data.first").value(true))
                 .andExpect(jsonPath("$.data.last").value(false))
                 .andExpect(jsonPath("$.data.empty").value(false));
-        assertThat(statistics.getPrepareStatementCount()).as("JWT lookup, scalar page and count only; never per-order item loads")
-                .isLessThanOrEqualTo(4);
+        // 5 = JWT lookup + token_version check (A) + scalar page + count; never per-order item loads
+        assertThat(statistics.getPrepareStatementCount()).as("JWT lookup, token version, scalar page and count only; never per-order item loads")
+                .isLessThanOrEqualTo(5);
         mvc.perform(get("/api/orders").header("Authorization", bearer(owner)).param("page", "1").param("size", "2"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.content.length()").value(1))
                 .andExpect(jsonPath("$.data.number").value(1)).andExpect(jsonPath("$.data.last").value(true));

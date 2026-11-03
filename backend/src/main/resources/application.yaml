@@ -77,6 +77,7 @@ app:
     # C: ảnh bài nộp tối đa 5MB (JPEG/PNG)
     max-image-bytes: 5242880
   # ---- B: dữ liệu mẫu chỉ nạp khi bảng còn trống. Mặc định tắt; profile h2 bật (xem application-h2.yaml) ----
+  # A (DataInitializer, 4 tài khoản test) dùng chung cờ app.seed.enabled này
   seed:
     enabled: ${SEED_ENABLED:false}
     users:

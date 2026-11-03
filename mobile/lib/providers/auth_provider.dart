@@ -26,6 +26,10 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated && _currentUser != null;
   bool get isAdmin => _currentUser?.isAdmin ?? false;
+  bool get isInstructor => _currentUser?.isInstructor ?? false;
+  bool get isStaff => _currentUser?.isStaff ?? false;
+  bool get isUser => _currentUser?.isUser ?? false;
+  UserRole? get currentRole => _currentUser?.role;
   bool get isLoading => _status == AuthStatus.loading;
 
   void clearError() {
@@ -193,6 +197,16 @@ class AuthProvider extends ChangeNotifier {
       newPassword: newPassword,
       confirmPassword: confirmPassword,
     );
+  }
+
+  Future<void> refreshCurrentUser() async {
+    try {
+      final user = await _authRepository.getCurrentUser();
+      _currentUser = user;
+      notifyListeners();
+    } catch (e) {
+      logDebug('Failed to refresh current user: $e');
+    }
   }
 
   void updateCurrentUser(UserModel user) {

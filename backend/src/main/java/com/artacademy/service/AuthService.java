@@ -25,9 +25,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.artacademy.entity.UserProfile;
+import com.artacademy.entity.UserRoleHistory;
 import com.artacademy.enums.AgeGroup;
 import com.artacademy.enums.ProfileType;
 import com.artacademy.repository.UserProfileRepository;
+import com.artacademy.repository.UserRoleHistoryRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,6 +65,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final UserAddressRepository addressRepository;
     private final UserProfileRepository userProfileRepository;
+    private final UserRoleHistoryRepository userRoleHistoryRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -91,6 +94,7 @@ public class AuthService {
     public AuthService(UserRepository userRepository,
                        UserAddressRepository addressRepository,
                        UserProfileRepository userProfileRepository,
+                       UserRoleHistoryRepository userRoleHistoryRepository,
                        EmailService emailService,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
@@ -99,6 +103,7 @@ public class AuthService {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.userProfileRepository = userProfileRepository;
+        this.userRoleHistoryRepository = userRoleHistoryRepository;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -557,7 +562,13 @@ public class AuthService {
     // ==========================================
 
     public Page<UserResponse> getAllUsers(String search, Role role, Boolean isActive, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return getAllUsers(search, role, isActive, page, size, "createdAt", "desc");
+    }
+
+    public Page<UserResponse> getAllUsers(String search, Role role, Boolean isActive, int page, int size, String sortBy, String sortDirection) {
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortDirection) ? Sort.Direction.ASC : Sort.Direction.DESC;
+        String sortProperty = (sortBy != null && !sortBy.isBlank()) ? sortBy : "createdAt";
+        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sortProperty));
         return userRepository.findAllWithFilters(search, role, isActive, pageable)
                 .map(this::mapToUserResponse);
     }
@@ -566,6 +577,71 @@ public class AuthService {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
         return mapToUserResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateUserRole(String adminEmail, Integer targetUserId, UpdateUserRoleRequest request) {
+        User admin = findUserByEmail(adminEmail);
+        if (admin.getRole() != Role.ADMIN) {
+            throw new UnauthorizedException("Only administrators can update user roles");
+        }
+
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", targetUserId));
+
+        Role oldRole = targetUser.getRole();
+        Role newRole = request.getRole();
+
+        if (oldRole == newRole) {
+            return mapToUserResponse(targetUser);
+        }
+
+        // Prevent demoting the last active admin
+        if (oldRole == Role.ADMIN && newRole != Role.ADMIN) {
+            long activeAdminCount = userRepository.countByRoleAndIsActive(Role.ADMIN, true);
+            if (activeAdminCount <= 1) {
+                throw new BusinessException("Cannot change role: this is the last active admin account in the system");
+            }
+        }
+
+        // Prevent admin from accidentally demoting themselves if they are the only active admin
+        if (admin.getId().equals(targetUser.getId()) && newRole != Role.ADMIN) {
+            long activeAdminCount = userRepository.countByRoleAndIsActive(Role.ADMIN, true);
+            if (activeAdminCount <= 1) {
+                throw new BusinessException("You cannot remove your own admin role when you are the last active admin");
+            }
+        }
+
+        targetUser.setRole(newRole);
+        // Invalidate old tokens across devices by incrementing token version
+        targetUser.setTokenVersion(targetUser.getTokenVersion() != null ? targetUser.getTokenVersion() + 1 : 2);
+        targetUser = userRepository.save(targetUser);
+
+        // Record role change history
+        String reason = (request.getReason() != null && !request.getReason().isBlank())
+                ? request.getReason().trim()
+                : "Role changed by admin " + admin.getEmail();
+
+        UserRoleHistory history = UserRoleHistory.builder()
+                .user(targetUser)
+                .changedBy(admin)
+                .oldRole(oldRole)
+                .newRole(newRole)
+                .reason(reason)
+                .build();
+        userRoleHistoryRepository.save(history);
+
+        log.info("Admin {} changed role of user {} (ID: {}) from {} to {}", admin.getEmail(), targetUser.getEmail(), targetUser.getId(), oldRole, newRole);
+        return mapToUserResponse(targetUser);
+    }
+
+    @Transactional
+    public UserResponse updateUserStatus(String adminEmail, Integer targetUserId, UpdateUserStatusRequest request) {
+        Boolean resolvedIsActive = request.resolveIsActive();
+        if (resolvedIsActive == null) {
+            throw new BusinessException("isActive or status field (ACTIVE/INACTIVE/LOCKED) is required");
+        }
+        return updateUserStatus(targetUserId, resolvedIsActive);
     }
 
     @Transactional
@@ -582,9 +658,56 @@ public class AuthService {
         }
 
         user.setIsActive(isActive);
+        // Invalidate tokens immediately
+        user.setTokenVersion(user.getTokenVersion() != null ? user.getTokenVersion() + 1 : 2);
         user = userRepository.save(user);
 
+        log.info("User {} (ID: {}) active status changed to: {}", user.getEmail(), user.getId(), isActive);
         return mapToUserResponse(user);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RoleHistoryResponse> getUserRoleHistory(Integer userId) {
+        if (!userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User", "id", userId);
+        }
+        return userRoleHistoryRepository.findByUserIdOrderByChangedAtDesc(userId)
+                .stream()
+                .map(h -> RoleHistoryResponse.builder()
+                        .id(h.getId())
+                        .userId(h.getUser().getId())
+                        .userEmail(h.getUser().getEmail())
+                        .userFullName(h.getUser().getFullName())
+                        .changedById(h.getChangedBy().getId())
+                        .changedByEmail(h.getChangedBy().getEmail())
+                        .changedByFullName(h.getChangedBy().getFullName())
+                        .oldRole(h.getOldRole())
+                        .newRole(h.getNewRole())
+                        .reason(h.getReason())
+                        .changedAt(h.getChangedAt())
+                        .build())
+                .toList();
+    }
+
+    public AdminDashboardResponse getAdminDashboard() {
+        long totalUsers = userRepository.count();
+        long totalAdmins = userRepository.countByRole(Role.ADMIN);
+        long totalInstructors = userRepository.countByRole(Role.INSTRUCTOR);
+        long totalStaff = userRepository.countByRole(Role.STAFF);
+        long activeUsers = userRepository.countByIsActive(true);
+        long inactiveUsers = userRepository.countByIsActive(false);
+
+        return AdminDashboardResponse.builder()
+                .totalUsers(totalUsers)
+                .totalAdmins(totalAdmins)
+                .totalInstructors(totalInstructors)
+                .totalStaff(totalStaff)
+                .activeUsers(activeUsers)
+                .inactiveUsers(inactiveUsers)
+                .totalCourses(0L)
+                .totalOrders(0L)
+                .totalRevenue(java.math.BigDecimal.ZERO)
+                .build();
     }
 
     // ==========================================

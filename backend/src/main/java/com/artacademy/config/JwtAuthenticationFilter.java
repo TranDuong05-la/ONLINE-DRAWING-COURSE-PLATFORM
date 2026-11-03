@@ -30,10 +30,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final CustomUserDetailsService userDetailsService;
+    private final com.artacademy.repository.UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService, CustomUserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtService jwtService,
+                                   CustomUserDetailsService userDetailsService,
+                                   com.artacademy.repository.UserRepository userRepository) {
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -64,6 +68,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 }
 
                 if (jwtService.isTokenValid(jwt, userDetails)) {
+                    // Check token version to revoke stale JWTs when roles or security credentials change
+                    Integer tokenVersionInJwt = jwtService.extractTokenVersion(jwt);
+                    if (tokenVersionInJwt != null) {
+                        com.artacademy.entity.User user = userRepository.findByEmail(userEmail).orElse(null);
+                        if (user != null && user.getTokenVersion() != null && !tokenVersionInJwt.equals(user.getTokenVersion())) {
+                            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "Session expired or revoked due to security changes. Please log in again.");
+                            return;
+                        }
+                    }
+
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails,

@@ -35,9 +35,10 @@ class JwtAuthenticationFilterTest {
     private final AuthenticatedUserPrincipal principal = new AuthenticatedUserPrincipal(
             42, "trusted@example.test", "hash", Role.STAFF, true);
     @Mock private CustomUserDetailsService users;
+    @Mock private com.artacademy.repository.UserRepository userRepository;
     private ExposedFilter filter;
 
-    @BeforeEach void setUp() { SecurityContextHolder.clearContext(); filter = new ExposedFilter(jwt, users); }
+    @BeforeEach void setUp() { SecurityContextHolder.clearContext(); filter = new ExposedFilter(jwt, users, userRepository); }
     @AfterEach void clearContext() { SecurityContextHolder.clearContext(); }
 
     @Test
@@ -89,7 +90,10 @@ class JwtAuthenticationFilterTest {
     }
 
     private static final class ExposedFilter extends JwtAuthenticationFilter {
-        ExposedFilter(JwtService jwt, CustomUserDetailsService users) { super(jwt, users); }
+        ExposedFilter(JwtService jwt, CustomUserDetailsService users,
+                      com.artacademy.repository.UserRepository userRepository) {
+            super(jwt, users, userRepository);
+        }
         void invoke(jakarta.servlet.http.HttpServletRequest req, jakarta.servlet.http.HttpServletResponse res,
                     FilterChain chain) throws java.io.IOException, jakarta.servlet.ServletException {
             super.doFilterInternal(req, res, chain);
