@@ -246,7 +246,8 @@ class ApiClient {
   }
 
   // POST multipart/form-data (upload ảnh/video/PDF của phần khóa học).
-  // Video có thể rất nặng nên cho thời gian gửi dài; onProgress nhận giá trị 0..1.
+  // Video có thể nặng tới 2GB nên cho thời gian gửi dài (3 giờ, đủ cho mạng chậm); onProgress nhận giá trị 0..1.
+  // receiveTimeout là thời gian chờ server lưu file sau khi nhận xong (file lớn cần chuyển vào thư mục upload).
   Future<ApiResponse<T>> postMultipart<T>(
     String path, {
     required FormData formData,
@@ -259,8 +260,8 @@ class ApiClient {
         data: formData,
         options: Options(
           contentType: 'multipart/form-data',
-          sendTimeout: const Duration(minutes: 10),
-          receiveTimeout: const Duration(minutes: 2),
+          sendTimeout: const Duration(hours: 3),
+          receiveTimeout: const Duration(minutes: 10),
         ),
         onSendProgress: (sent, total) {
           if (total > 0) onProgress?.call(sent / total);

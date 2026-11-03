@@ -62,7 +62,7 @@ class UploadApiTest extends IntegrationTestBase {
         // ảnh tối đa 5MB
         mvc.perform(multipart("/api/admin/uploads").file(file("to.png", "image/png", sixMb)))
                 .andExpect(status().isPayloadTooLarge());
-        // cùng dung lượng đó thì video vẫn được (giới hạn 200MB)
+        // cùng dung lượng đó thì video vẫn được (giới hạn mặc định 2GB)
         mvc.perform(multipart("/api/admin/uploads").file(file("ok.mp4", "video/mp4", sixMb)))
                 .andExpect(status().isOk());
         // pdf tối đa 20MB

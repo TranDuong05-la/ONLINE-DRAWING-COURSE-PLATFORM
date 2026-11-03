@@ -28,7 +28,7 @@ public class UploadController {
 
     /** multipart/form-data, field tên "file". data = { "url": "/uploads/xxx.mp4" }. */
     @PostMapping
-    @Operation(summary = "Upload file", description = "jpg/png/webp tối đa 5MB, pdf 20MB, mp4 200MB.")
+    @Operation(summary = "Upload file", description = "jpg/png/webp tối đa 5MB, pdf 20MB, mp4 2GB.")
     public ApiResponse<UploadResponse> upload(@RequestParam("file") MultipartFile file) {
         return ApiResponse.success("Đã tải lên", new UploadResponse(storage.store(file)));
     }

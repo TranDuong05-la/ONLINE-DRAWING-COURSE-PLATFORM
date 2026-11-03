@@ -27,8 +27,13 @@ spring:
   # Upload ảnh bìa / video / PDF của phần khóa học (giới hạn chi tiết từng loại kiểm tra trong code)
   servlet:
     multipart:
-      max-file-size: 200MB
-      max-request-size: 200MB
+      # Video bài học tối đa 2GB (giới hạn từng loại file kiểm tra thêm trong LocalFileStorageService: ảnh 5MB, pdf 20MB).
+      # max-request-size lớn hơn một chút vì request còn gồm phần đầu multipart.
+      # Spring ghi file tạm ra đĩa (không giữ trong RAM). Mặc định thư mục tạm của hệ điều hành (thường ở ổ C:):
+      # đặt UPLOAD_TMP_DIR để chuyển sang ổ còn nhiều chỗ, cùng ổ với thư mục upload thì file được chuyển nhanh hơn.
+      max-file-size: 2GB
+      max-request-size: 2100MB
+      location: ${UPLOAD_TMP_DIR:}
 
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
