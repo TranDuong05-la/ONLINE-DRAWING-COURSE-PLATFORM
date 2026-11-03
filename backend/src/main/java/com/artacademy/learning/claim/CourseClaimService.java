@@ -129,6 +129,11 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 		if (same != null) {
 			requireOwner(same, userId);
 			if (same.getStatus() == CourseClaim.Status.RESERVED || same.getStatus() == CourseClaim.Status.CONFIRMED) {
+				if (!Objects.equals(same.getOrderItemId(), orderItemId)
+						|| same.getSourceType() != sourceType
+						|| !Objects.equals(same.getComponentPosition(), componentPosition)) {
+					throw new IllegalStateException("Existing Course claim does not match the OrderItem identity");
+				}
 				return; // gọi lại cho cùng Order: idempotent
 			}
 			throw new CourseClaimConflictException(CourseClaimConflictException.Reason.CLAIM_ALREADY_CLOSED, courseId,

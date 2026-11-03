@@ -1,13 +1,23 @@
 package com.artacademy.bootstrap;
 
 import com.artacademy.ArtAcademyApplication;
+import com.artacademy.course.Course;
+import com.artacademy.course.CourseLevel;
+import com.artacademy.course.CourseRepository;
+import com.artacademy.course.CourseStatus;
 import com.artacademy.entity.User;
 import com.artacademy.enums.Role;
+import com.artacademy.learning.claim.CourseClaim;
+import com.artacademy.learning.claim.CourseClaimConflictException;
+import com.artacademy.learning.claim.CourseClaimRepository;
+import com.artacademy.learning.claim.CourseClaimService;
+import com.artacademy.learning.claim.CoursePurchasePortAdapter;
 import com.artacademy.repository.UserRepository;
 import com.drawingcourse.backend.entity.*;
 import com.drawingcourse.backend.repository.*;
 import com.drawingcourse.backend.service.*;
 import com.drawingcourse.backend.service.checkout.*;
+import com.drawingcourse.backend.integration.contract.CourseClaimContracts;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +43,9 @@ import static org.junit.jupiter.api.Assertions.*;
 @ActiveProfiles("test")
 class CheckoutCoordinatorJpaH2IntegrationTest {
     @Autowired private UserRepository users;
+    @Autowired private CourseRepository courseCatalog;
+    @Autowired private CourseClaimRepository courseClaims;
+    @Autowired private CourseClaimService courseClaimService;
     @Autowired private CartRepository carts;
     @Autowired private CheckoutRequestRepository checkoutRequests;
     @Autowired private OrderRepository orders;
@@ -130,6 +143,200 @@ class CheckoutCoordinatorJpaH2IntegrationTest {
                 Integer.class));
     }
 
+    @Test
+    void checkoutPersistsRealOrderItemIdentityOnClaimsAndConfirmationUsesTheSameClaims() {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        User user = saveUser("claim-checkout-" + suffix);
+        Course first = saveCourse("claim-first-" + suffix);
+        Course second = saveCourse("claim-second-" + suffix);
+        Integer firstId = Math.toIntExact(first.getId());
+        Integer secondId = Math.toIntExact(second.getId());
+        CartJpaEntity cart = new CartJpaEntity(user.getId());
+        cart.addItem(CartItemType.COURSE, secondId, 1);
+        cart.addItem(CartItemType.COURSE, firstId, 1);
+        carts.saveAndFlush(cart);
+        List<CheckoutRequest.Selection> selections = new TransactionTemplate(transactions).execute(status ->
+                carts.findByUserId(user.getId()).orElseThrow().getItems().stream()
+                        .map(item -> new CheckoutRequest.Selection(item.getId(), item.getQuantity())).toList());
+
+        var clock = Clock.fixed(Instant.parse("2026-10-28T05:00:00Z"), ZoneOffset.UTC);
+        var orderPersistence = new OrderPersistenceService(orders, orderItems, () -> user.getId(), transactions);
+        var idempotency = new CheckoutIdempotencyService(checkoutRequests, users, orders, clock, transactions);
+        var courseAdapter = new CoursePurchasePortAdapter(courseClaimService);
+        var coordinator = CheckoutCoordinator.courseOnly(idempotency, new JpaCheckoutCartPort(carts),
+                id -> Optional.of(new CourseCatalogPort.CourseOffer(id, "Trusted persisted Course", 25_000, true)),
+                courseAdapter, new TestVoucherPort(jdbc, false), new OrderPersistenceCheckoutPort(orderPersistence),
+                clock, transactions);
+        String key = "real-claims-" + suffix;
+        var request = new CheckoutRequest(0, selections, Optional.empty(), Optional.empty());
+
+        var result = coordinator.checkout(user.getId(), key, request);
+
+        List<Long> courseOrder = jdbc.query("SELECT course_id FROM course_claims WHERE order_id=? ORDER BY id",
+                (rs, row) -> rs.getLong(1), result.orderId());
+        assertEquals(List.of(first.getId(), second.getId()), courseOrder,
+                "Checkout and C must reserve claims in ascending Course ID order");
+        for (Integer courseId : List.of(firstId, secondId)) {
+            Integer persistedOrderItemId = jdbc.queryForObject(
+                    "SELECT id FROM order_items WHERE order_id=? AND item_type='COURSE' AND item_id=?",
+                    Integer.class, result.orderId(), courseId);
+            List<CourseClaim> linkedClaims = courseClaims.findByOrderItemIdOrderByCourseIdAsc(persistedOrderItemId);
+            assertEquals(1, linkedClaims.size());
+            assertEquals(result.orderId(), linkedClaims.getFirst().getOrderId());
+            assertEquals(courseId.longValue(), linkedClaims.getFirst().getCourseId());
+            assertEquals(persistedOrderItemId, linkedClaims.getFirst().getOrderItemId());
+        }
+
+        assertEquals(new CheckoutCoordinator.CheckoutResult(result.orderId(), true),
+                coordinator.checkout(user.getId(), key, request));
+        assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM course_claims WHERE order_id=?", Integer.class,
+                result.orderId()));
+
+        Instant confirmedAt = Instant.parse("2026-10-28T05:01:00Z");
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            courseClaimService.confirmForOrder(user.getId(), firstId, result.orderId(), confirmedAt);
+            courseClaimService.confirmForOrder(user.getId(), secondId, result.orderId(), confirmedAt);
+        });
+        assertEquals(2, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM course_claims WHERE order_id=? AND status='CONFIRMED'", Integer.class,
+                result.orderId()));
+        assertEquals(2, jdbc.queryForObject(
+                "SELECT COUNT(*) FROM user_course_enrollments WHERE source_order_id=? AND source_order_item_id IS NOT NULL",
+                Integer.class, result.orderId()));
+    }
+
+    @Test
+    void laterCourseClaimConflictRollsBackPersistedOrderItemsAndEarlierClaims() {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        User user = saveUser("claim-rollback-" + suffix);
+        Course first = saveCourse("claim-rollback-first-" + suffix);
+        Course second = saveCourse("claim-rollback-second-" + suffix);
+        Integer firstId = Math.toIntExact(first.getId());
+        Integer secondId = Math.toIntExact(second.getId());
+        Instant now = Instant.parse("2026-10-28T05:00:00Z");
+        List<CourseClaimContracts.ClaimLine> competingLine = List.of(new CourseClaimContracts.ClaimLine(
+                99001, second.getId(), CourseClaimContracts.ClaimSourceType.STANDALONE_COURSE, null));
+        new TransactionTemplate(transactions).executeWithoutResult(status -> courseClaimService.reserve(
+                new CourseClaimContracts.ReservationCommand(user.getId(), 99001, competingLine, now,
+                        now.plusSeconds(1800))));
+
+        CartJpaEntity cart = new CartJpaEntity(user.getId());
+        cart.addItem(CartItemType.COURSE, firstId, 1);
+        cart.addItem(CartItemType.COURSE, secondId, 1);
+        carts.saveAndFlush(cart);
+        List<CheckoutRequest.Selection> selections = new TransactionTemplate(transactions).execute(status ->
+                carts.findByUserId(user.getId()).orElseThrow().getItems().stream()
+                        .map(item -> new CheckoutRequest.Selection(item.getId(), item.getQuantity())).toList());
+        var clock = Clock.fixed(now, ZoneOffset.UTC);
+        var orderPersistence = new OrderPersistenceService(orders, orderItems, () -> user.getId(), transactions);
+        var idempotency = new CheckoutIdempotencyService(checkoutRequests, users, orders, clock, transactions);
+        var actualClaims = new CoursePurchasePortAdapter(courseClaimService);
+        CoursePurchasePort simulateConcurrentClaimAfterPrecheck = new CoursePurchasePort() {
+            @Override public boolean isOwnedBy(Integer owner, Integer course) { return false; }
+            @Override public boolean hasActivePendingPurchase(Integer owner, Integer course, Instant at) { return false; }
+            @Override public void claimForOrder(Integer owner, Integer course, Integer order, Integer orderItem,
+                                                Instant at, Instant expires) {
+                actualClaims.claimForOrder(owner, course, order, orderItem, at, expires);
+            }
+            @Override public void confirmForOrder(Integer owner, Integer course, Integer order, Instant at) {
+                actualClaims.confirmForOrder(owner, course, order, at);
+            }
+            @Override public void releaseForOrder(Integer owner, Integer course, Integer order, String reason,
+                                                  Instant at) {
+                actualClaims.releaseForOrder(owner, course, order, reason, at);
+            }
+        };
+        var coordinator = CheckoutCoordinator.courseOnly(idempotency, new JpaCheckoutCartPort(carts),
+                id -> Optional.of(new CourseCatalogPort.CourseOffer(id, "Trusted persisted Course", 25_000, true)),
+                simulateConcurrentClaimAfterPrecheck, new TestVoucherPort(jdbc, false),
+                new OrderPersistenceCheckoutPort(orderPersistence), clock, transactions);
+        String key = "claim-rollback-" + suffix;
+        var request = new CheckoutRequest(0, selections, Optional.empty(), Optional.empty());
+
+        assertThrows(CourseClaimConflictException.class, () -> coordinator.checkout(user.getId(), key, request));
+
+        assertEquals(0, countOrders(user.getId()));
+        assertEquals(0, countRequests(user.getId()));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM order_items oi JOIN orders o ON o.id=oi.order_id "
+                + "WHERE o.user_id=?", Integer.class, user.getId()));
+        assertEquals(1, jdbc.queryForObject("SELECT COUNT(*) FROM course_claims WHERE user_id=?", Integer.class,
+                user.getId()));
+        assertEquals(99001, jdbc.queryForObject("SELECT order_id FROM course_claims WHERE user_id=?", Integer.class,
+                user.getId()));
+    }
+
+    @Test
+    void newCheckoutClaimReplayRejectsMismatchedOrderItemIdentity() {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        User user = saveUser("claim-identity-" + suffix);
+        Course course = saveCourse("claim-identity-course-" + suffix);
+        Instant now = Instant.parse("2026-10-28T05:00:00Z");
+        var first = new CourseClaimContracts.ReservationCommand(user.getId(), 88001,
+                List.of(new CourseClaimContracts.ClaimLine(88002, course.getId(),
+                        CourseClaimContracts.ClaimSourceType.STANDALONE_COURSE, null)), now, now.plusSeconds(1800));
+        var mismatch = new CourseClaimContracts.ReservationCommand(user.getId(), 88001,
+                List.of(new CourseClaimContracts.ClaimLine(88003, course.getId(),
+                        CourseClaimContracts.ClaimSourceType.STANDALONE_COURSE, null)), now, now.plusSeconds(1800));
+        new TransactionTemplate(transactions).executeWithoutResult(status -> courseClaimService.reserve(first));
+
+        assertThrows(IllegalStateException.class,
+                () -> new TransactionTemplate(transactions).executeWithoutResult(status -> courseClaimService.reserve(mismatch)));
+        assertEquals(88002, jdbc.queryForObject("SELECT order_item_id FROM course_claims WHERE order_id=? AND course_id=?",
+                Integer.class, 88001, course.getId()));
+    }
+
+    @Test
+    void checkoutClaimRetainsOrderItemIdentityWhenReleasedForExpiration() {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        User user = saveUser("claim-expire-" + suffix);
+        Course course = saveCourse("claim-expire-course-" + suffix);
+        Integer courseId = Math.toIntExact(course.getId());
+        CartJpaEntity cart = new CartJpaEntity(user.getId());
+        cart.addItem(CartItemType.COURSE, courseId, 1);
+        carts.saveAndFlush(cart);
+        var selection = new TransactionTemplate(transactions).execute(status ->
+                carts.findByUserId(user.getId()).orElseThrow().getItems().stream()
+                        .map(item -> new CheckoutRequest.Selection(item.getId(), item.getQuantity())).toList());
+        var clock = Clock.fixed(Instant.parse("2026-10-28T05:00:00Z"), ZoneOffset.UTC);
+        var orderPersistence = new OrderPersistenceService(orders, orderItems, () -> user.getId(), transactions);
+        var idempotency = new CheckoutIdempotencyService(checkoutRequests, users, orders, clock, transactions);
+        var coordinator = CheckoutCoordinator.courseOnly(idempotency, new JpaCheckoutCartPort(carts),
+                id -> Optional.of(new CourseCatalogPort.CourseOffer(id, "Trusted persisted Course", 25_000, true)),
+                new CoursePurchasePortAdapter(courseClaimService), new TestVoucherPort(jdbc, false),
+                new OrderPersistenceCheckoutPort(orderPersistence), clock, transactions);
+
+        var result = coordinator.checkout(user.getId(), "expire-" + suffix,
+                new CheckoutRequest(0, selection, Optional.empty(), Optional.empty()));
+        Integer itemId = jdbc.queryForObject("SELECT id FROM order_items WHERE order_id=? AND item_id=?",
+                Integer.class, result.orderId(), courseId);
+        Instant deadline = Instant.parse("2026-10-28T05:30:00Z");
+        new TransactionTemplate(transactions).executeWithoutResult(status -> courseClaimService.releaseForOrder(
+                user.getId(), courseId, result.orderId(), "EXPIRED", deadline));
+
+        CourseClaim released = courseClaims.findByOrderItemIdOrderByCourseIdAsc(itemId).getFirst();
+        assertEquals(CourseClaim.Status.RELEASED, released.getStatus());
+        assertEquals(itemId, released.getOrderItemId());
+        assertEquals("EXPIRED", released.getReleaseReason());
+    }
+
+    private User saveUser(String emailPrefix) {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        return new TransactionTemplate(transactions).execute(status -> users.saveAndFlush(User.builder()
+                .fullName("Course claim checkout test").email(emailPrefix + "-" + suffix + "@example.test")
+                .passwordHash("test-hash").role(Role.USER).isActive(true).build()));
+    }
+
+    private Course saveCourse(String suffix) {
+        Course course = new Course();
+        course.setCode("C-" + UUID.randomUUID().toString().substring(0, 8));
+        course.setSlug("claim-" + suffix);
+        course.setTitle("Claim checkout Course");
+        course.setPrice(25_000);
+        course.setLevel(CourseLevel.BASIC);
+        course.setStatus(CourseStatus.PUBLISHED);
+        return courseCatalog.saveAndFlush(course);
+    }
+
     private Fixture fixture(boolean failVoucherReservation) {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         Integer userId = new TransactionTemplate(transactions).execute(status -> {
@@ -176,7 +383,7 @@ class CheckoutCoordinatorJpaH2IntegrationTest {
         private TestCoursePort(JdbcTemplate jdbc) { this.jdbc = jdbc; }
         @Override public boolean isOwnedBy(Integer user, Integer course) { return false; }
         @Override public boolean hasActivePendingPurchase(Integer user, Integer course, Instant at) { return false; }
-        @Override public void claimForOrder(Integer user, Integer course, Integer order, Instant at, Instant expiresAt) {
+        @Override public void claimForOrder(Integer user, Integer course, Integer order, Integer orderItem, Instant at, Instant expiresAt) {
             jdbc.update("INSERT INTO checkout_test_effects(effect_key) VALUES ('course')");
         }
         @Override public void confirmForOrder(Integer user, Integer course, Integer order, Instant at) { }

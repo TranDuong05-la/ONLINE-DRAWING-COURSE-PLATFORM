@@ -262,7 +262,7 @@ class VoucherReservationH2IntegrationTest {
                 id -> Optional.empty(), new CoursePurchasePort() {
                     @Override public boolean isOwnedBy(Integer owner, Integer course) { return false; }
                     @Override public boolean hasActivePendingPurchase(Integer owner, Integer course, Instant at) { return false; }
-                    @Override public void claimForOrder(Integer owner, Integer course, Integer order, Instant at, Instant expires) { }
+                    @Override public void claimForOrder(Integer owner, Integer course, Integer order, Integer orderItem, Instant at, Instant expires) { }
                     @Override public void confirmForOrder(Integer owner, Integer course, Integer order, Instant at) { }
                     @Override public void releaseForOrder(Integer owner, Integer course, Integer order, String reason, Instant at) { }
                 }, new InventoryReservationPort() {

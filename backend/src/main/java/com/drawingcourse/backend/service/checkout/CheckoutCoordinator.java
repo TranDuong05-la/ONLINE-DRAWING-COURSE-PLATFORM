@@ -197,6 +197,8 @@ public final class CheckoutCoordinator {
         if (stored == null || stored.id() == null || !userId.equals(stored.snapshot().getUserId()))
             throw new IllegalStateException("Order persistence returned an invalid owner/reference");
 
+        Map<Integer, Integer> courseOrderItemIds = persistedCourseOrderItems(stored, courseIds);
+
         // Providers acquire shared rows in deterministic ID order. All must join this transaction and perform
         // atomic write-side checks; the earlier ownership/pending/catalog reads are not concurrency protection.
         if (!productQuantities.isEmpty() && inventory == null)
@@ -204,12 +206,27 @@ public final class CheckoutCoordinator {
         for (Integer productId : productQuantities.keySet())
             inventory.reserveForOrder(userId, productId, productQuantities.get(productId), stored.id(), snapshot.getExpiresAt());
         for (Integer courseId : courseIds)
-            coursePurchases.claimForOrder(userId, courseId, stored.id(), observedAt, snapshot.getExpiresAt());
+            coursePurchases.claimForOrder(userId, courseId, stored.id(), courseOrderItemIds.get(courseId),
+                    observedAt, snapshot.getExpiresAt());
         voucherQuote.ifPresent(quote -> vouchers.reserveForOrder(userId, stored, snapshot, quote,
                 clock.instant().truncatedTo(ChronoUnit.MICROS)));
 
         idempotency.complete(userId, requestId, stored.id());
         return new CheckoutResult(stored.id(), false);
+    }
+
+    private static Map<Integer, Integer> persistedCourseOrderItems(StoredOrder stored, Set<Integer> courseIds) {
+        Map<Integer, Integer> itemIdsByCourse = new TreeMap<>();
+        for (StoredOrder.ItemIdentity identity : stored.itemIdentities()) {
+            if (identity.itemType() != OrderItemType.COURSE) continue;
+            if (identity.id() == null || identity.id() <= 0 || identity.itemId() == null || identity.itemId() <= 0)
+                throw new IllegalStateException("Order persistence returned an invalid Course OrderItem identity");
+            if (itemIdsByCourse.putIfAbsent(identity.itemId(), identity.id()) != null)
+                throw new IllegalStateException("Order persistence returned duplicate Course OrderItems");
+        }
+        if (!itemIdsByCourse.keySet().equals(courseIds))
+            throw new IllegalStateException("Persisted Course OrderItems do not match Checkout selection");
+        return itemIdsByCourse;
     }
 
     private static List<SelectedLine> selectedLines(CartState cart, CheckoutRequest request) {

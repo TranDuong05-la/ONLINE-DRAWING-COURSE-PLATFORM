@@ -64,7 +64,7 @@ class CourseOnlyCheckoutApplicationServiceTest {
         CoursePurchasePort claims = new CoursePurchasePort() {
             public boolean isOwnedBy(Integer user, Integer course) { recordedOwner[0] = user; return false; }
             public boolean hasActivePendingPurchase(Integer user, Integer course, Instant at) { return false; }
-            public void claimForOrder(Integer user, Integer course, Integer order, Instant at, Instant expiry) {
+            public void claimForOrder(Integer user, Integer course, Integer order, Integer orderItem, Instant at, Instant expiry) {
                 recordedOwner[0] = user;
             }
             public void confirmForOrder(Integer user, Integer course, Integer order, Instant at) { }
@@ -80,7 +80,8 @@ class CourseOnlyCheckoutApplicationServiceTest {
         CheckoutOrderPort orders = snapshot -> {
             recordedOwner[0] = snapshot.getUserId();
             return new StoredOrder(901, 0L, snapshot.getExpiresAt(), snapshot.getCreatedAt(),
-                    snapshot.getCreatedAt(), snapshot, List.of());
+                    snapshot.getCreatedAt(), snapshot, List.of(new StoredOrder.ItemIdentity(902, 0,
+                            com.drawingcourse.backend.entity.OrderItemType.COURSE, 91)));
         };
         var dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:course-only-auth-" + UUID.randomUUID());

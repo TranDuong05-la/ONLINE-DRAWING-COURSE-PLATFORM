@@ -1,6 +1,7 @@
 package com.drawingcourse.backend.controller;
 
 import com.artacademy.dto.ApiResponse;
+import com.artacademy.learning.claim.CourseClaimConflictException;
 import com.drawingcourse.backend.service.checkout.CheckoutRejectedException;
 import com.drawingcourse.backend.service.checkout.CourseCatalogPort;
 import com.drawingcourse.backend.service.checkout.CoursePurchasePort;
@@ -16,11 +17,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice(assignableTypes = CourseOnlyCheckoutController.class)
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@ConditionalOnProperty(name = "app.checkout.course-only.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "app.checkout.course-only.http-enabled", havingValue = "true")
 @ConditionalOnBean({CourseCatalogPort.class, CoursePurchasePort.class})
 public final class CourseOnlyCheckoutExceptionHandler {
     @ExceptionHandler(CheckoutRejectedException.class)
     public ResponseEntity<ApiResponse<Void>> conflict(CheckoutRejectedException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(CourseClaimConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> courseClaimConflict(CourseClaimConflictException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
     }
 

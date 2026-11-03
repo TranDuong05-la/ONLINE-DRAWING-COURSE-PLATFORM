@@ -23,6 +23,10 @@ class CheckoutCoordinatorTest {
         assertEquals(1, f.orders.insertCount);
         assertEquals(1, f.idempotency.completeCount);
         assertEquals(List.of(11), f.courses.claimed);
+        int expectedCourseLinePosition = 0;
+        while (f.orders.saved.getItems().get(expectedCourseLinePosition).catalogSnapshot().itemId() != 11)
+            expectedCourseLinePosition++;
+        assertEquals(Map.of(11, 1000 + expectedCourseLinePosition), f.courses.claimedItemIds);
         assertThat(f.inventory.calls).containsExactly(new InventoryCall(17, 22, 2, 501, NOW.plusSeconds(1800)));
         assertEquals(1, f.vouchers.reserved);
         assertEquals(200_000L, f.orders.saved.getMerchandiseSubtotalVnd());
@@ -139,6 +143,19 @@ class CheckoutCoordinatorTest {
         assertThat(f.courses.claimed).containsExactly(11);
     }
 
+    @Test void missingPersistedCourseItemIdentityFailsClosedBeforeClaimOrIdempotencyCompletion() {
+        Fixture f = new Fixture();
+        f.cart.state = new CartState(4, 17, 3, List.of(new CartState.Item(1, CartItemType.COURSE, 11, 1)));
+        f.orders.omitCourseIdentities = true;
+        var coordinator = CheckoutCoordinator.courseOnly(f.idempotency, f.cart, f.courseCatalog,
+                f.courses, f.vouchers, f.orders, f.clock, f.transactionManager());
+
+        assertThrows(IllegalStateException.class, () -> coordinator.checkoutCoursesOnly(17, "missing-order-item",
+                new CheckoutRequest(3, List.of(new CheckoutRequest.Selection(1, 1)), Optional.empty(), Optional.empty())));
+        assertTrue(f.courses.claimed.isEmpty());
+        assertEquals(0, f.idempotency.completeCount);
+    }
+
     private static void assertReason(CheckoutRejectedException.Reason expected, Runnable action) {
         assertEquals(expected, assertThrows(CheckoutRejectedException.class, action::run).reason());
     }
@@ -191,9 +208,12 @@ class CheckoutCoordinatorTest {
     }
     private static final class CoursePurchases implements CoursePurchasePort {
         boolean owned, pending; final List<Integer> claimed = new ArrayList<>();
+        final Map<Integer, Integer> claimedItemIds = new HashMap<>();
         public boolean isOwnedBy(Integer u, Integer c) { return owned; }
         public boolean hasActivePendingPurchase(Integer u, Integer c, Instant at) { return pending; }
-        public void claimForOrder(Integer u, Integer c, Integer o, Instant at, Instant expiry) { claimed.add(c); }
+        public void claimForOrder(Integer u, Integer c, Integer o, Integer item, Instant at, Instant expiry) {
+            claimed.add(c); claimedItemIds.put(c, item);
+        }
         public void confirmForOrder(Integer u, Integer c, Integer o, Instant at) { }
         public void releaseForOrder(Integer u, Integer c, Integer o, String reason, Instant at) { }
     }
@@ -216,10 +236,17 @@ class CheckoutCoordinatorTest {
         public void consumeForOrder(Integer u, Integer o, String ref, Instant paidAt, Instant at) { }
     }
     private static final class Orders implements CheckoutOrderPort {
-        int insertCount; Order saved;
+        int insertCount; Order saved; boolean omitCourseIdentities;
         public StoredOrder insertNew(Order snapshot) {
             insertCount++; saved = snapshot;
-            return new StoredOrder(500 + insertCount, 0L, snapshot.getExpiresAt(), snapshot.getCreatedAt(), snapshot.getCreatedAt(), snapshot, List.of());
+            var identities = new java.util.ArrayList<StoredOrder.ItemIdentity>();
+            for (int i = 0; i < snapshot.getItems().size(); i++) {
+                var item = snapshot.getItems().get(i);
+                identities.add(new StoredOrder.ItemIdentity(1000 + i, i, item.catalogSnapshot().itemType(),
+                        item.catalogSnapshot().itemId()));
+            }
+            return new StoredOrder(500 + insertCount, 0L, snapshot.getExpiresAt(), snapshot.getCreatedAt(),
+                    snapshot.getCreatedAt(), snapshot, omitCourseIdentities ? List.of() : identities);
         }
     }
 }

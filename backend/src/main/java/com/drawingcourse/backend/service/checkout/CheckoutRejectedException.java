@@ -1,6 +1,6 @@
 package com.drawingcourse.backend.service.checkout;
 
-/** Typed business conflict for the future HTTP boundary. No controller/HTTP mapping is activated in this phase. */
+/** Typed business rejection shared by the Checkout coordinator and its gated HTTP boundary. */
 public final class CheckoutRejectedException extends RuntimeException {
     public enum Reason {
         INVALID_IDEMPOTENCY_KEY, IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_IN_PROGRESS, IDEMPOTENCY_RACE,

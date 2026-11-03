@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import com.drawingcourse.backend.service.checkout.CoursePurchasePort;
+import com.drawingcourse.backend.integration.contract.CourseClaimContracts;
 
 /**
  * Cổng Checkout khóa lẻ của D ({@link CoursePurchasePort}), chuyển thẳng sang {@link CourseClaimService}.
@@ -35,9 +36,11 @@ public class CoursePurchasePortAdapter implements CoursePurchasePort {
 	}
 
 	@Override
-	public void claimForOrder(Integer authenticatedUserId, Integer courseId, Integer orderId, Instant observedAt,
+	public void claimForOrder(Integer authenticatedUserId, Integer courseId, Integer orderId, Integer orderItemId, Instant observedAt,
 			Instant expiresAt) {
-		claims.claimForOrder(authenticatedUserId, courseId, orderId, observedAt, expiresAt);
+		claims.reserve(new CourseClaimContracts.ReservationCommand(authenticatedUserId, orderId,
+				java.util.List.of(new CourseClaimContracts.ClaimLine(orderItemId, courseId.longValue(),
+						CourseClaimContracts.ClaimSourceType.STANDALONE_COURSE, null)), observedAt, expiresAt));
 	}
 
 	@Override

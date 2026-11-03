@@ -6,6 +6,7 @@ import com.drawingcourse.backend.entity.CartJpaEntity;
 import com.drawingcourse.backend.repository.CartItemRepository;
 import com.drawingcourse.backend.repository.CartRepository;
 import com.drawingcourse.backend.controller.CartController;
+import com.drawingcourse.backend.controller.CourseOnlyCartController;
 import jakarta.persistence.EntityManagerFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,5 +36,7 @@ class CartPersistenceBootstrapIntegrationTest {
         assertThat(applicationContext.getBeansOfType(CartAvailabilityProjector.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(CartCatalog.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(CartController.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(CourseOnlyCartController.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(CourseOnlyCartProjector.class)).isEmpty();
     }
 }
