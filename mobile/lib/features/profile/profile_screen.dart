@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/network/api_client.dart';
 import '../../providers/auth_provider.dart';
@@ -163,6 +164,14 @@ class ProfileScreen extends StatelessWidget {
             _buildSectionHeader('Quản lý thông tin'),
             _buildMenuCard([
               _buildMenuItem(
+                key: const ValueKey('open-order-history'),
+                icon: Icons.receipt_long_outlined,
+                title: 'Order History',
+                subtitle: 'View your previous purchases',
+                onTap: () => context.push('/orders'),
+              ),
+              const Divider(height: 1, indent: 56),
+              _buildMenuItem(
                 icon: Icons.person_outline_rounded,
                 title: 'Chỉnh sửa hồ sơ',
                 subtitle: 'Cập nhật họ tên, số điện thoại, avatar',
@@ -200,8 +209,14 @@ class ProfileScreen extends StatelessWidget {
                 _buildMenuItem(
                   icon: Icons.manage_accounts_outlined,
                   iconColor: AppColors.accentPeach,
+
+                  title: 'Quản lý người dùng',
+                  subtitle:
+                      'Xem danh sách, tìm kiếm & quản lý trạng thái tài khoản',
+
                   title: 'Quản lý tài khoản & Phân quyền',
                   subtitle: 'Danh sách, tìm kiếm, đổi vai trò và khóa tài khoản',
+
                   onTap: () => context.push('/admin/users'),
                 ),
                 _buildMenuItem(
@@ -264,7 +279,8 @@ class ProfileScreen extends StatelessWidget {
                     context: context,
                     applicationName: 'ArtNest Mobile App',
                     applicationVersion: '1.0.0',
-                    applicationLegalese: 'Kết nối Spring Boot API (com.artacademy)',
+                    applicationLegalese:
+                        'Kết nối Spring Boot API (com.artacademy)',
                     children: [
                       const SizedBox(height: 12),
                       const Text(
@@ -287,7 +303,9 @@ class ProfileScreen extends StatelessWidget {
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: const Text('Đăng xuất'),
-                    content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?'),
+                    content: const Text(
+                      'Bạn có chắc chắn muốn đăng xuất khỏi tài khoản không?',
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx, false),
@@ -295,7 +313,9 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(ctx, true),
-                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.error,
+                        ),
                         child: const Text('Đăng xuất'),
                       ),
                     ],
@@ -346,6 +366,7 @@ class ProfileScreen extends StatelessWidget {
   }
 
   Widget _buildMenuItem({
+    Key? key,
     required IconData icon,
     Color? iconColor,
     required String title,
@@ -353,6 +374,7 @@ class ProfileScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
+      key: key,
       onTap: onTap,
       leading: Container(
         width: 38,
@@ -380,7 +402,11 @@ class ProfileScreen extends StatelessWidget {
           color: AppColors.textSecondary,
         ),
       ),
-      trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted, size: 20),
+      trailing: const Icon(
+        Icons.chevron_right,
+        color: AppColors.textMuted,
+        size: 20,
+      ),
     );
   }
 }

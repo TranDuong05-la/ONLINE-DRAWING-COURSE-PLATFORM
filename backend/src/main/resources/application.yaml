@@ -8,11 +8,16 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
+
+  flyway:
+    enabled: false
+
   servlet:
     multipart:
       enabled: true
       max-file-size: 10MB
       max-request-size: 10MB
+
 
   datasource:
     url: ${DB_URL}
@@ -22,7 +27,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
@@ -57,14 +62,39 @@ spring:
           protocol: smtp
 
 app:
+
+  checkout:
+    course-only:
+      enabled: ${COURSE_ONLY_CHECKOUT_ENABLED:false}
+  voucher:
+    api-enabled: ${VOUCHER_API_ENABLED:false}
+    admin-api-enabled: ${VOUCHER_ADMIN_API_ENABLED:false}
+  payment:
+    vnpay:
+      enabled: ${VNPAY_ENABLED:false}
+      ipn:
+        enabled: ${VNPAY_IPN_ENABLED:false}
+      payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
+      tmn-code: ${VNPAY_TMN_CODE:}
+      secret-key: ${VNPAY_SECRET_KEY:}
+      return-url: ${VNPAY_RETURN_URL:}
+      ipn-url: ${VNPAY_IPN_URL:}
+      api-version: ${VNPAY_API_VERSION:2.1.0}
+      command: ${VNPAY_COMMAND:pay}
+
   seed:
     enabled: ${SEED_DATA_ENABLED:true}
+
   jwt:
     secret: ${JWT_SECRET}
     access-expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000}
   google:
+
+    client-id: ${GOOGLE_CLIENT_ID:}
+
     client-id: ${GOOGLE_CLIENT_ID:631102057997-3ebr6ea99bpulk4isu1g3if2jj2fp9si.apps.googleusercontent.com}
+
 
 springdoc:
   api-docs:
