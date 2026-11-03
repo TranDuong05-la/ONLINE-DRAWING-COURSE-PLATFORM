@@ -11,6 +11,7 @@ import '../../repositories/learning_repository.dart';
 import 'assignment_screen.dart';
 import 'course_detail_screen.dart';
 import 'learning_widgets.dart';
+import 'lesson_comments_screen.dart';
 import 'lesson_screen.dart';
 
 /// Chuông thông báo ở trang chủ: hiện số thông báo chưa đọc, tự cập nhật mỗi 30 giây và khi quay lại màn hình.
@@ -122,6 +123,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       'NEW_ASSIGNMENT' || 'GRADED_APPROVED' || 'GRADED_REVISION' when n.lessonId != null =>
         AssignmentScreen(lessonId: n.lessonId!),
       'NEW_LESSON_VIDEO' when n.lessonId != null => LessonScreen(lessonId: n.lessonId!),
+      'NEW_COMMENT' || 'COMMENT_REPLY' when n.lessonId != null =>
+        LessonCommentsScreen(lessonId: n.lessonId!, highlightThreadId: n.targetId),
       'COURSE_ENROLLED' when n.courseId != null => CourseDetailScreen(courseId: n.courseId!),
       _ => null,
     };
@@ -172,6 +175,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       'NEW_ASSIGNMENT' => (Icons.assignment_outlined, const Color(0xFF8E7CC3)),
       'NEW_LESSON_VIDEO' => (Icons.ondemand_video_rounded, AppColors.info),
       'COURSE_ENROLLED' => (Icons.school_outlined, AppColors.primary),
+      'NEW_COMMENT' => (Icons.forum_outlined, AppColors.accentPeach),
+      'COMMENT_REPLY' => (Icons.mark_chat_read_outlined, AppColors.primaryMedium),
       _ => (Icons.notifications_none_rounded, AppColors.textSecondary),
     };
     final time = n.createdAt == null ? '' : DateFormat('dd/MM HH:mm').format(n.createdAt!);

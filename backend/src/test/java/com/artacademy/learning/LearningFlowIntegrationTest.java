@@ -389,6 +389,117 @@ class LearningFlowIntegrationTest {
 		throw new AssertionError("notification " + type + " was not created");
 	}
 
+	// ------------------------------------------------------------------ admin cấp / thu hồi quyền học
+
+	@Test
+	void adminGrantsAndRevokesManualEnrollment() throws Exception {
+		String grant = "{\"email\":\"" + learner.getEmail() + "\"}";
+		mvc.perform(post("/api/admin/learning/courses/" + course.getId() + "/enrollments").with(as(learner))
+				.contentType(MediaType.APPLICATION_JSON).content(grant)).andExpect(status().isForbidden());
+		String body = mvc.perform(post("/api/admin/learning/courses/" + course.getId() + "/enrollments").with(as(admin))
+				.contentType(MediaType.APPLICATION_JSON).content(grant))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.source").value("MANUAL"))
+				.andExpect(jsonPath("$.data.status").value("ACTIVE"))
+				.andReturn().getResponse().getContentAsString();
+		long enrollmentId = Long.parseLong(body.replaceAll(".*\"data\":\\{\"id\":(\\d+).*", "$1"));
+		mvc.perform(get("/api/learning/lessons/" + lesson1.getId()).with(as(learner))).andExpect(status().isOk());
+		awaitNotification(learner, "COURSE_ENROLLED");
+		// cấp trùng / email không tồn tại
+		mvc.perform(post("/api/admin/learning/courses/" + course.getId() + "/enrollments").with(as(admin))
+				.contentType(MediaType.APPLICATION_JSON).content(grant)).andExpect(status().isConflict());
+		mvc.perform(post("/api/admin/learning/courses/" + course.getId() + "/enrollments").with(as(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"khong-co@test.vn\"}"))
+				.andExpect(status().isNotFound());
+		mvc.perform(get("/api/admin/learning/courses/" + course.getId() + "/enrollments").with(as(admin)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data[0].learnerEmail").value(learner.getEmail()));
+		// thu hồi quyền cấp tay
+		mvc.perform(post("/api/admin/learning/enrollments/" + enrollmentId + "/revoke").with(as(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"cấp nhầm\"}"))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("REVOKED"));
+		mvc.perform(get("/api/learning/lessons/" + lesson1.getId()).with(as(learner))).andExpect(status().isForbidden());
+	}
+
+	@Test
+	void adminCannotRevokePaidEnrollmentOrGrantWhilePaymentPending() throws Exception {
+		buyViaD(learner, 811);
+		Enrollment paid = enrollments.findByCourseIdAndStatus(course.getId(), Enrollment.Status.ACTIVE).stream()
+				.filter(e -> e.getUserId().equals(learner.getId())).findFirst().orElseThrow();
+		mvc.perform(post("/api/admin/learning/enrollments/" + paid.getId() + "/revoke").with(as(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isConflict());
+		// "other" đang có đơn chờ thanh toán khóa này
+		Instant now = Instant.now();
+		tx(() -> claimService.claimForOrder(other.getId(), course.getId(), 812, now, now.plus(30, ChronoUnit.MINUTES)));
+		mvc.perform(post("/api/admin/learning/courses/" + course.getId() + "/enrollments").with(as(admin))
+				.contentType(MediaType.APPLICATION_JSON).content("{\"email\":\"" + other.getEmail() + "\"}"))
+				.andExpect(status().isConflict());
+	}
+
+	// ------------------------------------------------------------------ bình luận video
+
+	@Test
+	void notPurchasedCannotCommentAndLearnerCannotOpenInbox() throws Exception {
+		mvc.perform(get("/api/learning/lessons/" + lesson1.getId() + "/comments").with(as(learner)))
+				.andExpect(status().isForbidden());
+		mvc.perform(comment(lesson1, learner, "Em hỏi", null)).andExpect(status().isForbidden());
+		mvc.perform(get("/api/learning/comments/inbox").with(as(learner))).andExpect(status().isForbidden());
+		buyViaD(learner, 801);
+		mvc.perform(comment(lesson1, learner, "   ", null)).andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void learnerCommentNotifiesSupportRolesAndReplyNotifiesLearner() throws Exception {
+		User staff = newUser(Role.STAFF);
+		User instructor = newUser(Role.INSTRUCTOR);
+		buyViaD(learner, 802);
+		String body = mvc.perform(comment(lesson1, learner, "Cô ơi pha màu nước thế nào ạ?", null))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.authorRole").value("USER"))
+				.andReturn().getResponse().getContentAsString();
+		long rootId = Long.parseLong(body.replaceAll(".*\"data\":\\{\"id\":(\\d+).*", "$1"));
+
+		// Admin, Nhân viên, Giảng viên đều nhận thông báo và thấy trong hộp thư "chưa trả lời"
+		for (User u : List.of(admin, staff, instructor)) {
+			awaitNotification(u, "NEW_COMMENT");
+		}
+		mvc.perform(get("/api/learning/comments/inbox").param("unanswered", "true").with(as(staff)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items[?(@.comment.id == " + rootId + ")]").exists());
+
+		// Giảng viên xem được bình luận dù không mua khóa, và trả lời
+		mvc.perform(get("/api/learning/lessons/" + lesson1.getId() + "/comments").with(as(instructor)))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.canModerate").value(true))
+				.andExpect(jsonPath("$.data.threads", hasSize(1)));
+		mvc.perform(comment(lesson1, instructor, "Em pha loãng với nhiều nước nhé", rootId))
+				.andExpect(status().isOk()).andExpect(jsonPath("$.data.parentId").value(rootId));
+		awaitNotification(learner, "COMMENT_REPLY");
+
+		// Đã có người hỗ trợ trả lời → không còn trong danh sách "chưa trả lời"
+		mvc.perform(get("/api/learning/comments/inbox").param("unanswered", "true").with(as(staff)))
+				.andExpect(jsonPath("$.data.items[?(@.comment.id == " + rootId + ")]").doesNotExist());
+
+		// Học viên thấy luồng có 1 trả lời; học viên khác chưa mua không xem được
+		mvc.perform(get("/api/learning/lessons/" + lesson1.getId() + "/comments").with(as(learner)))
+				.andExpect(jsonPath("$.data.canModerate").value(false))
+				.andExpect(jsonPath("$.data.threads[0].replies", hasSize(1)))
+				.andExpect(jsonPath("$.data.threads[0].replies[0].authorRole").value("INSTRUCTOR"));
+		mvc.perform(get("/api/learning/lessons/" + lesson1.getId() + "/comments").with(as(other)))
+				.andExpect(status().isForbidden());
+
+		// Trả lời vào một trả lời vẫn gắn về bình luận gốc (một tầng)
+		long replyId = Long.parseLong(mvc.perform(comment(lesson1, learner, "Em cảm ơn ạ", rootId))
+				.andReturn().getResponse().getContentAsString().replaceAll(".*\"data\":\\{\"id\":(\\d+).*", "$1"));
+		mvc.perform(comment(lesson1, staff, "Chúc em học tốt", replyId))
+				.andExpect(jsonPath("$.data.parentId").value(rootId));
+		// Bình luận của bài khác không trả lời chéo được
+		mvc.perform(comment(lesson2, staff, "Sai bài", rootId)).andExpect(status().isNotFound());
+	}
+
+	private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder comment(CourseLesson l, User u,
+			String text, Long parentId) {
+		String json = "{\"body\":\"" + text + "\",\"parentId\":" + (parentId == null ? "null" : parentId) + "}";
+		return post("/api/learning/lessons/" + l.getId() + "/comments").with(as(u))
+				.contentType(MediaType.APPLICATION_JSON).content(json);
+	}
+
 	// ------------------------------------------------------------------ admin soạn đề
 
 	@Test

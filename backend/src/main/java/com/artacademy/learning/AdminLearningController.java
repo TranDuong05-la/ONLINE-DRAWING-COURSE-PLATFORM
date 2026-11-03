@@ -37,13 +37,35 @@ public class AdminLearningController {
 	private final AuthenticatedUserIdResolver currentUser;
 	private final CertificateService certificateService;
 	private final LearnerProfileService learnerProfiles;
+	private final AdminEnrollmentService enrollments;
 
 	public AdminLearningController(AssignmentService service, AuthenticatedUserIdResolver currentUser,
-			CertificateService certificateService, LearnerProfileService learnerProfiles) {
+			CertificateService certificateService, LearnerProfileService learnerProfiles,
+			AdminEnrollmentService enrollments) {
 		this.certificateService = certificateService;
 		this.learnerProfiles = learnerProfiles;
 		this.service = service;
 		this.currentUser = currentUser;
+		this.enrollments = enrollments;
+	}
+
+	// ---- quyền học cấp tay
+
+	@GetMapping("/learning/courses/{courseId}/enrollments")
+	public ApiResponse<List<LearningDtos.AdminEnrollmentDto>> enrollments(@PathVariable Integer courseId) {
+		return LearningController.ok(enrollments.list(courseId));
+	}
+
+	@PostMapping("/learning/courses/{courseId}/enrollments")
+	public ApiResponse<LearningDtos.AdminEnrollmentDto> grant(@PathVariable Integer courseId,
+			@Valid @RequestBody LearningDtos.GrantEnrollmentRequest req) {
+		return ApiResponse.success("Đã cấp quyền học", enrollments.grant(courseId, req.email()));
+	}
+
+	@PostMapping("/learning/enrollments/{id}/revoke")
+	public ApiResponse<LearningDtos.AdminEnrollmentDto> revoke(@PathVariable Long id,
+			@Valid @RequestBody(required = false) LearningDtos.RevokeEnrollmentRequest req) {
+		return ApiResponse.success("Đã thu hồi quyền học", enrollments.revoke(id, req == null ? null : req.reason()));
 	}
 
 	// ---- đề bài

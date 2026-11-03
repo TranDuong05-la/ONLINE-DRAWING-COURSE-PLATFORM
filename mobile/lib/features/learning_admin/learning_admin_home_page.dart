@@ -11,21 +11,241 @@ import 'submission_review_page.dart';
 /// Khu admin của phần C (route /admin/learning, chỉ ADMIN; backend cũng chặn /api/admin/**):
 /// - "Chấm bài": danh sách bài nộp, lọc theo trạng thái / khóa, mở chi tiết để duyệt hoặc yêu cầu sửa.
 /// - "Đề bài tập": chọn khóa → bài học → soạn đề (bắt buộc / không bắt buộc, ẩn đề).
+/// - "Quyền học": chọn khóa → danh sách học viên; cấp quyền thủ công theo email, thu hồi quyền cấp tay.
 class LearningAdminHomePage extends StatelessWidget {
   const LearningAdminHomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
           title: const Text('Chấm bài & đề bài tập'),
-          bottom: const TabBar(tabs: [Tab(text: 'Chấm bài'), Tab(text: 'Đề bài tập')]),
+          bottom: const TabBar(tabs: [Tab(text: 'Chấm bài'), Tab(text: 'Đề bài tập'), Tab(text: 'Quyền học')]),
         ),
-        body: const TabBarView(children: [_SubmissionsTab(), _AssignmentsTab()]),
+        body: const TabBarView(children: [_SubmissionsTab(), _AssignmentsTab(), _EnrollmentsTab()]),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------- quyền học (cấp tay)
+
+class _EnrollmentsTab extends StatefulWidget {
+  const _EnrollmentsTab();
+
+  @override
+  State<_EnrollmentsTab> createState() => _EnrollmentsTabState();
+}
+
+class _EnrollmentsTabState extends State<_EnrollmentsTab> with AutomaticKeepAliveClientMixin {
+  final _repo = LearningRepository();
+  int? _courseId;
+  int _reloadKey = 0;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  Future<void> _grant(int courseId) async {
+    final email = await showDialog<String>(context: context, builder: (_) => const _GrantDialog());
+    if (email == null || !mounted) return;
+    try {
+      await _repo.grantEnrollment(courseId, email);
+      if (!mounted) return;
+      setState(() => _reloadKey++);
+      showSnack(context, 'Đã cấp quyền học cho $email');
+    } catch (e) {
+      if (mounted) showSnack(context, e.toString(), isError: true);
+    }
+  }
+
+  Future<void> _revoke(AdminEnrollment e) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Thu hồi quyền học?'),
+        content: Text('${e.learnerName} (${e.learnerEmail}) sẽ không vào học khóa này được nữa. '
+            'Tiến độ học vẫn được giữ nếu cấp lại sau.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Thu hồi'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await _repo.revokeEnrollment(e.id, reason: 'Admin thu hồi');
+      if (!mounted) return;
+      setState(() => _reloadKey++);
+      showSnack(context, 'Đã thu hồi quyền học');
+    } catch (err) {
+      if (mounted) showSnack(context, err.toString(), isError: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return AsyncBody<List<CourseOption>>(
+      load: _repo.adminAllCourses,
+      builder: (context, courses, _) {
+        if (courses.isEmpty) {
+          return const Center(child: Text('Chưa có khóa học nào'));
+        }
+        final selected = _courseId ?? courses.first.id;
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: selected,
+                      isExpanded: true,
+                      decoration: const InputDecoration(labelText: 'Khóa học', isDense: true),
+                      items: [
+                        for (final c in courses)
+                          DropdownMenuItem(value: c.id, child: Text(c.title, overflow: TextOverflow.ellipsis)),
+                      ],
+                      onChanged: (v) => setState(() => _courseId = v),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: () => _grant(selected),
+                    icon: const Icon(Icons.person_add_alt_1, size: 18),
+                    label: const Text('Cấp quyền'),
+                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: AsyncBody<List<AdminEnrollment>>(
+                key: ValueKey('enroll-$selected-$_reloadKey'),
+                load: () => _repo.adminEnrollments(selected),
+                builder: (context, list, reload) => RefreshIndicator(
+                  onRefresh: reload,
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    children: [
+                      if (list.isEmpty)
+                        const Padding(padding: EdgeInsets.all(24), child: Text('Khóa chưa có học viên nào')),
+                      for (final e in list) _tile(e),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _tile(AdminEnrollment e) {
+    final date = e.enrolledAt == null ? '' : DateFormat('dd/MM/yyyy').format(e.enrolledAt!);
+    final (label, color) = !e.active
+        ? ('Đã thu hồi', AppColors.textSecondary)
+        : e.completed
+            ? ('Hoàn thành', AppColors.success)
+            : ('Đang học', AppColors.primary);
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      shape: RoundedRectangleBorder(side: const BorderSide(color: AppColors.border), borderRadius: BorderRadius.circular(14)),
+      child: ListTile(
+        title: Text(e.learnerName.isEmpty ? e.learnerEmail : e.learnerName,
+            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 14)),
+        subtitle: Text(
+          '${e.learnerEmail}\n${e.manual ? 'Admin cấp tay' : 'Mua qua đơn hàng'} • $date'
+          '${!e.active && e.revokeReason != null ? ' • ${e.revokeReason}' : ''}',
+          style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.textSecondary),
+        ),
+        isThreeLine: true,
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            StatusPill(label: label, color: color),
+            if (e.active && e.manual)
+              InkWell(
+                onTap: () => _revoke(e),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('Thu hồi',
+                      style: GoogleFonts.plusJakartaSans(
+                          fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.error)),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GrantDialog extends StatefulWidget {
+  const _GrantDialog();
+
+  @override
+  State<_GrantDialog> createState() => _GrantDialogState();
+}
+
+class _GrantDialogState extends State<_GrantDialog> {
+  final _email = TextEditingController();
+  String? _error;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final v = _email.text.trim();
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(v)) {
+      setState(() => _error = 'Email không hợp lệ');
+      return;
+    }
+    Navigator.pop(context, v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cấp quyền học thủ công'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Học viên được học ngay, không cần thanh toán (ví dụ: học bổng, hỗ trợ).',
+              style: GoogleFonts.plusJakartaSans(fontSize: 12.5, color: AppColors.textSecondary)),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _email,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(labelText: 'Email học viên', errorText: _error),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Hủy')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+          onPressed: _submit,
+          child: const Text('Cấp quyền'),
+        ),
+      ],
     );
   }
 }

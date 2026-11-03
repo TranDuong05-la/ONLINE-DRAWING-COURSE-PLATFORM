@@ -385,3 +385,129 @@ class AdminCertificate {
         issuedAt = _date(j['issuedAt']),
         emailStatus = j['emailStatus'] as String? ?? 'PENDING';
 }
+
+// ---------------------------------------------------------------- bình luận video (khớp CommentDtos.java)
+
+/// Một bình luận. [authorRole]: USER / INSTRUCTOR / STAFF / ADMIN.
+class LessonComment {
+  final int id;
+  final int? parentId;
+  final int authorUserId;
+  final String authorName;
+  final String? authorAvatarUrl;
+  final String authorRole;
+  final String body;
+  final DateTime? createdAt;
+  final bool mine;
+
+  LessonComment.fromJson(Map<String, dynamic> j)
+      : id = _int(j['id']),
+        parentId = _intOrNull(j['parentId']),
+        authorUserId = _int(j['authorUserId']),
+        authorName = j['authorName'] as String? ?? '',
+        authorAvatarUrl = j['authorAvatarUrl'] as String?,
+        authorRole = j['authorRole'] as String? ?? 'USER',
+        body = j['body'] as String? ?? '',
+        createdAt = _date(j['createdAt']),
+        mine = j['mine'] == true;
+
+  bool get bySupport => authorRole != 'USER';
+
+  /// Nhãn hiện cạnh tên người hỗ trợ.
+  String? get roleLabel => switch (authorRole) {
+        'INSTRUCTOR' => 'Giảng viên',
+        'STAFF' => 'Nhân viên',
+        'ADMIN' => 'Admin',
+        _ => null,
+      };
+}
+
+/// Bình luận gốc và các trả lời (cũ trước).
+class CommentThread {
+  final LessonComment comment;
+  final List<LessonComment> replies;
+
+  CommentThread.fromJson(Map<String, dynamic> j)
+      : comment = LessonComment.fromJson(j['comment'] as Map<String, dynamic>),
+        replies = _list(j['replies'], LessonComment.fromJson);
+}
+
+/// Toàn bộ bình luận của một bài học. [canModerate]: người xem là Admin / Nhân viên / Giảng viên.
+class LessonComments {
+  final int lessonId;
+  final String lessonTitle;
+  final int courseId;
+  final String courseTitle;
+  final bool canModerate;
+  final int total;
+  final List<CommentThread> threads;
+
+  LessonComments.fromJson(Map<String, dynamic> j)
+      : lessonId = _int(j['lessonId']),
+        lessonTitle = j['lessonTitle'] as String? ?? '',
+        courseId = _int(j['courseId']),
+        courseTitle = j['courseTitle'] as String? ?? '',
+        canModerate = j['canModerate'] == true,
+        total = _int(j['total']),
+        threads = _list(j['threads'], CommentThread.fromJson);
+}
+
+/// Một dòng trong hộp thư bình luận của Admin / Nhân viên / Giảng viên.
+class CommentInboxItem {
+  final LessonComment comment;
+  final int lessonId;
+  final String lessonTitle;
+  final int courseId;
+  final String courseTitle;
+  final int replyCount;
+  final bool answered;
+
+  CommentInboxItem.fromJson(Map<String, dynamic> j)
+      : comment = LessonComment.fromJson(j['comment'] as Map<String, dynamic>),
+        lessonId = _int(j['lessonId']),
+        lessonTitle = j['lessonTitle'] as String? ?? '',
+        courseId = _int(j['courseId']),
+        courseTitle = j['courseTitle'] as String? ?? '',
+        replyCount = _int(j['replyCount']),
+        answered = j['answered'] == true;
+}
+
+class CommentInboxPage {
+  final List<CommentInboxItem> items;
+  final int total;
+  final int unansweredCount;
+
+  CommentInboxPage.fromJson(Map<String, dynamic> j)
+      : items = _list(j['items'], CommentInboxItem.fromJson),
+        total = _int(j['total']),
+        unansweredCount = _int(j['unansweredCount']);
+}
+
+/// Quyền học của một học viên trong khóa (màn admin "Quyền học"). [source]: ORDER (mua) / MANUAL (admin cấp tay).
+class AdminEnrollment {
+  final int id;
+  final int userId;
+  final String learnerName;
+  final String learnerEmail;
+  final String status;
+  final String source;
+  final DateTime? enrolledAt;
+  final bool completed;
+  final DateTime? revokedAt;
+  final String? revokeReason;
+
+  AdminEnrollment.fromJson(Map<String, dynamic> j)
+      : id = _int(j['id']),
+        userId = _int(j['userId']),
+        learnerName = j['learnerName'] as String? ?? '',
+        learnerEmail = j['learnerEmail'] as String? ?? '',
+        status = j['status'] as String? ?? 'ACTIVE',
+        source = j['source'] as String? ?? 'ORDER',
+        enrolledAt = _date(j['enrolledAt']),
+        completed = j['completed'] == true,
+        revokedAt = _date(j['revokedAt']),
+        revokeReason = j['revokeReason'] as String?;
+
+  bool get active => status == 'ACTIVE';
+  bool get manual => source == 'MANUAL';
+}

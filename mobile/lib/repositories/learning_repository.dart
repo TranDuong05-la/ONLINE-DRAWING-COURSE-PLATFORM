@@ -71,6 +71,22 @@ class LearningRepository {
   Future<List<MyAssignment>> getMyAssignments() =>
       _data(_get('/api/learning/assignments'), (j) => _list(j, MyAssignment.fromJson));
 
+  // ---------------------------------------------------------------- bình luận video
+
+  Future<LessonComments> getLessonComments(int lessonId) =>
+      _data(_get('/api/learning/lessons/$lessonId/comments'), (j) => LessonComments.fromJson(_map(j)));
+
+  /// [parentId] = bình luận gốc khi trả lời.
+  Future<LessonComment> postLessonComment(int lessonId, String body, {int? parentId}) => _data(
+      _post('/api/learning/lessons/$lessonId/comments', data: {'body': body, 'parentId': parentId}),
+      (j) => LessonComment.fromJson(_map(j)));
+
+  /// Hộp thư bình luận (chỉ Admin / Nhân viên / Giảng viên).
+  Future<CommentInboxPage> getCommentInbox({bool unansweredOnly = false, int page = 0, int size = 30}) => _data(
+      _get('/api/learning/comments/inbox',
+          queryParameters: {'unanswered': unansweredOnly, 'page': page, 'size': size}),
+      (j) => CommentInboxPage.fromJson(_map(j)));
+
   // ---------------------------------------------------------------- thông báo (chuông)
 
   Future<List<NotificationItem>> getNotifications() =>
@@ -128,6 +144,19 @@ class LearningRepository {
       (j) => AdminSubmission.fromJson(_map(j)));
 
   /// Danh sách khóa cho màn soạn đề: lấy từ API quản trị khóa học của B.
+  /// Học viên của một khóa (đang học trước) để admin cấp / thu hồi quyền học thủ công.
+  Future<List<AdminEnrollment>> adminEnrollments(int courseId) => _data(
+      _get('/api/admin/learning/courses/$courseId/enrollments'), (j) => _list(j, AdminEnrollment.fromJson));
+
+  Future<AdminEnrollment> grantEnrollment(int courseId, String email) => _data(
+      _post('/api/admin/learning/courses/$courseId/enrollments', data: {'email': email}),
+      (j) => AdminEnrollment.fromJson(_map(j)));
+
+  /// Chỉ thu hồi được quyền cấp tay; quyền từ đơn hàng phải hoàn tiền qua phần D.
+  Future<AdminEnrollment> revokeEnrollment(int enrollmentId, {String? reason}) => _data(
+      _post('/api/admin/learning/enrollments/$enrollmentId/revoke', data: {'reason': reason}),
+      (j) => AdminEnrollment.fromJson(_map(j)));
+
   Future<List<CourseOption>> adminAllCourses() => _data(
       _get('/api/admin/courses', queryParameters: {'page': 0, 'size': 100}),
       (j) => _list(_map(j)['content'], (c) => CourseOption((c['id'] as num).toInt(), c['title'] as String? ?? '')));

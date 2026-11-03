@@ -109,6 +109,18 @@ public final class LearningDtos {
 	public record PageDto<T>(List<T> items, long total, int page, int size) {
 	}
 
+	/** Quyền học của một học viên trong khóa (màn admin). source: ORDER / MANUAL; status: ACTIVE / REVOKED. */
+	public record AdminEnrollmentDto(Long id, Integer userId, String learnerName, String learnerEmail, String status,
+			String source, LocalDateTime enrolledAt, boolean completed, LocalDateTime revokedAt, String revokeReason) {
+	}
+
+	public record GrantEnrollmentRequest(
+			@NotBlank(message = "Nhập email học viên") @jakarta.validation.constraints.Email(message = "Email không hợp lệ") String email) {
+	}
+
+	public record RevokeEnrollmentRequest(@Size(max = 120, message = "Lý do tối đa 120 ký tự") String reason) {
+	}
+
 	/** Admin soạn đề bài tập cho một bài học. */
 	public record AssignmentRequest(@NotBlank @Size(max = 200) String title, @Size(max = 5000) String instructions,
 			@NotNull Boolean required, @NotNull Boolean active) {

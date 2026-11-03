@@ -254,6 +254,8 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: 'Duyệt / yêu cầu sửa bài nộp, soạn đề bài tập cho bài học',
                   onTap: () => context.push('/admin/learning'),
                 ),
+                const Divider(height: 1, indent: 56),
+                _commentInboxItem(context),
               ]),
               const SizedBox(height: 20),
             ],
@@ -269,6 +271,8 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: 'Quản lý khóa học, bài giảng và chấm điểm học viên',
                   onTap: () => context.push('/instructor/dashboard'),
                 ),
+                const Divider(height: 1, indent: 56),
+                _commentInboxItem(context),
               ]),
               const SizedBox(height: 20),
             ],
@@ -284,6 +288,8 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: 'Xử lý đơn hàng, kho họa cụ & điều phối vận chuyển',
                   onTap: () => context.push('/staff/dashboard'),
                 ),
+                const Divider(height: 1, indent: 56),
+                _commentInboxItem(context),
               ]),
               const SizedBox(height: 20),
             ],
@@ -362,6 +368,17 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  /// C: hộp thư bình luận dưới video, dùng chung cho Admin / Giảng viên / Nhân viên.
+  Widget _commentInboxItem(BuildContext context) {
+    return _buildMenuItem(
+      icon: Icons.forum_outlined,
+      iconColor: AppColors.accentPeach,
+      title: 'Bình luận học viên',
+      subtitle: 'Xem và trả lời câu hỏi của học viên dưới video bài học',
+      onTap: () => context.push('/comments/inbox'),
     );
   }
 
