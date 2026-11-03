@@ -2,13 +2,17 @@ package com.artacademy.service;
 
 import com.artacademy.dto.*;
 import com.artacademy.entity.User;
+import com.artacademy.entity.UserRoleHistory;
 import com.artacademy.enums.Role;
+import com.artacademy.exception.BusinessException;
 import com.artacademy.exception.DuplicateResourceException;
 import com.artacademy.exception.UnauthorizedException;
 import com.artacademy.repository.UserRepository;
+import com.artacademy.repository.UserRoleHistoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import java.util.List;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -44,6 +48,9 @@ class AuthServiceTest {
 
     @Mock
     private com.artacademy.repository.UserProfileRepository userProfileRepository;
+
+    @Mock
+    private UserRoleHistoryRepository userRoleHistoryRepository;
 
     @Mock
     private EmailService emailService;
@@ -83,6 +90,7 @@ class AuthServiceTest {
                 .phone("0900000000")
                 .role(Role.USER)
                 .isActive(true)
+                .tokenVersion(1)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -218,6 +226,7 @@ class AuthServiceTest {
         when(jwtService.isRefreshTokenValid("valid-refresh-token")).thenReturn(true);
         when(jwtService.extractUsername("valid-refresh-token")).thenReturn("user@example.com");
         when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(testUser));
+        when(jwtService.isRefreshTokenValid("valid-refresh-token", 1)).thenReturn(true);
         when(jwtService.generateAccessToken(any())).thenReturn("new-access-token");
         when(jwtService.generateRefreshToken(any())).thenReturn("new-refresh-token");
         when(jwtService.getAccessExpirationMs()).thenReturn(900000L);
@@ -246,6 +255,65 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.refresh(request))
                 .isInstanceOf(UnauthorizedException.class)
                 .hasMessageContaining("revoked or expired");
+    }
+
+    @Test
+    @DisplayName("Role update is actor-bound, increments token version, and persists an audit row")
+    void roleUpdate_isTransactionalApplicationDecision() {
+        User admin = User.builder().id(10).fullName("Admin").email("admin@example.test")
+                .passwordHash("hash").role(Role.ADMIN).isActive(true).tokenVersion(3).build();
+        when(userRepository.findActiveByRoleForUpdate(Role.ADMIN)).thenReturn(List.of(admin));
+        when(userRepository.findByIdForUpdate(1)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UserResponse updated = authService.updateUserRole(10, 1,
+                new UpdateUserRoleRequest(Role.INSTRUCTOR, " approved "));
+
+        assertThat(updated.getRole()).isEqualTo(Role.INSTRUCTOR);
+        assertThat(testUser.getTokenVersion()).isEqualTo(2);
+        org.mockito.ArgumentCaptor<UserRoleHistory> audit = org.mockito.ArgumentCaptor.forClass(UserRoleHistory.class);
+        verify(userRoleHistoryRepository).save(audit.capture());
+        assertThat(audit.getValue().getUser()).isSameAs(testUser);
+        assertThat(audit.getValue().getChangedBy()).isSameAs(admin);
+        assertThat(audit.getValue().getOldRole()).isEqualTo(Role.USER);
+        assertThat(audit.getValue().getNewRole()).isEqualTo(Role.INSTRUCTOR);
+        assertThat(audit.getValue().getReason()).isEqualTo("approved");
+    }
+
+    @Test
+    @DisplayName("Role update rejects non-admin actors")
+    void roleUpdate_rejectsUnauthorizedActor() {
+        User ordinary = User.builder().id(11).fullName("User").email("ordinary@example.test")
+                .passwordHash("hash").role(Role.USER).isActive(true).tokenVersion(1).build();
+        when(userRepository.findActiveByRoleForUpdate(Role.ADMIN)).thenReturn(List.of());
+        when(userRepository.findByIdForUpdate(11)).thenReturn(Optional.of(ordinary));
+
+        assertThatThrownBy(() -> authService.updateUserRole(11, 1, new UpdateUserRoleRequest(Role.ADMIN, null)))
+                .isInstanceOf(UnauthorizedException.class);
+        verify(userRepository, never()).save(any());
+        verifyNoInteractions(userRoleHistoryRepository);
+    }
+
+    @Test
+    @DisplayName("Role update cannot remove the last active administrator")
+    void roleUpdate_protectsLastActiveAdmin() {
+        User onlyAdmin = User.builder().id(12).fullName("Admin").email("admin@example.test")
+                .passwordHash("hash").role(Role.ADMIN).isActive(true).tokenVersion(1).build();
+        when(userRepository.findActiveByRoleForUpdate(Role.ADMIN)).thenReturn(List.of(onlyAdmin));
+
+        assertThatThrownBy(() -> authService.updateUserRole(12, 12, new UpdateUserRoleRequest(Role.USER, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("last active administrator");
+        verify(userRepository, never()).save(any());
+        verifyNoInteractions(userRoleHistoryRepository);
+    }
+
+    @Test
+    @DisplayName("User listing rejects unapproved sort fields")
+    void userList_rejectsUnsafeSortField() {
+        assertThatThrownBy(() -> authService.getAllUsers(null, null, null, 0, 20, "passwordHash", "asc"))
+                .isInstanceOf(BusinessException.class);
+        verifyNoInteractions(userRepository);
     }
 
     @Test

@@ -597,7 +597,7 @@ class SettlementCoordinatorJpaH2IntegrationTest {
             effect("inventory", orderId, productId);
         }
         @Override public void consumeForOrder(Integer userId, Integer orderId, String reference,
-                                              Instant paidAt, Instant observedAt) {
+                                              Instant paidAt, Instant receivedAt, Instant settledAt) {
             effect("voucher", orderId, 0);
         }
         private void effect(String kind, Integer orderId, Integer itemId) {

@@ -46,8 +46,8 @@ public class VoucherClaimJpaEntity {
         row.paidAt = claim.paidAt(); row.releaseReason = claim.releaseReason(); return row;
     }
 
-    public void redeem(String reference, Instant paidAt, Instant observedAt) {
-        apply(claim().redeem(reference, paidAt, observedAt));
+    public void redeem(String reference, Instant paidAt, Instant receivedAt, Instant transitionedAt) {
+        apply(claim().redeem(reference, paidAt, receivedAt, transitionedAt));
     }
     public void release(VoucherClaim.ReleaseReason reason, Instant at) {
         apply(claim().releaseUnpaid(reason, at));

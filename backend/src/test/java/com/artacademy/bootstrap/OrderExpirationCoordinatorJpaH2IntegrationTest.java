@@ -426,7 +426,8 @@ class OrderExpirationCoordinatorJpaH2IntegrationTest {
         @Override public void confirmProductForOrder(Integer userId, Integer productId, Integer orderId, Instant at) {
             marker("confirm-inventory", orderId, productId);
         }
-        @Override public void consumeForOrder(Integer userId, Integer orderId, String reference, Instant paidAt, Instant at) {
+        @Override public void consumeForOrder(Integer userId, Integer orderId, String reference, Instant paidAt,
+                                              Instant receivedAt, Instant settledAt) {
             marker("confirm-voucher", orderId, 0);
         }
         private void marker(String kind, Integer orderId, Integer itemId) {

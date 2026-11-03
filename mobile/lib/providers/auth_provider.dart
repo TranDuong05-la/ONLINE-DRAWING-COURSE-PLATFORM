@@ -26,9 +26,19 @@ class AuthProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _status == AuthStatus.authenticated && _currentUser != null;
   bool get isAdmin => _currentUser?.isAdmin ?? false;
+  bool get isStaff => _currentUser?.role == UserRole.staff;
   bool get isLoading => _status == AuthStatus.loading;
 
   void clearError() {
+    _errorMessage = null;
+    notifyListeners();
+  }
+
+  /// Called after a protected request cannot refresh its access token.
+  void handleSessionExpired() {
+    if (_status == AuthStatus.unauthenticated && _currentUser == null) return;
+    _currentUser = null;
+    _status = AuthStatus.unauthenticated;
     _errorMessage = null;
     notifyListeners();
   }

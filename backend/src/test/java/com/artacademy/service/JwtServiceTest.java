@@ -46,4 +46,30 @@ class JwtServiceTest {
 
         assertThat(jwt.isTokenValid(expired, principal)).isFalse();
     }
+
+    @Test
+    void roleOrStatusChangeInvalidatesAccessAndRefreshTokensByVersion() {
+        UserDetails versionOne = new AuthenticatedUserPrincipal(19, "jwt-user@example.test", "hash", Role.USER, true, 1);
+        UserDetails versionTwo = new AuthenticatedUserPrincipal(19, "jwt-user@example.test", "hash", Role.USER, true, 2);
+        String access = jwt.generateAccessToken(versionOne);
+        String refresh = jwt.generateRefreshToken(versionOne);
+
+        assertThat(jwt.isTokenValid(access, versionOne)).isTrue();
+        assertThat(jwt.isTokenValid(access, versionTwo)).isFalse();
+        assertThat(jwt.isRefreshTokenValid(refresh, 1)).isTrue();
+        assertThat(jwt.isRefreshTokenValid(refresh, 2)).isFalse();
+    }
+
+    @Test
+    void preVersionTokensRemainValidAtInitialGenerationOnly() {
+        var key = Keys.hmacShaKeyFor(Base64.getDecoder().decode(TEST_KEY));
+        long now = System.currentTimeMillis();
+        String legacy = Jwts.builder().subject(principal.getUsername()).claim("type", "ACCESS")
+                .issuedAt(new Date(now)).expiration(new Date(now + 60_000)).signWith(key).compact();
+        UserDetails initial = new AuthenticatedUserPrincipal(19, principal.getUsername(), "hash", Role.USER, true, 1);
+        UserDetails changed = new AuthenticatedUserPrincipal(19, principal.getUsername(), "hash", Role.USER, true, 2);
+
+        assertThat(jwt.isTokenValid(legacy, initial)).isTrue();
+        assertThat(jwt.isTokenValid(legacy, changed)).isFalse();
+    }
 }

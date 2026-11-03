@@ -175,7 +175,9 @@ class CheckoutCoordinatorTest {
                 new OrderVoucher("SAVE10", OrderVoucher.Kind.FIXED_VND, 10_000, 10_000)); }
         CheckoutRequest request(boolean voucher) {
             return new CheckoutRequest(3, List.of(new CheckoutRequest.Selection(2, 2), new CheckoutRequest.Selection(1, 1)),
-                    voucher ? Optional.of(" SAVE10 ") : Optional.empty(), Optional.empty());
+                    voucher ? Optional.of(" SAVE10 ") : Optional.empty(),
+                    Optional.of(new CheckoutRequest.Address("Demo Buyer", "0900000000", "1 Demo Street",
+                            "District 1, Ho Chi Minh City", "700000", "VN")));
         }
         CheckoutCoordinator coordinator() {
             return new CheckoutCoordinator(idempotency, cart, courseCatalog, productCatalog, courses, inventory,
@@ -233,7 +235,7 @@ class CheckoutCoordinatorTest {
         }
         public void reserveForOrder(Integer u, StoredOrder s, Order o, Quote q, Instant at) { reserved++; }
         public void releaseForOrder(Integer u, Integer o, VoucherClaim.ReleaseReason reason, Instant at) { }
-        public void consumeForOrder(Integer u, Integer o, String ref, Instant paidAt, Instant at) { }
+        public void consumeForOrder(Integer u, Integer o, String ref, Instant paidAt, Instant receivedAt, Instant settledAt) { }
     }
     private static final class Orders implements CheckoutOrderPort {
         int insertCount; Order saved; boolean omitCourseIdentities;

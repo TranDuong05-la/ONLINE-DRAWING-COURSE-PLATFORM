@@ -3,6 +3,7 @@ package com.artacademy.service;
 import com.artacademy.dto.*;
 import com.artacademy.entity.User;
 import com.artacademy.entity.UserAddress;
+import com.artacademy.entity.UserRoleHistory;
 import com.artacademy.enums.Role;
 import com.artacademy.exception.BusinessException;
 import com.artacademy.exception.DuplicateResourceException;
@@ -10,6 +11,8 @@ import com.artacademy.exception.ResourceNotFoundException;
 import com.artacademy.exception.UnauthorizedException;
 import com.artacademy.repository.UserAddressRepository;
 import com.artacademy.repository.UserRepository;
+import com.artacademy.repository.UserRoleHistoryRepository;
+import com.artacademy.security.AuthenticatedUserPrincipal;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +38,7 @@ import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -63,6 +67,7 @@ public class AuthService {
     private final UserRepository userRepository;
     private final UserAddressRepository addressRepository;
     private final UserProfileRepository userProfileRepository;
+    private final UserRoleHistoryRepository userRoleHistoryRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -91,6 +96,7 @@ public class AuthService {
     public AuthService(UserRepository userRepository,
                        UserAddressRepository addressRepository,
                        UserProfileRepository userProfileRepository,
+                       UserRoleHistoryRepository userRoleHistoryRepository,
                        EmailService emailService,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
@@ -99,6 +105,7 @@ public class AuthService {
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.userProfileRepository = userProfileRepository;
+        this.userRoleHistoryRepository = userRoleHistoryRepository;
         this.emailService = emailService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -173,6 +180,11 @@ public class AuthService {
 
         if (!user.getIsActive()) {
             throw new UnauthorizedException("Account has been deactivated");
+        }
+
+        if (user.getTokenVersion() == null || user.getTokenVersion() < 1
+                || !jwtService.isRefreshTokenValid(token, user.getTokenVersion())) {
+            throw new UnauthorizedException("Refresh token has been revoked or expired");
         }
 
         return buildAuthResponse(user);
@@ -557,7 +569,25 @@ public class AuthService {
     // ==========================================
 
     public Page<UserResponse> getAllUsers(String search, Role role, Boolean isActive, int page, int size) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return getAllUsers(search, role, isActive, page, size, "createdAt", "desc");
+    }
+
+    public Page<UserResponse> getAllUsers(String search, Role role, Boolean isActive, int page, int size,
+                                          String sortBy, String sortDirection) {
+        Set<String> allowedSortFields = Set.of("id", "createdAt", "updatedAt", "fullName", "email", "role", "isActive");
+        String resolvedSort = sortBy == null || sortBy.isBlank() ? "createdAt" : sortBy;
+        String resolvedDirection = sortDirection == null || sortDirection.isBlank() ? "desc" : sortDirection;
+        if (!allowedSortFields.contains(resolvedSort)) {
+            throw new BusinessException("Unsupported user sort field");
+        }
+        if (!resolvedDirection.equalsIgnoreCase("asc") && !resolvedDirection.equalsIgnoreCase("desc")) {
+            throw new BusinessException("Unsupported user sort direction");
+        }
+        if (page < 0 || size < 1 || size > 100) {
+            throw new BusinessException("Invalid user page or page size");
+        }
+        Pageable pageable = PageRequest.of(page, size,
+                Sort.by(Sort.Direction.fromString(resolvedDirection), resolvedSort));
         return userRepository.findAllWithFilters(search, role, isActive, pageable)
                 .map(this::mapToUserResponse);
     }
@@ -570,21 +600,83 @@ public class AuthService {
 
     @Transactional
     public UserResponse updateUserStatus(Integer id, Boolean isActive) {
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", id));
+        if (id == null || isActive == null) throw new BusinessException("User id and isActive are required");
+        List<User> activeAdmins = userRepository.findActiveByRoleForUpdate(Role.ADMIN);
+        User user = activeAdmins.stream().filter(candidate -> candidate.getId().equals(id)).findFirst()
+                .orElseGet(() -> userRepository.findByIdForUpdate(id)
+                        .orElseThrow(() -> new ResourceNotFoundException("User", "id", id)));
+        if (Boolean.TRUE.equals(user.getIsActive()) == isActive) return mapToUserResponse(user);
 
         // Prevent deactivating the last active admin
-        if (!isActive && user.getRole() == Role.ADMIN) {
-            long activeAdminCount = userRepository.countByRoleAndIsActive(Role.ADMIN, true);
-            if (activeAdminCount <= 1) {
+        if (!isActive && user.getRole() == Role.ADMIN && Boolean.TRUE.equals(user.getIsActive())) {
+            if (activeAdmins.size() <= 1) {
                 throw new BusinessException("Cannot deactivate the last active admin account");
             }
         }
 
         user.setIsActive(isActive);
+        incrementTokenVersion(user);
         user = userRepository.save(user);
 
         return mapToUserResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateUserRole(Integer actorUserId, Integer targetUserId, UpdateUserRoleRequest request) {
+        if (actorUserId == null || targetUserId == null || request == null || request.role() == null) {
+            throw new BusinessException("A valid actor, target, and role are required");
+        }
+
+        // Lock the complete active-admin set in stable ID order before the target row. Both role and
+        // status changes use this order, making the last-active-admin check a serialized current read.
+        List<User> activeAdmins = userRepository.findActiveByRoleForUpdate(Role.ADMIN);
+        User actor = activeAdmins.stream().filter(candidate -> candidate.getId().equals(actorUserId)).findFirst()
+                .orElseGet(() -> userRepository.findByIdForUpdate(actorUserId)
+                        .orElseThrow(() -> new UnauthorizedException("Administrator identity is invalid")));
+        if (actor.getRole() != Role.ADMIN || !Boolean.TRUE.equals(actor.getIsActive())) {
+            throw new UnauthorizedException("Only an active administrator can update user roles");
+        }
+        User target = activeAdmins.stream().filter(candidate -> candidate.getId().equals(targetUserId)).findFirst()
+                .orElseGet(() -> userRepository.findByIdForUpdate(targetUserId)
+                        .orElseThrow(() -> new ResourceNotFoundException("User", "id", targetUserId)));
+
+        Role previousRole = target.getRole();
+        Role nextRole = request.role();
+        if (previousRole == nextRole) return mapToUserResponse(target);
+        if (previousRole == Role.ADMIN && Boolean.TRUE.equals(target.getIsActive()) && nextRole != Role.ADMIN
+                && activeAdmins.size() <= 1) {
+            throw new BusinessException("Cannot change the role of the last active administrator");
+        }
+
+        target.setRole(nextRole);
+        incrementTokenVersion(target);
+        target = userRepository.save(target);
+        String reason = request.reason() == null || request.reason().isBlank()
+                ? null : request.reason().trim();
+        userRoleHistoryRepository.save(UserRoleHistory.create(target, actor, previousRole, nextRole, reason));
+        return mapToUserResponse(target);
+    }
+
+    @Transactional(readOnly = true)
+    public List<RoleHistoryResponse> getUserRoleHistory(Integer userId) {
+        if (userId == null || !userRepository.existsById(userId)) {
+            throw new ResourceNotFoundException("User", "id", userId);
+        }
+        return userRoleHistoryRepository.findHistoryForUser(userId).stream()
+                .map(history -> new RoleHistoryResponse(history.getId(), history.getUser().getId(),
+                        history.getUser().getEmail(), history.getUser().getFullName(),
+                        history.getChangedBy().getId(), history.getChangedBy().getEmail(),
+                        history.getChangedBy().getFullName(), history.getOldRole(), history.getNewRole(),
+                        history.getReason(), history.getChangedAt()))
+                .toList();
+    }
+
+    private static void incrementTokenVersion(User user) {
+        int version = user.getTokenVersion() == null ? 1 : user.getTokenVersion();
+        if (version < 1 || version == Integer.MAX_VALUE) {
+            throw new BusinessException("User token version cannot be incremented");
+        }
+        user.setTokenVersion(version + 1);
     }
 
     // ==========================================
@@ -602,11 +694,9 @@ public class AuthService {
     }
 
     private AuthResponse buildAuthResponse(User user) {
-        UserDetails userDetails = org.springframework.security.core.userdetails.User.builder()
-                .username(user.getEmail())
-                .password(user.getPasswordHash() != null ? user.getPasswordHash() : "")
-                .roles(user.getRole().name())
-                .build();
+        UserDetails userDetails = new AuthenticatedUserPrincipal(user.getId(), user.getEmail(),
+                user.getPasswordHash() != null ? user.getPasswordHash() : "", user.getRole(),
+                Boolean.TRUE.equals(user.getIsActive()), user.getTokenVersion());
 
         String accessToken = jwtService.generateAccessToken(userDetails);
         String refreshTokenValue = jwtService.generateRefreshToken(userDetails);

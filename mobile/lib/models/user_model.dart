@@ -1,5 +1,7 @@
 enum UserRole {
   user,
+  instructor,
+  staff,
   admin;
 
   static UserRole fromString(String? role) {
@@ -8,17 +10,28 @@ enum UserRole {
       case 'ADMIN':
       case 'ROLE_ADMIN':
         return UserRole.admin;
+      case 'INSTRUCTOR':
+      case 'ROLE_INSTRUCTOR':
+        return UserRole.instructor;
+      case 'STAFF':
+      case 'ROLE_STAFF':
+        return UserRole.staff;
       default:
         return UserRole.user;
     }
   }
 
   String toServerString() {
-    return this == UserRole.admin ? 'ADMIN' : 'USER';
+    return switch (this) {
+      UserRole.user => 'USER',
+      UserRole.instructor => 'INSTRUCTOR',
+      UserRole.staff => 'STAFF',
+      UserRole.admin => 'ADMIN',
+    };
   }
 
   String get displayName {
-    return this == UserRole.admin ? 'Quản trị viên (Admin)' : 'Học viên (User)';
+    return toServerString();
   }
 }
 

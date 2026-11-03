@@ -48,9 +48,17 @@ class ApiConstants {
   // Read-only Order History endpoints
   static const String orders = '/api/orders';
   static String orderDetail(int id) => '$orders/$id';
+  static const String cart = '/api/cart';
+  static const String courseCheckout = '/api/checkout/course-only';
+  static String cartItem(int id) => '$cart/items/$id';
+  static String paymentSession(int orderId) =>
+      '$orders/$orderId/payment-session';
 
   // Admin endpoints
   static const String adminUsers = '/api/admin/users';
   static String adminUserDetail(int id) => '/api/admin/users/$id';
   static String adminUserStatus(int id) => '/api/admin/users/$id/status';
+  static String adminUserRole(int id) => '/api/admin/users/$id/role';
+  static String adminUserRoleHistory(int id) =>
+      '/api/admin/users/$id/role-history';
 }

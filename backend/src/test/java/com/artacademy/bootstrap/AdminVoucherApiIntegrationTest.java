@@ -311,7 +311,7 @@ class AdminVoucherApiIntegrationTest {
         VoucherClaim claim = VoucherClaim.reserved("admin-test:" + orderId, row.getId(),
                 row.getDefinitionVersion(), orderId, order, now);
         if (state == VoucherClaim.State.REDEEMED) claim = claim.redeem("payment-" + orderId,
-                now.plusSeconds(1), now.plusSeconds(2));
+                now.plusSeconds(1), now.plusSeconds(2), now.plusSeconds(3));
         if (state == VoucherClaim.State.RELEASED) claim = claim.releaseUnpaid(
                 VoucherClaim.ReleaseReason.CANCELLED, now.plusSeconds(1));
         em.persist(VoucherClaimJpaEntity.fromSnapshot(claim));

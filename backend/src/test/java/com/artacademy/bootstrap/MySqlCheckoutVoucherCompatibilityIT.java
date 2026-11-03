@@ -149,10 +149,12 @@ class MySqlCheckoutVoucherCompatibilityIT {
         inTx(() -> {
             jdbc.update("UPDATE orders SET status='CONFIRMED',payment_status='SUCCEEDED' WHERE id=?", redeemed.orderId);
             em.clear();
-            reservations.consumeForOrder(redeemed.userId, redeemed.orderId, "mysql-it-" + UUID.randomUUID(), NOW.plusSeconds(1), NOW.plusSeconds(2));
+            reservations.consumeForOrder(redeemed.userId, redeemed.orderId, "mysql-it-" + UUID.randomUUID(),
+                    NOW.plusSeconds(1), NOW.plusSeconds(2), NOW.plusSeconds(3));
             // Reuse the exact evidence identity to exercise idempotent settlement retry.
             var claim = claims.findByOrderIdAndUserId(redeemed.orderId, redeemed.userId).orElseThrow();
-            reservations.consumeForOrder(redeemed.userId, redeemed.orderId, claim.getPaymentReference(), NOW.plusSeconds(1), NOW.plusSeconds(2));
+            reservations.consumeForOrder(redeemed.userId, redeemed.orderId, claim.getPaymentReference(),
+                    NOW.plusSeconds(1), NOW.plusSeconds(2), NOW.plusSeconds(4));
         });
         assertThat(voucherValue("reserved_count", redeemed.voucherId)).isZero();
         assertThat(voucherValue("redeemed_count", redeemed.voucherId)).isEqualTo(1L);

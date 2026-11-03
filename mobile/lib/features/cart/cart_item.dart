@@ -1,5 +1,7 @@
 enum CartItemType { course, product }
 
+enum CartItemAvailability { available, unavailable, outOfStock }
+
 class CartItem {
   CartItem({
     required this.id,
@@ -8,22 +10,33 @@ class CartItem {
     required this.name,
     required this.unitPriceVnd,
     this.quantity = 1,
+    this.availability = CartItemAvailability.available,
+    this.availabilityMessage,
   }) {
     if (quantity < 1 || (type == CartItemType.course && quantity != 1)) {
       throw ArgumentError(
         'Courses require 1; products require positive quantity.',
       );
     }
-    if (unitPriceVnd < 0) throw ArgumentError('Price cannot be negative.');
+    final price = unitPriceVnd;
+    if (price != null && price < 0) {
+      throw ArgumentError('Price cannot be negative.');
+    }
+    if (availability == CartItemAvailability.available &&
+        unitPriceVnd == null) {
+      throw ArgumentError('Available items require a trusted price.');
+    }
   }
 
   final int id;
   final int itemId;
   final CartItemType type;
   final String name;
-  final int unitPriceVnd;
+  final int? unitPriceVnd;
   final int quantity;
-  int get subtotalVnd => unitPriceVnd * quantity;
+  final CartItemAvailability availability;
+  final String? availabilityMessage;
+  int get subtotalVnd => (unitPriceVnd ?? 0) * quantity;
 
   CartItem withQuantity(int value) => CartItem(
     id: id,
@@ -32,7 +45,115 @@ class CartItem {
     name: name,
     unitPriceVnd: unitPriceVnd,
     quantity: value,
+    availability: availability,
+    availabilityMessage: availabilityMessage,
   );
+}
+
+class CartSnapshot {
+  const CartSnapshot({
+    required this.revision,
+    required this.items,
+    required this.subtotalVnd,
+    required this.canCheckout,
+    required this.hasUnavailableItems,
+    this.cartId,
+  });
+
+  final int? cartId;
+  final int revision;
+  final List<CartItem> items;
+  final int subtotalVnd;
+  final bool canCheckout;
+  final bool hasUnavailableItems;
+
+  factory CartSnapshot.fromJson(dynamic source) {
+    if (source is! Map<String, dynamic>) {
+      throw const FormatException('Cart data is not an object.');
+    }
+    final rawItems = source['items'];
+    if (rawItems is! List) {
+      throw const FormatException('Cart items are missing.');
+    }
+    final items = rawItems
+        .map((raw) {
+          if (raw is! Map<String, dynamic>) {
+            throw const FormatException('Cart item is malformed.');
+          }
+          final type = switch (raw['itemType']) {
+            'COURSE' => CartItemType.course,
+            'PRODUCT' => CartItemType.product,
+            _ => throw const FormatException('Unsupported cart item type.'),
+          };
+          final availability = switch (raw['availabilityStatus']) {
+            'AVAILABLE' => CartItemAvailability.available,
+            'UNAVAILABLE' => CartItemAvailability.unavailable,
+            'OUT_OF_STOCK' => CartItemAvailability.outOfStock,
+            _ => throw const FormatException('Unsupported cart availability.'),
+          };
+          final quantity = _cartInt(raw['quantity'], 'quantity');
+          if (type == CartItemType.course && quantity != 1) {
+            throw const FormatException('Course quantity must be one.');
+          }
+          return CartItem(
+            id: _cartInt(raw['cartItemId'], 'cartItemId'),
+            itemId: _cartInt(raw['itemId'], 'itemId'),
+            type: type,
+            name: raw['displayName'] is String
+                ? raw['displayName'] as String
+                : 'Course',
+            unitPriceVnd:
+                availability != CartItemAvailability.available ||
+                    raw['unitPriceVnd'] == null
+                ? null
+                : _cartInt(raw['unitPriceVnd'], 'unitPriceVnd'),
+            quantity: quantity,
+            availability: availability,
+            availabilityMessage: raw['availabilityMessage'] as String?,
+          );
+        })
+        .toList(growable: false);
+    final revision = _cartInt(source['revision'], 'revision');
+    final subtotal = _cartInt(source['subtotalVnd'], 'subtotalVnd');
+    final canCheckout = source['canCheckout'];
+    final unavailable = source['hasUnavailableItems'];
+    if (revision < 0 ||
+        subtotal < 0 ||
+        source['currency'] != 'VND' ||
+        canCheckout is! bool ||
+        unavailable is! bool) {
+      throw const FormatException('Cart totals are invalid.');
+    }
+    final actualSubtotal = items.fold<int>(
+      0,
+      (sum, item) => sum + item.subtotalVnd,
+    );
+    final actualUnavailable = items.any(
+      (item) => item.availability != CartItemAvailability.available,
+    );
+    if (actualSubtotal != subtotal ||
+        actualUnavailable != unavailable ||
+        canCheckout != (items.isNotEmpty && !unavailable)) {
+      throw const FormatException('Cart totals do not match its items.');
+    }
+    return CartSnapshot(
+      cartId: source['cartId'] == null
+          ? null
+          : _cartInt(source['cartId'], 'cartId'),
+      revision: revision,
+      items: List.unmodifiable(items),
+      subtotalVnd: subtotal,
+      canCheckout: canCheckout,
+      hasUnavailableItems: unavailable,
+    );
+  }
+}
+
+int _cartInt(dynamic value, String field) {
+  if (value is! num || value != value.toInt()) {
+    throw FormatException('Cart $field must be an integer.');
+  }
+  return value.toInt();
 }
 
 String formatVnd(int amount) {

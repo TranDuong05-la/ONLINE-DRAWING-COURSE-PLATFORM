@@ -1,6 +1,7 @@
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
 import '../models/page_response.dart';
+import '../models/admin_role_history.dart';
 import '../models/user_model.dart';
 
 class AdminRepository {
@@ -77,5 +78,37 @@ class AdminRepository {
       return response.data!;
     }
     throw Exception(response.message.isNotEmpty ? response.message : 'Cập nhật trạng thái người dùng thất bại');
+  }
+
+  Future<UserModel> updateUserRole(
+    int id, {
+    required String role,
+    String? reason,
+  }) async {
+    final response = await _apiClient.put<UserModel>(
+      ApiConstants.adminUserRole(id),
+      data: {
+        'role': role,
+        if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      },
+      fromJsonT: (json) => UserModel.fromJson(json as Map<String, dynamic>),
+    );
+    if (response.data != null) return response.data!;
+    throw Exception(response.message.isNotEmpty
+        ? response.message
+        : 'Unable to update user role');
+  }
+
+  Future<List<AdminRoleHistory>> getUserRoleHistory(int id) async {
+    final response = await _apiClient.get<List<AdminRoleHistory>>(
+      ApiConstants.adminUserRoleHistory(id),
+      fromJsonT: (json) => (json as List<dynamic>)
+          .map((item) => AdminRoleHistory.fromJson(item as Map<String, dynamic>))
+          .toList(growable: false),
+    );
+    if (response.data != null) return response.data!;
+    throw Exception(response.message.isNotEmpty
+        ? response.message
+        : 'Unable to load role history');
   }
 }

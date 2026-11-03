@@ -51,7 +51,8 @@ public class BundleMapper {
         long total = originalTotal(courses);
         List<CourseSummaryDto> summaries = courseMapper.toSummaries(courses);
         return new BundleDto(bundle.getId(), bundle.getCode(), bundle.getTitle(), bundle.getDescription(),
-                bundle.getPrice(), total, Math.max(0, total - bundle.getPrice()), summaries);
+                bundle.getPrice(), bundle.getDefinitionVersion(), total,
+                Math.max(0, total - bundle.getPrice()), summaries);
     }
 
     public AdminBundleDto toAdmin(CourseBundle bundle, List<Course> courses) {

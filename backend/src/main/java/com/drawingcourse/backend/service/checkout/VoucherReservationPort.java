@@ -22,9 +22,9 @@ public interface VoucherReservationPort {
     void releaseForOrder(Integer authenticatedUserId, Integer orderId,
                          VoucherClaim.ReleaseReason reason, Instant releasedAt);
 
-    /** Call only after verified, timely settlement has moved the persisted Order to CONFIRMED/SUCCEEDED. */
+    /** Call after settlement confirms timely provider-paid and callback-received evidence. */
     void consumeForOrder(Integer authenticatedUserId, Integer orderId, String paymentReference,
-                         Instant verifiedPaidAt, Instant observedAt);
+                         Instant verifiedPaidAt, Instant verifiedReceivedAt, Instant settledAt);
 
     record Quote(Integer voucherId, long definitionVersion, OrderVoucher terms) {
         public Quote {

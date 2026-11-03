@@ -140,6 +140,8 @@ class _AdminUserListScreenState extends State<AdminUserListScreen> {
                             items: const [
                               DropdownMenuItem(value: 'ALL', child: Text('Tất cả vai trò')),
                               DropdownMenuItem(value: 'USER', child: Text('Học viên (USER)')),
+                              DropdownMenuItem(value: 'INSTRUCTOR', child: Text('INSTRUCTOR')),
+                              DropdownMenuItem(value: 'STAFF', child: Text('STAFF')),
                               DropdownMenuItem(value: 'ADMIN', child: Text('Quản trị (ADMIN)')),
                             ],
                             onChanged: (val) {

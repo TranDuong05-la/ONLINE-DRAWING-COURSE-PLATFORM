@@ -50,6 +50,7 @@ class CheckoutCoordinatorJpaH2IntegrationTest {
     @Autowired private CheckoutRequestRepository checkoutRequests;
     @Autowired private OrderRepository orders;
     @Autowired private OrderItemRepository orderItems;
+    @Autowired private OrderShippingAddressRepository shippingAddresses;
     @Autowired private PlatformTransactionManager transactions;
     @Autowired private JdbcTemplate jdbc;
 
@@ -76,6 +77,8 @@ class CheckoutCoordinatorJpaH2IntegrationTest {
                 fixture.userId, fixture.key));
         assertEquals(205_000L, jdbc.queryForObject("SELECT total_vnd FROM orders WHERE id=?", Long.class, result.orderId()));
         assertEquals(2, jdbc.queryForObject("SELECT COUNT(*) FROM order_items WHERE order_id=?", Integer.class, result.orderId()));
+        assertEquals("1 Demo Street", jdbc.queryForObject(
+                "SELECT address_line FROM order_shipping_addresses WHERE order_id=?", String.class, result.orderId()));
 
         new TransactionTemplate(transactions).executeWithoutResult(status ->
                 jdbc.update("UPDATE carts SET revision=7 WHERE user_id=?", fixture.userId));
@@ -92,6 +95,8 @@ class CheckoutCoordinatorJpaH2IntegrationTest {
                 () -> fixture.coordinator.checkout(fixture.userId, fixture.key, fixture.request));
 
         assertEquals(0, countOrders(fixture.userId));
+        assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM order_shipping_addresses a JOIN orders o ON o.id=a.order_id WHERE o.user_id=?",
+                Integer.class, fixture.userId));
         assertEquals(0, countRequests(fixture.userId));
         assertEquals(0, jdbc.queryForObject("SELECT COUNT(*) FROM checkout_test_effects", Integer.class));
         assertEquals(0L, jdbc.queryForObject("SELECT revision FROM carts WHERE user_id=?", Long.class, fixture.userId));
@@ -352,9 +357,11 @@ class CheckoutCoordinatorJpaH2IntegrationTest {
         var selections = new TransactionTemplate(transactions).execute(status ->
                 carts.findByUserId(userId).orElseThrow().getItems().stream().map(item ->
                         new CheckoutRequest.Selection(item.getId(), item.getQuantity())).toList());
-        var request = new CheckoutRequest(0L, selections, Optional.of("SAVE10"), Optional.empty());
+        var request = new CheckoutRequest(0L, selections, Optional.of("SAVE10"),
+                Optional.of(new CheckoutRequest.Address("Demo Buyer", "0900000000", "1 Demo Street",
+                        "District 1, Ho Chi Minh City", "700000", "VN")));
         var identity = (OrderCurrentUser) () -> userId;
-        var orderPersistence = new OrderPersistenceService(orders, orderItems, identity, transactions);
+        var orderPersistence = new OrderPersistenceService(orders, orderItems, identity, transactions, shippingAddresses);
         var idempotency = new CheckoutIdempotencyService(checkoutRequests, users, orders,
                 Clock.fixed(Instant.parse("2026-10-28T05:00:00Z"), ZoneOffset.UTC), transactions);
         var coursePort = new TestCoursePort(jdbc);
@@ -412,6 +419,7 @@ class CheckoutCoordinatorJpaH2IntegrationTest {
             if (fail) throw new IllegalStateException("test reservation failure");
         }
         @Override public void releaseForOrder(Integer user, Integer order, VoucherClaim.ReleaseReason reason, Instant at) { }
-        @Override public void consumeForOrder(Integer user, Integer order, String reference, Instant paidAt, Instant at) { }
+        @Override public void consumeForOrder(Integer user, Integer order, String reference, Instant paidAt,
+                                              Instant receivedAt, Instant settledAt) { }
     }
 }

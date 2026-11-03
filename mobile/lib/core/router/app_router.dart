@@ -4,6 +4,11 @@ import '../../features/address/add_edit_address_screen.dart';
 import '../../features/address/address_list_screen.dart';
 import '../../features/admin/admin_user_detail_screen.dart';
 import '../../features/admin/admin_user_list_screen.dart';
+import '../../features/admin/admin_dashboard_screen.dart';
+import '../../features/supplies/ui/supply_shop_screen.dart';
+import '../../features/supplies/ui/product_detail_screen.dart';
+import '../../features/supplies/ui/admin/admin_supply_home.dart';
+import '../../features/supplies/ui/admin/admin_shipment_detail_screen.dart';
 import '../../features/course_admin/ui/course_admin_home_page.dart';
 import '../../features/learning/my_assignments_screen.dart';
 import '../../features/learning_admin/admin_certificates_screen.dart';
@@ -11,7 +16,11 @@ import '../../features/learning_admin/learning_admin_home_page.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/cart/cart_screen.dart';
-import '../../features/cart/mock_cart_repository.dart';
+import '../../features/cart/api_course_cart_repository.dart';
+import '../../features/cart/cart_item.dart';
+import '../../features/cart/cart_repository.dart';
+import '../../features/cart/course_checkout_repository.dart';
+import '../../features/cart/course_checkout_screen.dart';
 import '../../features/order_history/data/api_order_history_repository.dart';
 import '../../features/order_history/data/order_history_repository.dart';
 import '../../features/order_history/order_detail_screen.dart';
@@ -29,8 +38,12 @@ class AppRouter {
   static GoRouter createRouter(
     AuthProvider authProvider, {
     OrderHistoryRepository? orderHistoryRepository,
+    CartRepository? cartRepository,
+    CourseCheckoutRepository? courseCheckoutRepository,
   }) {
     final orders = orderHistoryRepository ?? ApiOrderHistoryRepository();
+    final cart = cartRepository ?? ApiCourseCartRepository();
+    final checkout = courseCheckoutRepository ?? ApiCourseCheckoutRepository();
     return GoRouter(
       initialLocation: '/splash',
       refreshListenable: authProvider,
@@ -48,10 +61,39 @@ class AppRouter {
           builder: (context, state) => const RegisterScreen(),
         ),
         GoRoute(path: '/', builder: (context, state) => const MainScreen()),
+        GoRoute(path: '/supplies', builder: (context, state) => const SupplyShopScreen()),
+        GoRoute(
+          path: '/supplies/products/:id',
+          builder: (context, state) => ProductDetailScreen(
+            productId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+          ),
+        ),
+        GoRoute(path: '/admin/supplies', builder: (context, state) => const AdminSupplyHome()),
+        GoRoute(path: '/staff/supplies', builder: (context, state) => const AdminSupplyHome()),
+        GoRoute(
+          path: '/staff/shipments/:id',
+          builder: (context, state) => AdminShipmentDetailScreen(
+            shipmentId: int.tryParse(state.pathParameters['id'] ?? '') ?? 0,
+          ),
+        ),
         GoRoute(
           path: '/cart',
-          builder: (context, state) =>
-              CartScreen(repository: MockCartRepository()),
+          builder: (context, state) => CartScreen(repository: cart),
+        ),
+        GoRoute(
+          path: '/checkout',
+          builder: (context, state) => CourseCheckoutScreen(
+            cart: state.extra is CartSnapshot
+                ? state.extra! as CartSnapshot
+                : const CartSnapshot(
+                    revision: 0,
+                    items: [],
+                    subtotalVnd: 0,
+                    canCheckout: false,
+                    hasUnavailableItems: true,
+                  ),
+            repository: checkout,
+          ),
         ),
         GoRoute(
           path: '/orders',
@@ -102,6 +144,14 @@ class AppRouter {
           },
         ),
         GoRoute(
+          path: '/admin',
+          redirect: (context, state) => '/admin/dashboard',
+        ),
+        GoRoute(
+          path: '/admin/dashboard',
+          builder: (context, state) => const AdminDashboardScreen(),
+        ),
+        GoRoute(
           path: '/admin/users',
           builder: (context, state) => const AdminUserListScreen(),
         ),
@@ -149,6 +199,9 @@ class AppRouter {
 
         // Admin guard: if trying to access /admin and not admin, redirect to home
         if (location.startsWith('/admin') && !authProvider.isAdmin) {
+          return '/';
+        }
+        if (location.startsWith('/staff') && !authProvider.isStaff && !authProvider.isAdmin) {
           return '/';
         }
 

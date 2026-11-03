@@ -13,6 +13,7 @@ public record BundleDto(
         String title,
         String description,
         long price,
+        long definitionVersion,
         long originalTotal,
         long savings,
         List<CourseSummaryDto> courses) {

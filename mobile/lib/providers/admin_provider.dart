@@ -109,4 +109,26 @@ class AdminProvider extends ChangeNotifier {
       return false;
     }
   }
+
+  Future<bool> updateUserRole(int id, String role, {String? reason}) async {
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final updated = await _adminRepository.updateUserRole(
+        id,
+        role: role,
+        reason: reason,
+      );
+      final index = _users.indexWhere((user) => user.id == id);
+      if (index >= 0) _users[index] = updated;
+      notifyListeners();
+      return true;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = e.toString().replaceFirst('Exception: ', '');
+    }
+    notifyListeners();
+    return false;
+  }
 }

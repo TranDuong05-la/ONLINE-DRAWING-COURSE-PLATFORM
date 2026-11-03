@@ -193,7 +193,10 @@ public final class CheckoutCoordinator {
                     CheckoutRejectedException.Reason.VOUCHER_REJECTED, "Voucher cannot be applied to this Cart", invalidVoucherOrSnapshot);
             throw invalidVoucherOrSnapshot;
         }
-        StoredOrder stored = orders.insertNew(snapshot);
+        if (!productQuantities.isEmpty() && request.address().isEmpty())
+            throw rejected(CheckoutRejectedException.Reason.SHIPPING_QUOTE_REJECTED,
+                    "Physical Order requires a shipping address");
+        StoredOrder stored = orders.insertNew(snapshot, request.address());
         if (stored == null || stored.id() == null || !userId.equals(stored.snapshot().getUserId()))
             throw new IllegalStateException("Order persistence returned an invalid owner/reference");
 
@@ -203,8 +206,8 @@ public final class CheckoutCoordinator {
         // atomic write-side checks; the earlier ownership/pending/catalog reads are not concurrency protection.
         if (!productQuantities.isEmpty() && inventory == null)
             throw new IllegalStateException("Product Checkout requires an Inventory adapter");
-        for (Integer productId : productQuantities.keySet())
-            inventory.reserveForOrder(userId, productId, productQuantities.get(productId), stored.id(), snapshot.getExpiresAt());
+        if (!productQuantities.isEmpty())
+            inventory.reserveAllForOrder(userId, productQuantities, stored.id(), snapshot.getExpiresAt());
         for (Integer courseId : courseIds)
             coursePurchases.claimForOrder(userId, courseId, stored.id(), courseOrderItemIds.get(courseId),
                     observedAt, snapshot.getExpiresAt());

@@ -59,10 +59,20 @@ public class BundleAdminService {
     public AdminBundleDto update(Long id, BundleRequest req) {
         CourseBundle bundle = find(id);
         List<Course> courses = validateCourses(req);
+        String oldCode = bundle.getCode();
+        String oldTitle = bundle.getTitle();
+        long oldPrice = bundle.getPrice();
+        List<Long> oldCourseIds = mapper.coursesByBundle(List.of(id)).getOrDefault(id, List.of()).stream()
+                .map(Course::getId).toList();
         if (req.code() != null && !req.code().isBlank()) {
             bundle.setCode(resolveCode(req.code(), id));
         }
         apply(bundle, req);
+        List<Long> newCourseIds = courses.stream().map(Course::getId).toList();
+        if (!oldCode.equals(bundle.getCode()) || !oldTitle.equals(bundle.getTitle())
+                || oldPrice != bundle.getPrice() || !oldCourseIds.equals(newCourseIds)) {
+            bundle.increaseDefinitionVersion();
+        }
         bundleRepository.save(bundle);
         // Xóa danh sách khóa cũ rồi thêm danh sách mới (hàm xóa tự flush trước và clear sau)
         itemRepository.deleteByBundle(id);
@@ -95,6 +105,9 @@ public class BundleAdminService {
      */
     private List<Course> validateCourses(BundleRequest req) {
         List<Long> ids = req.courseIds();
+        if (ids.size() < 2 || ids.size() > 10) {
+            throw new BadRequestException("Combo course count must be 2 to 10");
+        }
         if (new HashSet<>(ids).size() != ids.size()) {
             throw new BadRequestException("Một khóa học chỉ được chọn một lần trong combo");
         }
@@ -122,8 +135,9 @@ public class BundleAdminService {
     }
 
     private void saveItems(CourseBundle bundle, List<Course> courses) {
+        int position = 1;
         for (Course course : courses) {
-            itemRepository.save(new BundleItem(bundle, courseRepository.getReferenceById(course.getId())));
+            itemRepository.save(new BundleItem(bundle, courseRepository.getReferenceById(course.getId()), position++));
         }
     }
 

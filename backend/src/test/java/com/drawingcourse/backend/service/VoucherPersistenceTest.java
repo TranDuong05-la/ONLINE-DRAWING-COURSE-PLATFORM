@@ -62,7 +62,7 @@ class VoucherPersistenceTest {
 
     @Test void reservedRedeemedReleasedClaimsRoundTripWithoutCurrentDefinition() {
         var reserved = claim();
-        var redeemed = reserved.redeem("payment-1",now.plusSeconds(50),now.plusSeconds(51));
+        var redeemed = reserved.redeem("payment-1",now.plusSeconds(50),now.plusSeconds(51),now.plusSeconds(52));
         var released = reserved.releaseUnpaid(VoucherClaim.ReleaseReason.EXPIRED,reserved.expiresAt());
         for (var snapshot : List.of(reserved,redeemed,released)) {
             var row = mapper.toNewClaimSnapshot(snapshot);
@@ -79,7 +79,7 @@ class VoucherPersistenceTest {
         assertTrue(definition.validUntil().isBefore(claim.expiresAt()));
         var row = mapper.toNewDefinition(definition);
         row.replaceDefinition(definition.withActive(false));
-        var redeemed = claim.redeem("payment-1",now.plusSeconds(600),now.plusSeconds(601));
+        var redeemed = claim.redeem("payment-1",now.plusSeconds(600),now.plusSeconds(601),now.plusSeconds(602));
         assertEquals(VoucherClaim.State.REDEEMED,redeemed.state());
         assertEquals(claim.terms(),redeemed.terms());
         assertEquals(claim.expiresAt(),redeemed.expiresAt());
@@ -88,21 +88,28 @@ class VoucherPersistenceTest {
 
     @Test void idempotentTerminalTransitionsNeverConsumeTwiceOrSwitchTerminalState() {
         var reserved = claim();
-        var redeemed = reserved.redeem("payment-1",now.plusSeconds(10),now.plusSeconds(11));
-        assertSame(redeemed,redeemed.redeem("payment-1",now.plusSeconds(10),now.plusSeconds(5000)));
-        assertThrows(IllegalStateException.class, () -> redeemed.redeem("other",now.plusSeconds(10),now.plusSeconds(11)));
+        var redeemed = reserved.redeem("payment-1",now.plusSeconds(10),now.plusSeconds(11),now.plusSeconds(12));
+        assertSame(redeemed,redeemed.redeem("payment-1",now.plusSeconds(10),now.plusSeconds(11),now.plusSeconds(5000)));
+        assertThrows(IllegalStateException.class, () -> redeemed.redeem("other",now.plusSeconds(10),now.plusSeconds(11),now.plusSeconds(12)));
         assertThrows(IllegalStateException.class, () -> redeemed.releaseUnpaid(VoucherClaim.ReleaseReason.CANCELLED,now.plusSeconds(12)));
         var released = reserved.releaseUnpaid(VoucherClaim.ReleaseReason.CANCELLED,now.plusSeconds(5));
         assertSame(released,released.releaseUnpaid(VoucherClaim.ReleaseReason.CANCELLED,now.plusSeconds(10)));
-        assertThrows(IllegalStateException.class, () -> released.redeem("late",now.plusSeconds(10),now.plusSeconds(11)));
+        assertThrows(IllegalStateException.class, () -> released.redeem("late",now.plusSeconds(10),now.plusSeconds(11),now.plusSeconds(12)));
     }
 
     @Test void deadlineBoundaryAndLateCallbacksRequireReconciliation() {
         var reserved = claim();
         assertEquals(now.plusSeconds(1800),reserved.expiresAt());
-        assertEquals(VoucherClaim.State.REDEEMED,reserved.redeem("on-time",reserved.expiresAt().minusSeconds(1),reserved.expiresAt().minusSeconds(1)).state());
-        assertThrows(IllegalStateException.class, () -> reserved.redeem("late",reserved.expiresAt(),reserved.expiresAt()));
-        assertThrows(IllegalStateException.class, () -> reserved.redeem("delayed",now.plusSeconds(10),reserved.expiresAt()));
+        var delayedSettlement = reserved.redeem("on-time",reserved.expiresAt().minusSeconds(2),
+                reserved.expiresAt().minusSeconds(1),reserved.expiresAt().plusSeconds(600));
+        assertEquals(VoucherClaim.State.REDEEMED,delayedSettlement.state());
+        assertEquals(reserved.expiresAt().plusSeconds(600),delayedSettlement.transitionedAt());
+        assertThrows(IllegalStateException.class, () -> reserved.redeem("late",reserved.expiresAt(),
+                reserved.expiresAt(),reserved.expiresAt().plusSeconds(1)));
+        assertThrows(IllegalStateException.class, () -> reserved.redeem("delayed",now.plusSeconds(10),
+                reserved.expiresAt(),reserved.expiresAt().plusSeconds(1)));
+        assertThrows(IllegalStateException.class, () -> reserved.redeem("late-receipt",reserved.expiresAt().minusSeconds(2),
+                reserved.expiresAt(),reserved.expiresAt().plusSeconds(1)));
         assertThrows(IllegalArgumentException.class, () -> reserved.releaseUnpaid(VoucherClaim.ReleaseReason.EXPIRED,reserved.expiresAt().minusSeconds(1)));
         assertEquals(VoucherClaim.State.RELEASED,reserved.releaseUnpaid(VoucherClaim.ReleaseReason.EXPIRED,reserved.expiresAt()).state());
         assertEquals(VoucherClaim.State.RESERVED,reserved.state()); // No attempt-failure mutator/release.

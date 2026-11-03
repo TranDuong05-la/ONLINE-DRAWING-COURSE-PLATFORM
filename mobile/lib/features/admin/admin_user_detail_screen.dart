@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../models/admin_role_history.dart';
 import '../../models/user_model.dart';
 import '../../repositories/admin_repository.dart';
 import '../../widgets/custom_button.dart';
@@ -10,11 +11,13 @@ import '../../widgets/status_badge.dart';
 class AdminUserDetailScreen extends StatefulWidget {
   final int userId;
   final UserModel? initialUser;
+  final AdminRepository? repository;
 
   const AdminUserDetailScreen({
     super.key,
     required this.userId,
     this.initialUser,
+    this.repository,
   });
 
   @override
@@ -22,9 +25,12 @@ class AdminUserDetailScreen extends StatefulWidget {
 }
 
 class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
-  final AdminRepository _adminRepository = AdminRepository();
+  late final AdminRepository _adminRepository =
+      widget.repository ?? AdminRepository();
   UserModel? _user;
+  List<AdminRoleHistory> _roleHistory = const [];
   bool _isLoading = false;
+  bool _isHistoryLoading = false;
   String? _errorMessage;
 
   @override
@@ -32,6 +38,7 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
     super.initState();
     _user = widget.initialUser;
     _fetchUserDetail();
+    _loadRoleHistory();
   }
 
   Future<void> _fetchUserDetail() async {
@@ -59,6 +66,106 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _loadRoleHistory() async {
+    setState(() => _isHistoryLoading = true);
+    try {
+      final history = await _adminRepository.getUserRoleHistory(widget.userId);
+      if (mounted) setState(() => _roleHistory = history);
+    } catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _isHistoryLoading = false);
+    }
+  }
+
+  Future<void> _changeRole() async {
+    if (_user == null) return;
+    final selectedRole = ValueNotifier<UserRole>(_user!.role);
+    final reasonController = TextEditingController();
+    final decision = await showDialog<({UserRole role, String reason})>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Change user role'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ValueListenableBuilder<UserRole>(
+              valueListenable: selectedRole,
+              builder: (context, role, _) => DropdownButtonFormField<UserRole>(
+                value: role,
+                decoration: const InputDecoration(labelText: 'Role'),
+                items: UserRole.values
+                    .map((value) => DropdownMenuItem(
+                          value: value,
+                          child: Text(value.displayName),
+                        ))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) selectedRole.value = value;
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonController,
+              maxLength: 255,
+              decoration: const InputDecoration(
+                labelText: 'Reason (optional)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, (
+              role: selectedRole.value,
+              reason: reasonController.text.trim(),
+            )),
+            child: const Text('Save role'),
+          ),
+        ],
+      ),
+    );
+    selectedRole.dispose();
+    reasonController.dispose();
+    if (decision == null || !mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final updated = await _adminRepository.updateUserRole(
+        widget.userId,
+        role: decision.role.toServerString(),
+        reason: decision.reason,
+      );
+      if (mounted) {
+        setState(() => _user = updated);
+        await _loadRoleHistory();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('User role updated')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = e.toString().replaceFirst('Exception: ', ''));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -316,6 +423,35 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                       ),
                       const SizedBox(height: 28),
 
+                      CustomButton(
+                        text: 'Change role',
+                        type: CustomButtonType.primary,
+                        icon: Icons.manage_accounts_outlined,
+                        isLoading: _isLoading,
+                        onPressed: _changeRole,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Expanded(child: Text('Role history')),
+                          IconButton(
+                            tooltip: 'Refresh role history',
+                            onPressed: _loadRoleHistory,
+                            icon: const Icon(Icons.history),
+                          ),
+                        ],
+                      ),
+                      if (_isHistoryLoading)
+                        const Center(child: CircularProgressIndicator())
+                      else if (_roleHistory.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Text('No role history recorded.'),
+                        )
+                      else
+                        ..._roleHistory.map(_buildRoleHistoryTile),
+                      const SizedBox(height: 24),
+
                       // Status Toggle Action
                       CustomButton(
                         text: _user!.isActive ? 'Khóa tài khoản người dùng' : 'Mở khóa / Kích hoạt tài khoản',
@@ -328,6 +464,24 @@ class _AdminUserDetailScreenState extends State<AdminUserDetailScreen> {
                     ],
                   ),
                 ),
+    );
+  }
+
+  Widget _buildRoleHistoryTile(AdminRoleHistory entry) {
+    final changedAt = entry.changedAt;
+    return Card(
+      key: ValueKey('role-history-${entry.id}'),
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        leading: const Icon(Icons.history),
+        title: Text('${entry.oldRole.toServerString()} → ${entry.newRole.toServerString()}'),
+        subtitle: Text([
+          'By ${entry.changedByFullName} (${entry.changedByEmail})',
+          if (entry.reason != null && entry.reason!.isNotEmpty) entry.reason!,
+          if (changedAt != null) DateFormat('HH:mm · dd/MM/yyyy').format(changedAt),
+        ].join('\n')),
+        isThreeLine: true,
+      ),
     );
   }
 

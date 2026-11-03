@@ -9,6 +9,7 @@ import com.drawingcourse.backend.repository.*;
 import com.drawingcourse.backend.service.OrderPersistenceMapper;
 import com.drawingcourse.backend.service.OrderPersistenceService;
 import com.drawingcourse.backend.service.StoredOrder;
+import com.drawingcourse.backend.service.VoucherPersistenceMapper;
 import com.drawingcourse.backend.service.checkout.CheckoutCoordinator;
 import com.drawingcourse.backend.service.checkout.CheckoutIdempotencyPort;
 import com.drawingcourse.backend.service.checkout.CheckoutRequest;
@@ -201,8 +202,10 @@ class VoucherReservationH2IntegrationTest {
             jdbc.update("update orders set status='CONFIRMED', payment_status='SUCCEEDED' where id=?", f.orderId);
             em.clear();
             // Campaign validUntil has passed (+5s); the already-reserved snapshot is still honored.
-            reservations.consumeForOrder(f.userId, f.orderId, "verified-ref", NOW.plusSeconds(10), NOW.plusSeconds(11));
-            reservations.consumeForOrder(f.userId, f.orderId, "verified-ref", NOW.plusSeconds(10), NOW.plusSeconds(11));
+            reservations.consumeForOrder(f.userId, f.orderId, "verified-ref", NOW.plusSeconds(10),
+                    NOW.plusSeconds(11), NOW.plusSeconds(12));
+            reservations.consumeForOrder(f.userId, f.orderId, "verified-ref", NOW.plusSeconds(10),
+                    NOW.plusSeconds(11), NOW.plusSeconds(13));
         });
         assertCounters(f.voucherId, f.userId, 0, 1, 0, 1);
         assertEquals(1, count("voucher_claims", f.orderId));
@@ -214,10 +217,30 @@ class VoucherReservationH2IntegrationTest {
         assertThrows(IllegalStateException.class, () -> inTx(() -> {
             jdbc.update("update orders set status='CONFIRMED', payment_status='SUCCEEDED' where id=?", f.orderId);
             em.clear();
-            reservations.consumeForOrder(f.userId, f.orderId, "late-ref", f.order.getExpiresAt(), f.order.getExpiresAt());
+            reservations.consumeForOrder(f.userId, f.orderId, "late-ref", f.order.getExpiresAt(),
+                    f.order.getExpiresAt(), f.order.getExpiresAt().plusSeconds(1));
         }));
         assertCounters(f.voucherId, f.userId, 1, 0, 1, 0);
         assertEquals(VoucherClaim.State.RESERVED, claimState(f));
+    }
+
+    @Test
+    void timelyPaymentEvidenceMayBeSettledAfterTheExclusiveDeadline() {
+        Fixture f = reservedFixture("delayed-settlement");
+        Instant paidAt = f.order.getExpiresAt().minusSeconds(2);
+        Instant receivedAt = f.order.getExpiresAt().minusSeconds(1);
+        Instant settledAt = f.order.getExpiresAt().plusSeconds(10);
+        inTx(() -> {
+            jdbc.update("update orders set status='CONFIRMED', payment_status='SUCCEEDED' where id=?", f.orderId);
+            em.clear();
+            reservations.consumeForOrder(f.userId, f.orderId, "timely-ref", paidAt, receivedAt, settledAt);
+        });
+        VoucherClaim redeemed = new TransactionTemplate(transactions).execute(status ->
+                new VoucherPersistenceMapper().toDomain(claims.findByOrderIdAndUserId(f.orderId, f.userId).orElseThrow()));
+        assertEquals(VoucherClaim.State.REDEEMED, redeemed.state());
+        assertEquals(paidAt, redeemed.paidAt());
+        assertEquals(settledAt, redeemed.transitionedAt());
+        assertCounters(f.voucherId, f.userId, 0, 1, 0, 1);
     }
 
     @Test

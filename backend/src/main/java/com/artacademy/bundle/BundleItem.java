@@ -7,13 +7,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Column;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 
 /** Một khóa học nằm trong combo. */
 @Entity
-@Table(name = "bundle_items", uniqueConstraints = @UniqueConstraint(columnNames = {"bundle_id", "course_id"}))
+@Table(name = "bundle_items", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"bundle_id", "course_id"}),
+        @UniqueConstraint(name = "uk_bundle_items_bundle_position", columnNames = {"bundle_id", "position"})})
 public class BundleItem {
 
     @Id
@@ -28,12 +31,16 @@ public class BundleItem {
     @JoinColumn(name = "course_id", nullable = false)
     private Course course;
 
+    @Column(name = "position", nullable = false)
+    private int position = 1;
+
     protected BundleItem() {
     }
 
-    public BundleItem(CourseBundle bundle, Course course) {
+    public BundleItem(CourseBundle bundle, Course course, int position) {
         this.bundle = bundle;
         this.course = course;
+        this.position = position;
     }
 
     public Long getId() {
@@ -46,5 +53,9 @@ public class BundleItem {
 
     public Course getCourse() {
         return course;
+    }
+
+    public int getPosition() {
+        return position;
     }
 }

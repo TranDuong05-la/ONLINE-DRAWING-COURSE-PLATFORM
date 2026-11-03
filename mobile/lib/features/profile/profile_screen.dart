@@ -203,6 +203,14 @@ class ProfileScreen extends StatelessWidget {
               _buildSectionHeader('Khu vực Quản trị viên (Admin)'),
               _buildMenuCard([
                 _buildMenuItem(
+                  icon: Icons.dashboard_outlined,
+                  iconColor: AppColors.accentPeach,
+                  title: 'Admin dashboard',
+                  subtitle: 'Dashboard metrics are unavailable until the backend provides them',
+                  onTap: () => context.push('/admin/dashboard'),
+                ),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
                   icon: Icons.admin_panel_settings_outlined,
                   iconColor: AppColors.accentPeach,
                   title: 'Quản lý người dùng',

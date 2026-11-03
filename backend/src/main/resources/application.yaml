@@ -56,6 +56,13 @@ app:
     course-only:
       api-enabled: ${COURSE_ONLY_CART_API_ENABLED:false}
   checkout:
+    # Product Checkout composes the existing Course claims, trusted E catalog, inventory and explicit shipping policy.
+    # Both flags remain off by default; the HTTP route has an additional independent gate.
+    product:
+      enabled: ${PRODUCT_CHECKOUT_ENABLED:false}
+      http-enabled: ${PRODUCT_CHECKOUT_HTTP_ENABLED:false}
+    shipping:
+      flat-fee-vnd: ${PRODUCT_SHIPPING_FLAT_FEE_VND:}
     course-only:
       enabled: ${COURSE_ONLY_CHECKOUT_ENABLED:false}
       http-enabled: ${COURSE_ONLY_CHECKOUT_HTTP_ENABLED:false}
@@ -106,6 +113,9 @@ app:
     # C: ảnh bài nộp tối đa 5MB (JPEG/PNG)
     max-image-bytes: 5242880
   # ---- B: dữ liệu mẫu chỉ nạp khi bảng còn trống. Mặc định tắt; profile h2 bật (xem application-h2.yaml) ----
+  supply:
+    dev-orders:
+      enabled: ${SUPPLY_DEV_ORDERS_ENABLED:false}
   seed:
     enabled: ${SEED_ENABLED:false}
     users:

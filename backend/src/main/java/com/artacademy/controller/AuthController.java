@@ -3,6 +3,7 @@ package com.artacademy.controller;
 import com.artacademy.dto.*;
 import com.artacademy.enums.Role;
 import com.artacademy.service.AuthService;
+import com.artacademy.security.AuthenticatedUserPrincipal;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -187,8 +188,10 @@ public class AuthController {
             @RequestParam(required = false) Role role,
             @RequestParam(required = false) Boolean isActive,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        Page<UserResponse> users = authService.getAllUsers(search, role, isActive, page, size);
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
+        Page<UserResponse> users = authService.getAllUsers(search, role, isActive, page, size, sortBy, sortDirection);
         return ResponseEntity.ok(ApiResponse.success("Users retrieved successfully", users));
     }
 
@@ -213,5 +216,35 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(
                 isActive ? "User activated successfully" : "User deactivated successfully",
                 user));
+    }
+
+    @PutMapping("/api/admin/users/{id}/role")
+    @Operation(summary = "Change user role (Admin)", description = "Changes a user's role and records an audit entry. Requires ADMIN role.", tags = {"Admin User Management"})
+    public ResponseEntity<ApiResponse<UserResponse>> updateUserRole(
+            @AuthenticationPrincipal AuthenticatedUserPrincipal actor,
+            @PathVariable Integer id,
+            @Valid @RequestBody UpdateUserRoleRequest request) {
+        UserResponse user = authService.updateUserRole(actor.getUserId(), id, request);
+        return ResponseEntity.ok(ApiResponse.success("User role updated successfully", user));
+    }
+
+    @GetMapping("/api/admin/users/{id}/role-history")
+    @Operation(summary = "Get user role history (Admin)", description = "Returns role changes for a user. Requires ADMIN role.", tags = {"Admin User Management"})
+    public ResponseEntity<ApiResponse<List<RoleHistoryResponse>>> getUserRoleHistory(@PathVariable Integer id) {
+        return ResponseEntity.ok(ApiResponse.success("Role history retrieved successfully",
+                authService.getUserRoleHistory(id)));
+    }
+
+    /** Additive compatibility route for clients using PUT; the established PATCH contract is preserved. */
+    @PutMapping("/api/admin/users/{id}/status")
+    @Operation(summary = "Update user status (Admin)", description = "Activates or deactivates a user. Requires ADMIN role.", tags = {"Admin User Management"})
+    public ResponseEntity<ApiResponse<UserResponse>> updateUserStatusPut(
+            @PathVariable Integer id, @RequestBody Map<String, Boolean> body) {
+        Boolean isActive = body == null ? null : body.get("isActive");
+        if (isActive == null) return ResponseEntity.badRequest()
+                .body(ApiResponse.error("isActive field is required"));
+        UserResponse user = authService.updateUserStatus(id, isActive);
+        return ResponseEntity.ok(ApiResponse.success(
+                isActive ? "User activated successfully" : "User deactivated successfully", user));
     }
 }

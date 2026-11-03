@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'core/router/app_router.dart';
+import 'core/network/api_client.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/address_provider.dart';
 import 'providers/admin_provider.dart';
@@ -29,6 +30,7 @@ class _ArtNestAppState extends State<ArtNestApp> {
   void initState() {
     super.initState();
     _authProvider = AuthProvider();
+    ApiClient().onSessionExpired = _authProvider.handleSessionExpired;
     _addressProvider = AddressProvider();
     _adminProvider = AdminProvider();
     _router = AppRouter.createRouter(_authProvider);

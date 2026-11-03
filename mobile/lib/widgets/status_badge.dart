@@ -52,22 +52,33 @@ class RoleBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAdmin = role == UserRole.admin;
+    final roleColor = switch (role) {
+      UserRole.admin => AppColors.accentPeach,
+      UserRole.staff => AppColors.warning,
+      UserRole.instructor => AppColors.primaryDark,
+      UserRole.user => AppColors.primary,
+    };
+    final roleBackground = switch (role) {
+      UserRole.admin => AppColors.accentPeachLight,
+      UserRole.staff => AppColors.warningLight,
+      UserRole.instructor => AppColors.primaryMint,
+      UserRole.user => AppColors.pastelTeal,
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isAdmin ? AppColors.accentPeachLight : AppColors.pastelTeal,
+        color: roleBackground,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isAdmin ? AppColors.accentPeach.withOpacity(0.4) : AppColors.primary.withOpacity(0.2),
+          color: roleColor.withOpacity(0.3),
         ),
       ),
       child: Text(
-        isAdmin ? 'ADMIN' : 'HỌC VIÊN',
+        role.toServerString(),
         style: GoogleFonts.plusJakartaSans(
           fontSize: 11,
           fontWeight: FontWeight.w700,
-          color: isAdmin ? AppColors.accentPeach : AppColors.primary,
+          color: roleColor,
           letterSpacing: 0.3,
         ),
       ),

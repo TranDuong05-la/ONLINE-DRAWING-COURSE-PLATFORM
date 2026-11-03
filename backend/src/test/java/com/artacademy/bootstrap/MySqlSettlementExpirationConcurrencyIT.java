@@ -282,8 +282,8 @@ class MySqlSettlementExpirationConcurrencyIT {
     @Test
     void claimedVoucherFailureRollsBackOrderParticipantsLedgerAndWork() {
         ClaimedFixture fixture = claimedFixture();
-        VoucherConsumptionPort failAfterVoucherWrite = (userId, orderId, reference, paidAt, observedAt) -> {
-            vouchers.consumeForOrder(userId, orderId, reference, paidAt, observedAt);
+        VoucherConsumptionPort failAfterVoucherWrite = (userId, orderId, reference, paidAt, receivedAt, settledAt) -> {
+            vouchers.consumeForOrder(userId, orderId, reference, paidAt, receivedAt, settledAt);
             throw new IllegalStateException("Injected voucher participant failure");
         };
 

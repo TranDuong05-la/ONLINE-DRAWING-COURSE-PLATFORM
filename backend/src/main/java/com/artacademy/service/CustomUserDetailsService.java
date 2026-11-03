@@ -25,7 +25,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
         // Use ROLE_ prefix for Spring Security compatibility with hasRole()
         return new AuthenticatedUserPrincipal(user.getId(), user.getEmail(), user.getPasswordHash(),
-                user.getRole(), Boolean.TRUE.equals(user.getIsActive()));
+                user.getRole(), Boolean.TRUE.equals(user.getIsActive()), user.getTokenVersion());
 
     }
 }

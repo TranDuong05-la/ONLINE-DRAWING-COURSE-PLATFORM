@@ -75,7 +75,8 @@ class CourseOnlyCheckoutApplicationServiceTest {
             public void reserveForOrder(Integer user, StoredOrder order, com.drawingcourse.backend.entity.Order snapshot,
                                         Quote quote, Instant at) { }
             public void releaseForOrder(Integer user, Integer order, VoucherClaim.ReleaseReason reason, Instant at) { }
-            public void consumeForOrder(Integer user, Integer order, String reference, Instant paidAt, Instant at) { }
+            public void consumeForOrder(Integer user, Integer order, String reference, Instant paidAt,
+                                        Instant receivedAt, Instant settledAt) { }
         };
         CheckoutOrderPort orders = snapshot -> {
             recordedOwner[0] = snapshot.getUserId();

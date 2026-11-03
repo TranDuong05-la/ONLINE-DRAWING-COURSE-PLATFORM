@@ -320,7 +320,7 @@ public final class SettlementCoordinator {
         // Shared acquisition order: Order -> Attempt -> Voucher -> Products by ID -> Courses by ID -> Ledger.
         if (order.getVoucherCode() != null) {
             vouchers.consumeForOrder(order.getUserId(), order.getId(), paymentReference,
-                    audit.event().occurredAt(), now);
+                    audit.event().occurredAt(), audit.event().receivedAt(), now);
         }
         var productIds = new TreeSet<Integer>();
         var courseItems = new java.util.TreeMap<Integer, Integer>();

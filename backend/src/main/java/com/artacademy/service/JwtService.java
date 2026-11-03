@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
+import com.artacademy.security.AuthenticatedUserPrincipal;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
@@ -75,6 +76,17 @@ public class JwtService {
         }
     }
 
+    /** Validates a refresh token against the current persisted user token generation. */
+    public boolean isRefreshTokenValid(String token, int currentTokenVersion) {
+        try {
+            return isRefreshTokenValid(token)
+                    && extractTokenVersion(token) == currentTokenVersion;
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("Invalid refresh token version");
+            return false;
+        }
+    }
+
     /**
      * Generate a cryptographically random refresh token string (fallback).
      */
@@ -112,6 +124,19 @@ public class JwtService {
         return extractClaim(token, claims -> claims.get("type", String.class));
     }
 
+    /** Legacy tokens pre-dating V14 are version 1; subsequent account changes increment the DB value. */
+    public int extractTokenVersion(String token) {
+        return extractClaim(token, claims -> {
+            Number version = claims.get("token_version", Number.class);
+            if (version == null) return 1;
+            long parsed = version.longValue();
+            if (parsed < 1 || parsed > Integer.MAX_VALUE || version.doubleValue() != parsed) {
+                throw new IllegalArgumentException("Invalid token version claim");
+            }
+            return (int) parsed;
+        });
+    }
+
     /**
      * Validate the token against the user details.
      */
@@ -119,9 +144,12 @@ public class JwtService {
         try {
             final String username = extractUsername(token);
             final String tokenType = extractTokenType(token);
+            int currentTokenVersion = userDetails instanceof AuthenticatedUserPrincipal principal
+                    ? principal.getTokenVersion() : 1;
             return username.equals(userDetails.getUsername())
                     && !isTokenExpired(token)
-                    && TokenType.ACCESS.name().equals(tokenType);
+                    && TokenType.ACCESS.name().equals(tokenType)
+                    && extractTokenVersion(token) == currentTokenVersion;
         } catch (JwtException | IllegalArgumentException e) {
             log.debug("Invalid JWT token: {}", e.getMessage());
             return false;
@@ -151,9 +179,11 @@ public class JwtService {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + expirationMs);
 
+        int tokenVersion = userDetails instanceof AuthenticatedUserPrincipal principal
+                ? principal.getTokenVersion() : 1;
         return Jwts.builder()
                 .subject(userDetails.getUsername())
-                .claims(Map.of("type", tokenType.name()))
+                .claims(Map.of("type", tokenType.name(), "token_version", tokenVersion))
                 .issuedAt(now)
                 .expiration(expiration)
                 .signWith(signingKey)

@@ -112,8 +112,8 @@ public class CourseDataSeeder implements CommandLineRunner {
         bundle.setDescription("Học trọn bộ kỹ thuật màu nước và phác thảo chân dung với giá ưu đãi.");
         bundle.setPrice(799_000);
         bundleRepository.save(bundle);
-        bundleItemRepository.save(new BundleItem(bundle, watercolor));
-        bundleItemRepository.save(new BundleItem(bundle, portrait));
+        bundleItemRepository.save(new BundleItem(bundle, watercolor, 1));
+        bundleItemRepository.save(new BundleItem(bundle, portrait, 2));
     }
 
     private Course newCourse(String code, String title, String shortDesc, String description, long price,

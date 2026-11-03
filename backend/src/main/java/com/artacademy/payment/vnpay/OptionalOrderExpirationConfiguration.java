@@ -28,8 +28,9 @@ class OptionalOrderExpirationConfiguration {
             PaymentEventConflictRepository conflicts, PaymentSettlementRepository settlements,
             VoucherExpirationReleasePort vouchers,
             ObjectProvider<InventoryReservationReleasePort> inventory,
-            CoursePurchaseReleasePort courses, PlatformTransactionManager transactionManager) {
+            CoursePurchaseReleasePort courses, ObjectProvider<Clock> clocks,
+            PlatformTransactionManager transactionManager) {
         return new OrderExpirationCoordinator(orders, attempts, events, conflicts, settlements, vouchers,
-                inventory.getIfAvailable(), courses, Clock.systemUTC(), transactionManager);
+                inventory.getIfAvailable(), courses, clocks.getIfAvailable(Clock::systemUTC), transactionManager);
     }
 }

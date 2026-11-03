@@ -35,6 +35,9 @@ public class CourseBundle {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @Column(name = "definition_version", nullable = false)
+    private long definitionVersion = 1;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -81,6 +84,14 @@ public class CourseBundle {
 
     public boolean isActive() {
         return active;
+    }
+
+    public long getDefinitionVersion() {
+        return definitionVersion;
+    }
+
+    public void increaseDefinitionVersion() {
+        definitionVersion = Math.addExact(definitionVersion, 1);
     }
 
     public void setActive(boolean active) {

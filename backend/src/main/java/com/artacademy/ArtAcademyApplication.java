@@ -20,9 +20,11 @@ import com.drawingcourse.backend.service.AuthenticatedCartCurrentUser;
 @SpringBootApplication(scanBasePackages = "com.artacademy")
 @EnableAsync
 @EntityScan(basePackages = {"com.artacademy.entity", "com.drawingcourse.backend.entity",
-        "com.artacademy.course", "com.artacademy.bundle", "com.artacademy.product", "com.artacademy.learning"})
+        "com.artacademy.course", "com.artacademy.bundle", "com.artacademy.product", "com.artacademy.learning",
+        "com.artacademy.supply"})
 @EnableJpaRepositories(basePackages = {"com.artacademy.repository", "com.drawingcourse.backend.repository",
-        "com.artacademy.course", "com.artacademy.bundle", "com.artacademy.product", "com.artacademy.learning"})
+        "com.artacademy.course", "com.artacademy.bundle", "com.artacademy.product", "com.artacademy.learning",
+        "com.artacademy.supply"})
 @Import({CourseOnlyCheckoutConfiguration.class, CourseOnlyCartConfiguration.class,
         CartController.class, CourseOnlyCartController.class, CartApiExceptionHandler.class,
         CourseOnlyCheckoutController.class, CourseOnlyCheckoutExceptionHandler.class,

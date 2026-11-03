@@ -115,6 +115,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/files/certificates/*/pdf").permitAll()
                         // Admin endpoints (gồm quản trị khóa học/combo/upload của B và chấm bài của C)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/staff/**").hasAnyRole("STAFF", "ADMIN")
                         // All other API endpoints require authentication
                         .anyRequest().authenticated();
                 })

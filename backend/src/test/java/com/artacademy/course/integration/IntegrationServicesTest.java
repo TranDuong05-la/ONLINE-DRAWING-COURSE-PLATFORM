@@ -63,8 +63,8 @@ class IntegrationServicesTest extends IntegrationTestBase {
         bundle.setTitle("Combo");
         bundle.setPrice(700_000);
         bundleRepository.save(bundle);
-        bundleItemRepository.save(new BundleItem(bundle, a));
-        bundleItemRepository.save(new BundleItem(bundle, b));
+        bundleItemRepository.save(new BundleItem(bundle, a, 1));
+        bundleItemRepository.save(new BundleItem(bundle, b, 2));
 
         BundleSellableService.SellableBundle s = bundleSellableService.getSellableBundle(bundle.getId());
         assertEquals(700_000, s.price());
