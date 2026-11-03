@@ -68,6 +68,10 @@ public class BundleSellableService {
         } else if (courses.isEmpty() || courses.stream().anyMatch(c -> c.getStatus() != CourseStatus.PUBLISHED)) {
             status = BundleSellableStatus.COURSE_NOT_PUBLISHED;
             reason = "Combo có khóa học không còn được bán";
+        } else if (components.stream().anyMatch(c -> !c.unavailableKits().isEmpty())) {
+            // Mọi quà đã cấu hình đều bắt buộc: thiếu một món thì combo không bán được (B không tự bỏ quà)
+            status = BundleSellableStatus.KIT_UNAVAILABLE;
+            reason = "Combo tạm thiếu quà tặng kèm";
         }
         return new BundleSnapshot(bundle.getId(), bundle.getCode(), bundle.getTitle(), bundle.getPrice(),
                 bundle.getDefinitionVersion(), status, reason, bundleMapper.originalTotal(courses), components);
@@ -76,8 +80,8 @@ public class BundleSellableService {
     /**
      * Lấy snapshot của combo ĐANG BÁN ĐƯỢC và còn đúng phiên bản D đang giữ.
      * @throws NotFoundException combo không tồn tại
-     * @throws BundleNotSellableException combo đã tắt hoặc có khóa không còn PUBLISHED (HTTP 409)
-     * @throws BundleChangedException definitionVersion khác expectedVersion (HTTP 409)
+     * @throws BundleNotSellableException combo đã tắt, có khóa không còn PUBLISHED hoặc thiếu quà tặng kèm (HTTP 409, COMBO_NOT_SELLABLE)
+     * @throws BundleChangedException definitionVersion khác expectedVersion (HTTP 409, COMBO_DEFINITION_CHANGED)
      */
     public BundleSnapshot requireSellable(Integer bundleId, int expectedVersion) {
         BundleSnapshot snapshot = getSnapshot(bundleId);

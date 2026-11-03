@@ -13,16 +13,19 @@ import '../models/course_models.dart';
 
 /// Chi tiết khóa học cho học viên: thông tin, quà tặng kèm, danh sách module/bài, học thử.
 class CourseDetailPage extends StatefulWidget {
-  const CourseDetailPage({super.key, required this.courseId});
+  const CourseDetailPage({super.key, required this.courseId, this.repository});
 
   final int courseId;
+
+  /// Tùy chọn, để test truyền repository giả; mặc định gọi API thật.
+  final CourseRepository? repository;
 
   @override
   State<CourseDetailPage> createState() => _CourseDetailPageState();
 }
 
 class _CourseDetailPageState extends State<CourseDetailPage> {
-  final _repo = CourseRepository();
+  late final CourseRepository _repo = widget.repository ?? CourseRepository();
   CourseDetail? _detail;
   String? _error;
   bool _loading = true;
@@ -127,6 +130,13 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             Text('${course.lessonCount} bài · ${formatDuration(course.totalDurationSeconds)}'),
             if (course.hasKits)
               const SmallBadge(text: 'Tặng kèm dụng cụ', color: Color(0xFFE65100), icon: Icons.card_giftcard),
+            if (course.kitsUnavailable)
+              SmallBadge(
+                key: const ValueKey('kits-unavailable-badge'),
+                text: 'Tạm thiếu quà',
+                color: Colors.red.shade700,
+                icon: Icons.inventory_2_outlined,
+              ),
           ],
         ),
         const SizedBox(height: 12),
@@ -223,10 +233,13 @@ class _CourseDetailPageState extends State<CourseDetailPage> {
             Expanded(child: PriceText(price: course.price, discountPrice: course.discountPrice)),
             const SizedBox(width: 12),
             FilledButton.icon(
-              // Qua CartGateway: D sẽ thay bằng giỏ hàng thật, màn hình này không phải sửa
-              onPressed: () => cartGateway.addCourse(context, courseId: course.id, title: course.title),
+              key: const ValueKey('add-course-to-cart'),
+              // Quà tặng kèm là bắt buộc: thiếu quà thì khóa vẫn hiện nhưng chưa cho thêm vào giỏ
+              onPressed: course.kitsUnavailable
+                  ? null
+                  : () => cartGateway.addCourse(context, courseId: course.id, title: course.title),
               icon: const Icon(Icons.add_shopping_cart),
-              label: const Text('Thêm vào giỏ'),
+              label: Text(course.kitsUnavailable ? 'Tạm không thể mua' : 'Thêm vào giỏ'),
             ),
           ],
         ),

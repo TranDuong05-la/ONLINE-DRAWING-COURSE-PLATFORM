@@ -12,7 +12,8 @@ Tài liệu bàn giao cho D (giỏ hàng, đơn hàng) và các bên liên quan.
 ## 2. Khóa học: `CourseSellableService`
 
 ```java
-SellableCourse getSellableCourse(Integer courseId);   // NotFoundException nếu không tồn tại hoặc không PUBLISHED
+SellableCourse getSellableCourse(Integer courseId);   // NotFoundException nếu không tồn tại hoặc không PUBLISHED; kèm status()
+SellableCourse requireSellable(Integer courseId);      // như trên + CourseNotSellableException nếu thiếu quà (dùng khi thêm giỏ và checkout)
 SellableCourse toSellable(Course course);              // dùng nội bộ cho combo
 ```
 
@@ -26,6 +27,8 @@ record UnavailableKit(Integer productId, int quantity, String reason)   // reaso
 ```
 
 - `effectivePrice` = giá giảm nếu có, không thì giá gốc. D tự lưu giá lúc mua vào Order.
+- **Mọi quà đã cấu hình đều bắt buộc** (nhóm đã chốt, áp dụng cho khóa lẻ và combo). `status()` = `AVAILABLE` hoặc `KIT_UNAVAILABLE` (có quà ngừng bán hoặc E không còn sản phẩm); `isSellable()` = `status() == AVAILABLE`. Khóa `KIT_UNAVAILABLE` vẫn hiển thị với nhãn "Tạm thiếu quà" nhưng không được thêm vào giỏ hay checkout. B **không tự bỏ quà** để tiếp tục bán; admin tự gỡ hoặc thay quà nếu muốn bán lại.
+- Hết hàng tạm thời (tồn kho) **không thuộc B**: E quản lý Inventory, D kiểm tra lại khi checkout.
 - `SellableKit.mergeByProduct(Collection<SellableKit>)` cộng gộp `quantity` theo `productId` (giữ thứ tự xuất hiện đầu tiên); dùng khi một đơn có nhiều khóa/combo tặng cùng một sản phẩm.
 
 ## 3. Combo: `BundleSellableService`
@@ -44,20 +47,25 @@ record BundleSnapshot(Integer bundleId, String code, String title,
                       List<Component> courses)                            // đúng thứ tự position 1..n
 record Component(Integer courseId, int position, String title, long effectivePriceVnd,
                  List<SellableKit> kits, List<UnavailableKit> unavailableKits)
-enum BundleSellableStatus { AVAILABLE, INACTIVE, COURSE_NOT_PUBLISHED }
+enum BundleSellableStatus { AVAILABLE, INACTIVE, COURSE_NOT_PUBLISHED, KIT_UNAVAILABLE }
 ```
+
+Thứ tự ưu tiên khi có nhiều lý do: `INACTIVE` > `COURSE_NOT_PUBLISHED` > `KIT_UNAVAILABLE`. `KIT_UNAVAILABLE` nghĩa là có ít nhất một quà của một khóa trong combo đã ngừng bán hoặc không còn trong danh mục của E.
 
 Tiện ích trên snapshot: `isSellable()`, `courseIds()`, `kitTotals()` (quà cả combo, đã cộng gộp), `unavailableKits()`.
 Mọi danh sách và snapshot đều **bất biến** (`List.copyOf`).
 
-### Lỗi (đều là `ApiException`, HTTP 409, nằm ở `com.artacademy.bundle`)
+### Lỗi (typed exception, HTTP 409) và mã lỗi ổn định
 
-| Exception | Khi nào | Dữ liệu kèm |
-|---|---|---|
-| `BundleNotSellableException` | combo đã tắt hoặc có khóa không còn PUBLISHED | `getSellableStatus()` = `INACTIVE` hoặc `COURSE_NOT_PUBLISHED` |
-| `BundleChangedException` | `definitionVersion` hiện tại khác `expectedVersion` | `getExpectedVersion()`, `getActualVersion()` |
+B chỉ ném **typed exception** ở service và cung cấp **mã lỗi ổn định**; việc đổi sang response `ApiResponse` có trường `errorCode` do phía integration làm (B không sửa `ApiResponse` của A).
 
-`getStatus()` của lớp cha là mã HTTP. Nếu vừa không bán được vừa lệch version thì báo **không bán được** trước.
+| Exception | Mã lỗi (`getErrorCode()`) | HTTP | Khi nào | Dữ liệu kèm |
+|---|---|---|---|---|
+| `BundleChangedException` | `COMBO_DEFINITION_CHANGED` | 409 | `definitionVersion` hiện tại khác `expectedVersion` | `getExpectedVersion()`, `getCurrentVersion()` (Flutter dùng để tải lại combo) |
+| `BundleNotSellableException` | `COMBO_NOT_SELLABLE` | 409 | combo đã tắt, có khóa không còn PUBLISHED, hoặc thiếu quà | `getSellableStatus()` = `INACTIVE` / `COURSE_NOT_PUBLISHED` / `KIT_UNAVAILABLE` |
+| `CourseNotSellableException` (`com.artacademy.course.integration`) | `COURSE_NOT_SELLABLE` | 409 | khóa lẻ thiếu quà | `getSellableStatus()` = `KIT_UNAVAILABLE` |
+
+Mã `COURSE_NOT_SELLABLE` là **đề xuất của B** cho khóa lẻ (nhóm mới chốt hai mã của combo), cần D xác nhận. `getStatus()` của lớp cha là mã HTTP. Nếu vừa không bán được vừa lệch version thì báo **không bán được** trước.
 
 ### Luồng khuyến nghị cho D
 
@@ -98,9 +106,13 @@ public interface ProductCatalog {
 - E viết một bean `ProductCatalog` thật rồi đặt `app.products.stand-in=false` để tắt bản tạm `InMemoryProductCatalog` và `StandInProductController` của B.
 - `GET /api/admin/products` (màn chọn quà của admin) hiện do bản tạm phục vụ, trả danh sách sản phẩm đang bán `{ id, sku, name, price, thumbnailUrl }`. E cần cung cấp API cùng đường dẫn và dạng này, hoặc cho B biết dạng khác.
 - `course_included_kits.product_id` là INT, **chưa có khóa ngoại** sang `products`. Đề nghị E chỉ tắt (`active = false`), **không xóa cứng** sản phẩm đang được tặng kèm.
-- Sản phẩm bị tắt hoặc không còn: không hiện cho học viên, và được trả ở `unavailableKits` (B không ẩn đi để D/E quyết định).
+- Sản phẩm bị tắt hoặc không còn: không hiện trong danh sách quà cho học viên, được trả ở `unavailableKits`, và **làm khóa/combo không bán được** (`KIT_UNAVAILABLE`). B không tự bỏ quà khỏi khóa hay combo.
+- API công khai vẫn hiển thị khóa và combo đó, kèm cờ `kitsUnavailable` (trong `CourseSummaryDto` và `BundleDto`) để app hiện nhãn "Tạm thiếu quà" và khóa nút thêm vào giỏ. `KitDto.available` cho admin biết quà nào đã ngừng bán.
 
-## 7. Migration `V10__course_catalog.sql` (dự kiến, chưa chạy)
+## 7. Migration `V10__course_catalog.sql` (chỉ là tài liệu tham chiếu schema, chưa chạy)
+
+Integration đã có Flyway V1 đến V13 (và V14 của A chưa áp dụng). Theo thống nhất: **không đưa file này vào database chung** và không đổi thành V14; phía integration tự review schema và nếu cần migration mới thì dùng V15 trở đi. File giữ nguyên tên `V10` để làm tài liệu tham chiếu.
+
 
 - Tạo: `courses`, `course_modules`, `course_lessons`, `course_included_kits`, `course_bundles` (có `definition_version`), `bundle_items` (có `position`).
 - **Không tạo** bảng `products`. Không sửa V1 đến V9. Không có khóa ngoại sang bảng của A, D, E.
@@ -109,8 +121,12 @@ public interface ProductCatalog {
 - Đã kiểm tra: chạy trên H2 (chế độ MySQL) và đối chiếu từng cột với entity. **Chưa chạy trên MySQL thật** và chưa chạy `MySqlSchemaCompatibilityIT` của D.
 - Đề nghị D review: số version, thứ tự phụ thuộc, tên ràng buộc, cách thêm khóa ngoại sang `products` sau.
 
-## 8. Việc còn chờ chốt
+## 8. Đã chốt và việc còn chờ
 
-- Xử lý quà hết hàng (chặn checkout hay bán không quà), giao hàng, hủy đơn: D, E.
-- Hoàn tiền combo có quà (có phải trả lại quà không): D, C, E.
-- Dạng exception hay kết quả trả về cho lỗi combo: D chọn (hiện B ném exception).
+**Đã chốt:** mọi quà là bắt buộc (khóa lẻ và combo); quà ngừng bán thì không bán được (`KIT_UNAVAILABLE`) nhưng vẫn hiển thị với nhãn "Tạm thiếu quà"; hai mã lỗi `COMBO_DEFINITION_CHANGED` và `COMBO_NOT_SELLABLE` (409); B dùng typed exception, phần đổi sang `ApiResponse` do integration; Order lưu snapshot bất biến của combo (Settlement và Refund dùng snapshot đó, không dùng định nghĩa combo hiện tại).
+
+**Còn chờ:**
+- Mã `COURSE_NOT_SELLABLE` cho khóa lẻ: D xác nhận.
+- Hết hàng tạm thời, giao hàng, hủy đơn: D và E (B không theo dõi tồn kho).
+- Hoàn tiền combo có quà đã giao hoặc đã nhận: D, C, E.
+- Kiểu id sản phẩm của E (INT) và khóa ngoại quà sang `products`: integration kiểm tra schema thực tế.

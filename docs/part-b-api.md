@@ -11,8 +11,8 @@ Lỗi nghiệp vụ trả `success=false` và `message` tiếng Việt; lỗi ki
 | Method | Endpoint | Màn hình Flutter | Ghi chú |
 |:------:|:---------|:-----------------|:--------|
 | `GET` | `/api/courses?keyword=&level=BASIC\|ADVANCED&sort=newest\|price_asc\|price_desc&page=0&size=10` | `CourseListPage` (tab Khóa học → Từng khóa), `HomeTab` (2 khóa mới nhất) | Chỉ khóa `PUBLISHED`. Sắp xếp giá theo giá thực bán (giá giảm nếu có). |
-| `GET` | `/api/courses/{id}` | `CourseDetailPage` | Khóa nháp/ngừng bán trả 404. **Không trả `videoUrl` và link tài liệu** của bài không học thử; bài học thử có `previewVideoUrl`. |
-| `GET` | `/api/bundles`, `/api/bundles/{id}` | `BundleListPage`, `BundleDetailPage` | Combo đang bật và mọi khóa đều `PUBLISHED`. |
+| `GET` | `/api/courses/{id}` | `CourseDetailPage` | Khóa nháp/ngừng bán trả 404. Cờ `kitsUnavailable` (cả ở danh sách): khóa có quà ngừng bán vẫn hiển thị nhưng không cho thêm vào giỏ. **Không trả `videoUrl` và link tài liệu** của bài không học thử; bài học thử có `previewVideoUrl`. |
+| `GET` | `/api/bundles`, `/api/bundles/{id}` | `BundleListPage`, `BundleDetailPage` | Combo đang bật và mọi khóa đều `PUBLISHED`. Có cờ `kitsUnavailable`: combo thiếu quà tặng kèm vẫn hiển thị với nhãn "Tạm thiếu quà" nhưng không cho thêm vào giỏ. |
 | `GET` | `/uploads/**` | `Image.network`, `video_player` | File đã upload (ảnh bìa, video, PDF), hỗ trợ `Range` để tua video. |
 
 ### 4.2. Endpoint quản trị (bắt buộc `Bearer` + role `ADMIN`)
