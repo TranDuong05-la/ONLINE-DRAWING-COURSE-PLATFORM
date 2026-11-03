@@ -11,9 +11,10 @@ Lỗi nghiệp vụ trả `success=false` và `message` tiếng Việt; lỗi ki
 | Method | Endpoint | Màn hình Flutter | Ghi chú |
 |:------:|:---------|:-----------------|:--------|
 | `GET` | `/api/courses?keyword=&level=BASIC\|ADVANCED&sort=newest\|price_asc\|price_desc&page=0&size=10` | `CourseListPage` (tab Khóa học → Từng khóa), `HomeTab` (2 khóa mới nhất) | Chỉ khóa `PUBLISHED`. Sắp xếp giá theo giá thực bán (giá giảm nếu có). |
-| `GET` | `/api/courses/{id}` | `CourseDetailPage` | Khóa nháp/ngừng bán trả 404. Cờ `kitsUnavailable` (cả ở danh sách): khóa có quà ngừng bán vẫn hiển thị nhưng không cho thêm vào giỏ. **Không trả `videoUrl` và link tài liệu** của bài không học thử; bài học thử có `previewVideoUrl`. |
+| `GET` | `/api/courses/{id}` | `CourseDetailPage` | Khóa nháp/ngừng bán trả 404. Cờ `kitsUnavailable` (cả ở danh sách): khóa có quà ngừng bán vẫn hiển thị nhưng không cho thêm vào giỏ. **Không trả `videoUrl` và link tài liệu** của bài không học thử; bài học thử có `previewVideoUrl` (video trên server là link `/media/...` có chữ ký, hết hạn sau ~2 giờ; link ngoài giữ nguyên). |
 | `GET` | `/api/bundles`, `/api/bundles/{id}` | `BundleListPage`, `BundleDetailPage` | Combo đang bật và mọi khóa đều `PUBLISHED`. Có cờ `kitsUnavailable`: combo thiếu quà tặng kèm vẫn hiển thị với nhãn "Tạm thiếu quà" nhưng không cho thêm vào giỏ. |
-| `GET` | `/uploads/**` | `Image.network`, `video_player` | File đã upload (ảnh bìa, video, PDF), hỗ trợ `Range` để tua video. |
+| `GET` | `/uploads/*.jpg\|jpeg\|png\|webp` | `Image.network` | Chỉ **ảnh** (ảnh bìa) còn công khai. Mọi đường dẫn khác dưới `/uploads/**` (video, PDF) bị chặn, kể cả với admin. |
+| `GET` | `/media/{file}?exp=&sig=` | `video_player`, mở PDF | Video/PDF đã upload. Chữ ký HMAC-SHA256 trên `file` + `exp` là thông tin xác thực, nên không cần header đăng nhập (player không gắn được). Sai chữ ký hoặc quá hạn trả 403, thiếu file trả 404. Hỗ trợ `Range` để tua video; không cache. Link do API cấp, mặc định sống 2 giờ (`app.media.url-ttl-seconds`). |
 
 ### 4.2. Endpoint quản trị (bắt buộc `Bearer` + role `ADMIN`)
 
@@ -31,6 +32,7 @@ Lỗi nghiệp vụ trả `success=false` và `message` tiếng Việt; lỗi ki
 | `PUT` | `/api/admin/lessons/{id}` | `AdminLessonFormPage` | Sửa bài (video, thời lượng, PDF, cờ học thử / bắt buộc / ẩn). |
 | `GET` | `/api/admin/products` | `AdminKitsPage` | Sản phẩm đang bán để chọn làm quà. **Bản tạm của B**; E sẽ cung cấp API thật cùng đường dẫn và dạng `{ id, sku, name, price, thumbnailUrl }`. |
 | `POST` | `/api/admin/uploads` | `UploadField` | `multipart`, field `file`; jpg/png/webp ≤ 5MB, pdf ≤ 20MB, mp4 ≤ 2GB (đổi bằng `app.upload.max-video-mb`). Quá giới hạn trả 413. Trả `data.url`. |
+| `GET` | `/api/admin/media/sign?path=/uploads/x.mp4` | `UploadField` (nút xem thử), `AdminLessonFormPage` (đọc thời lượng) | Cấp link xem thử có chữ ký cho video/PDF vừa upload. Trả `data: { url, expiresInSeconds }`; ảnh và link ngoài trả nguyên vẹn; `path` rỗng trả 400. |
 | `GET`, `POST` | `/api/admin/bundles` | `AdminBundleListPage` (tab Combo), `AdminBundleFormPage` | Combo cần từ 2 đến 10 khóa `PUBLISHED` khác nhau, giá combo < tổng giá thực bán. Kết quả có `definitionVersion`. |
 | `GET`, `PUT` | `/api/admin/bundles/{id}` | `AdminBundleFormPage` | |
 | `PATCH` | `/api/admin/bundles/{id}/active` | `AdminBundleListPage` | Bật / tắt combo (không xóa). |

@@ -9,15 +9,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.artacademy.media.MediaUrlSigner;
 import com.artacademy.support.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MvcResult;
 
-/** Test upload ảnh/video/pdf và phục vụ file ở /uploads/**. Upload cần ADMIN; GET /uploads/** công khai. */
+/** Test upload ảnh/video/pdf. Upload cần ADMIN; ảnh phục vụ công khai ở /uploads/**, video và pdf chỉ qua link có chữ ký ở /media/**. */
 @WithMockUser(username = "admin@test.local", roles = "ADMIN")
 class UploadApiTest extends IntegrationTestBase {
+
+    @Autowired MediaUrlSigner signer;
 
     private MockMultipartFile file(String name, String contentType, byte[] data) {
         return new MockMultipartFile("file", name, contentType, data);
@@ -72,18 +76,34 @@ class UploadApiTest extends IntegrationTestBase {
     }
 
     @Test
-    void uploadedFile_isServed_andSupportsRangeRequests() throws Exception {
+    void uploadedVideo_isServedOnlyThroughASignedLink_andSupportsRangeRequests() throws Exception {
         byte[] data = "0123456789".getBytes();
         MvcResult up = mvc.perform(multipart("/api/admin/uploads").file(file("v.mp4", "video/mp4", data)))
                 .andExpect(status().isOk()).andReturn();
-        String url = json.readTree(up.getResponse().getContentAsString()).get("data").get("url").asText();
+        String stored = json.readTree(up.getResponse().getContentAsString()).get("data").get("url").asText();
 
+        // Đường dẫn thô /uploads/xxx.mp4 không còn tải được (kể cả khi đang là admin)
+        mvc.perform(get(stored)).andExpect(status().isForbidden());
+
+        // Link có chữ ký thì tải được, và video_player cần Range để tua
+        String url = signer.signIfProtected(stored);
         MvcResult full = mvc.perform(get(url)).andExpect(status().isOk()).andReturn();
         assertArrayEquals(data, full.getResponse().getContentAsByteArray());
-
-        // video_player trên điện thoại cần Range để tua
         mvc.perform(get(url).header("Range", "bytes=2-5"))
                 .andExpect(status().isPartialContent())
                 .andExpect(header().string("Content-Range", "bytes 2-5/10"));
+    }
+
+    @Test
+    void uploadedImage_isServedPublicly() throws Exception {
+        byte[] data = new byte[]{9, 8, 7, 6};
+        MvcResult up = mvc.perform(multipart("/api/admin/uploads").file(file("bia.png", "image/png", data)))
+                .andExpect(status().isOk()).andReturn();
+        String stored = json.readTree(up.getResponse().getContentAsString()).get("data").get("url").asText();
+
+        MvcResult image = mvc.perform(get(stored).with(org.springframework.security.test.web.servlet.request
+                        .SecurityMockMvcRequestPostProcessors.anonymous()))
+                .andExpect(status().isOk()).andReturn();
+        assertArrayEquals(data, image.getResponse().getContentAsByteArray());
     }
 }
