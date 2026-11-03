@@ -50,8 +50,9 @@ public class BundleMapper {
     public BundleDto toPublic(CourseBundle bundle, List<Course> courses) {
         long total = originalTotal(courses);
         List<CourseSummaryDto> summaries = courseMapper.toSummaries(courses);
+        boolean kitsUnavailable = summaries.stream().anyMatch(CourseSummaryDto::kitsUnavailable);
         return new BundleDto(bundle.getId(), bundle.getCode(), bundle.getTitle(), bundle.getDescription(),
-                bundle.getPrice(), total, Math.max(0, total - bundle.getPrice()), summaries);
+                bundle.getPrice(), total, Math.max(0, total - bundle.getPrice()), kitsUnavailable, summaries);
     }
 
     public AdminBundleDto toAdmin(CourseBundle bundle, List<Course> courses) {
@@ -66,10 +67,16 @@ public class BundleMapper {
         if (bundle.getPrice() >= total) {
             warnings.add("Giá combo không còn rẻ hơn mua lẻ từng khóa, nên kiểm tra lại giá");
         }
+        List<CourseSummaryDto> summaries = courseMapper.toSummaries(courses);
+        for (CourseSummaryDto c : summaries) {
+            if (c.kitsUnavailable()) {
+                warnings.add("Khóa \"" + c.title() + "\" có quà tặng kèm đã ngừng bán nên combo tạm không bán được");
+            }
+        }
         return new AdminBundleDto(bundle.getId(), bundle.getCode(), bundle.getTitle(), bundle.getDescription(),
                 bundle.getPrice(), bundle.getDefinitionVersion(), bundle.isActive(), total,
                 Math.max(0, total - bundle.getPrice()),
-                isVisible(bundle, courses), warnings, courseMapper.toSummaries(courses), bundle.getCreatedAt(),
+                isVisible(bundle, courses), warnings, summaries, bundle.getCreatedAt(),
                 bundle.getUpdatedAt());
     }
 }

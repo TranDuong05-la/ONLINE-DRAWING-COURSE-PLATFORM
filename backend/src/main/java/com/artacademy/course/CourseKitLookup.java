@@ -43,15 +43,25 @@ public class CourseKitLookup {
         return resolveAll(courseId).stream().filter(ResolvedKit::isActive).toList();
     }
 
-    /** Id các khóa có ít nhất 1 món quà còn bán. Dùng để hiện nhãn "Tặng kèm dụng cụ". */
-    public Set<Integer> courseIdsWithActiveKits(java.util.Collection<Integer> courseIds) {
+    /** Cờ về quà của một khóa: hasActive (nhãn "Tặng kèm dụng cụ"), hasUnavailable (nhãn "Tạm thiếu quà"). */
+    public record KitFlags(boolean hasActive, boolean hasUnavailable) {
+        public static final KitFlags NONE = new KitFlags(false, false);
+    }
+
+    /** Cờ quà của nhiều khóa trong 1 lượt truy vấn. Khóa không có quà thì không có trong kết quả. */
+    public Map<Integer, KitFlags> flagsFor(java.util.Collection<Integer> courseIds) {
         if (courseIds.isEmpty()) {
-            return Set.of();
+            return Map.of();
         }
-        Set<Integer> result = new HashSet<>();
+        Set<Integer> active = new HashSet<>();
+        Set<Integer> unavailable = new HashSet<>();
         for (ResolvedKit rk : resolve(kitRepository.findByCourses(courseIds))) {
-            if (rk.isActive()) {
-                result.add(rk.kit().getCourse().getId());
+            (rk.isActive() ? active : unavailable).add(rk.kit().getCourse().getId());
+        }
+        Map<Integer, KitFlags> result = new java.util.HashMap<>();
+        for (Integer id : courseIds) {
+            if (active.contains(id) || unavailable.contains(id)) {
+                result.put(id, new KitFlags(active.contains(id), unavailable.contains(id)));
             }
         }
         return result;
@@ -71,9 +81,9 @@ public class CourseKitLookup {
         KitProduct p = rk.product();
         if (p == null) {
             return new KitDto(rk.kit().getProductId(), null, "Sản phẩm #" + rk.kit().getProductId()
-                    + " (không còn trong danh mục)", null, rk.kit().getQuantity());
+                    + " (không còn trong danh mục)", null, rk.kit().getQuantity(), false);
         }
-        return new KitDto(p.id(), p.sku(), p.name(), p.thumbnailUrl(), rk.kit().getQuantity());
+        return new KitDto(p.id(), p.sku(), p.name(), p.thumbnailUrl(), rk.kit().getQuantity(), p.active());
     }
 
     private List<ResolvedKit> resolve(List<CourseIncludedKit> kits) {

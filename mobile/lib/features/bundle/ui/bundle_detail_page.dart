@@ -12,16 +12,19 @@ import '../models/bundle_models.dart';
 
 /// Chi tiết combo: mô tả, giá, tiền tiết kiệm và danh sách khóa học bên trong.
 class BundleDetailPage extends StatefulWidget {
-  const BundleDetailPage({super.key, required this.bundleId});
+  const BundleDetailPage({super.key, required this.bundleId, this.repository});
 
   final int bundleId;
+
+  /// Tùy chọn, để test truyền repository giả; mặc định gọi API thật.
+  final BundleRepository? repository;
 
   @override
   State<BundleDetailPage> createState() => _BundleDetailPageState();
 }
 
 class _BundleDetailPageState extends State<BundleDetailPage> {
-  final _repo = BundleRepository();
+  late final BundleRepository _repo = widget.repository ?? BundleRepository();
   Bundle? _bundle;
   String? _error;
   bool _loading = true;
@@ -82,9 +85,13 @@ class _BundleDetailPageState extends State<BundleDetailPage> {
                 ),
               ),
               FilledButton.icon(
-                onPressed: () => cartGateway.addBundle(context, bundleId: bundle.id, title: bundle.title),
+                key: const ValueKey('add-bundle-to-cart'),
+                // Quà tặng kèm là bắt buộc: thiếu quà thì combo vẫn hiện nhưng chưa cho thêm vào giỏ
+                onPressed: bundle.kitsUnavailable
+                    ? null
+                    : () => cartGateway.addBundle(context, bundleId: bundle.id, title: bundle.title),
                 icon: const Icon(Icons.add_shopping_cart),
-                label: const Text('Thêm vào giỏ'),
+                label: Text(bundle.kitsUnavailable ? 'Tạm không thể mua' : 'Thêm vào giỏ'),
               ),
             ],
           ),
@@ -114,6 +121,13 @@ class _BundleDetailPageState extends State<BundleDetailPage> {
                 ),
                 SmallBadge(text: 'Tiết kiệm ${formatPrice(bundle.savings)}', color: Colors.red.shade700),
               ],
+              if (bundle.kitsUnavailable)
+                SmallBadge(
+                  key: const ValueKey('kits-unavailable-badge'),
+                  text: 'Tạm thiếu quà',
+                  color: Colors.red.shade700,
+                  icon: Icons.inventory_2_outlined,
+                ),
             ],
           ),
           const SizedBox(height: 20),

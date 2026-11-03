@@ -73,6 +73,13 @@ class CourseCard extends StatelessWidget {
                           color: Color(0xFFE65100),
                           icon: Icons.card_giftcard,
                         ),
+                      if (course.kitsUnavailable)
+                        SmallBadge(
+                          key: const ValueKey('kits-unavailable-badge'),
+                          text: 'Tạm thiếu quà',
+                          color: Colors.red.shade700,
+                          icon: Icons.inventory_2_outlined,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 8),

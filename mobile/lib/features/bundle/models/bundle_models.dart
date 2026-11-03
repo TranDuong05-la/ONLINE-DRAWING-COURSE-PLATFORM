@@ -12,6 +12,7 @@ class Bundle {
     required this.price,
     required this.originalTotal,
     required this.savings,
+    this.kitsUnavailable = false,
     required this.courses,
   });
 
@@ -22,6 +23,9 @@ class Bundle {
   final int price;
   final int originalTotal;
   final int savings;
+
+  /// Có khóa trong combo thiếu quà tặng kèm: combo vẫn hiện nhưng nhãn Tạm thiếu quà và không cho thêm vào giỏ.
+  final bool kitsUnavailable;
   final List<CourseSummary> courses;
 
   factory Bundle.fromJson(Map<String, dynamic> json) {
@@ -33,6 +37,7 @@ class Bundle {
       price: _int(json['price']),
       originalTotal: _int(json['originalTotal']),
       savings: _int(json['savings']),
+      kitsUnavailable: json['kitsUnavailable'] as bool? ?? false,
       courses: (json['courses'] as List? ?? [])
           .map((e) => CourseSummary.fromJson(e as Map<String, dynamic>))
           .toList(),
