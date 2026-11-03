@@ -17,7 +17,7 @@ Profile `h2` nạp khóa học mẫu và 2 tài khoản mẫu: `admin@artnest.vn
 ## File dùng chung mà phần B có sửa
 | File | Thêm gì |
 |---|---|
-| `backend/.../config/SecurityConfig.java` | `GET /api/courses/**`, `/api/bundles/**`, `/uploads/**` công khai (đặt trước rule `/api/admin/**` = ADMIN) |
+| `backend/.../config/SecurityConfig.java` | `GET /api/courses/**`, `/api/bundles/**`, ảnh `/uploads/*.jpg\|jpeg\|png\|webp` và `/media/*` (link có chữ ký) công khai; phần còn lại của `/uploads/**` bị chặn (đặt trước rule `/api/admin/**` = ADMIN) |
 | `backend/.../exception/GlobalExceptionHandler.java` | xử lý lỗi 400/404/405/413/415 và lỗi riêng của B |
 | `backend/src/main/resources/application.yaml` | `spring.servlet.multipart` 2GB (video), `app.upload.dir`, `app.seed.*` |
 | `backend/pom.xml` | H2 đổi scope `test` → `runtime` (cho profile `h2`) |
@@ -38,7 +38,7 @@ Profile `h2` nạp khóa học mẫu và 2 tài khoản mẫu: `admin@artnest.vn
 
 ## Giới hạn hiện tại
 - **Upload:** video tối đa **2GB** (`app.upload.max-video-mb`), ảnh 5MB, pdf 20MB. File lớn không nằm trong RAM: Spring ghi file tạm ra đĩa rồi chuyển vào `uploads/`. Đặt `UPLOAD_TMP_DIR` (thư mục tạm) và `UPLOAD_DIR` (thư mục lưu) trên ổ còn nhiều chỗ, cùng ổ với nhau thì chuyển file nhanh hơn. Đã thử thật: 1GB lên trong khoảng 43 giây, 2.040MB trong khoảng 2 phút, 2,2GB bị từ chối ngay bằng lỗi 413. Nhược điểm của cách này: đứt mạng phải tải lại từ đầu, file chỉ nằm trên một máy, chưa sao lưu.
-- `/uploads/**` công khai: ai biết link thì xem được video, kể cả bài chưa mua. Muốn khóa lại hoặc lưu trên đám mây thì viết class khác implements `FileStorageService` (lưu ý Cloudinary gói miễn phí chỉ nhận video tối đa 100MB).
+- **Video và PDF không còn công khai.** `/uploads/**` chỉ còn phục vụ ảnh; video/PDF chỉ tải được qua link có chữ ký `/media/{file}?exp=&sig=` (HMAC-SHA256, mặc định sống 2 giờ, đổi bằng `app.media.url-ttl-seconds`; khóa ký là `app.media.signing-secret`, mặc định lấy từ `app.jwt.secret`, nên production nên đặt riêng). API chỉ cấp link khi người gọi có quyền xem: bài học thử (ai cũng xem được), bài của khóa đã đăng ký (C kiểm tra Enrollment ACTIVE rồi mới gọi `CourseContentService.getLessonContent`, hàm này trả link ký sẵn), và admin (`GET /api/admin/media/sign`). Hạn chế còn lại: ai có link còn hạn thì xem được tới khi hết hạn (không gắn với tài khoản), nên hãy giữ TTL ngắn; link video ngoài (YouTube...) B không bảo vệ được; ảnh bìa vẫn công khai. Muốn lưu trên đám mây thì viết class khác implements `FileStorageService` (lưu ý Cloudinary gói miễn phí chỉ nhận video tối đa 100MB).
 - **Quà tặng kèm:** sản phẩm thuộc E nên B chỉ lưu `product_id` và tra qua interface `ProductCatalog`. Trong lúc E chưa tích hợp, B dùng bản tạm trong bộ nhớ (`InMemoryProductCatalog`, dữ liệu mẫu chỉ có khi bật `app.seed.enabled`); E đặt `app.products.stand-in=false` để tắt nó.
 - Combo: 2 đến 10 khóa, có `definitionVersion` và vị trí khóa; chưa vào giỏ hàng và đơn hàng (D triển khai sau khi hai bên review hợp đồng).
 - Chưa thử upload file trên Android và trên điện thoại thật.

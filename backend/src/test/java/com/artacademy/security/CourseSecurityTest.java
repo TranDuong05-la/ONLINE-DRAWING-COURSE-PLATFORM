@@ -22,8 +22,11 @@ class CourseSecurityTest extends IntegrationTestBase {
         mvc.perform(get("/api/courses")).andExpect(status().isOk());
         mvc.perform(get("/api/courses/" + c.getId())).andExpect(status().isOk());
         mvc.perform(get("/api/bundles")).andExpect(status().isOk());
-        // file upload công khai: không có file thì 404 chứ không phải 401
-        mvc.perform(get("/uploads/khong-co.mp4")).andExpect(status().isNotFound());
+        // ảnh upload (ảnh bìa) vẫn công khai: không có file thì 404 chứ không phải 401
+        mvc.perform(get("/uploads/khong-co.png")).andExpect(status().isNotFound());
+        // video và PDF KHÔNG còn công khai ở /uploads: phải đi qua link có chữ ký (xem MediaProtectionTest)
+        mvc.perform(get("/uploads/khong-co.mp4")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/uploads/khong-co.pdf")).andExpect(status().isUnauthorized());
     }
 
     @Test

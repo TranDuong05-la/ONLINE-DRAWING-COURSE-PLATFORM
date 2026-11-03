@@ -7,6 +7,7 @@ import com.artacademy.course.CourseLessonRepository;
 import com.artacademy.course.CourseModule;
 import com.artacademy.course.CourseRepository;
 import com.artacademy.course.CourseStatus;
+import com.artacademy.media.MediaUrlSigner;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -18,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
  * ĐIỂM NỐI CHO C: lấy cấu trúc khóa và nội dung bài học (có link video/tài liệu).
  *
  * <p><b>C PHẢI TỰ KIỂM TRA người dùng đã mua khóa (hoặc bài là học thử) TRƯỚC KHI gọi các hàm ở đây.</b>
- * Service này không biết ai đang gọi nên không kiểm tra quyền học.
+ * Service này không biết ai đang gọi nên không kiểm tra quyền học: C PHẢI kiểm tra người dùng đã đăng ký khóa
+ * (ACTIVE) TRƯỚC khi gọi getLessonContent. Link video/tài liệu trong LessonContent là link có chữ ký, hết hạn
+ * sau app.media.url-ttl-seconds (mặc định 2 giờ): đừng lưu lâu, mỗi lần mở bài thì gọi lại để lấy link mới.
  *
  * <p>Khóa HIDDEN (ngừng bán) vẫn trả về bình thường để người đã mua tiếp tục học. Khóa DRAFT thì không.
  */
@@ -28,10 +31,13 @@ public class CourseContentService {
 
     private final CourseRepository courseRepository;
     private final CourseLessonRepository lessonRepository;
+    private final MediaUrlSigner mediaSigner;
 
-    public CourseContentService(CourseRepository courseRepository, CourseLessonRepository lessonRepository) {
+    public CourseContentService(CourseRepository courseRepository, CourseLessonRepository lessonRepository,
+                                MediaUrlSigner mediaSigner) {
         this.courseRepository = courseRepository;
         this.lessonRepository = lessonRepository;
+        this.mediaSigner = mediaSigner;
     }
 
     /** Module/bài đang hiển thị, đúng thứ tự sort_order. */
@@ -59,7 +65,8 @@ public class CourseContentService {
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy bài học"));
         Course course = findLearnableCourse(lesson.getModule().getCourse().getId());
         return new LessonContent(lesson.getId(), course.getId(), lesson.getTitle(), lesson.getDescription(),
-                lesson.getVideoUrl(), lesson.getMaterialUrl(), lesson.getDurationSeconds(), lesson.isRequired());
+                mediaSigner.signIfProtected(lesson.getVideoUrl()), mediaSigner.signIfProtected(lesson.getMaterialUrl()),
+                lesson.getDurationSeconds(), lesson.isRequired());
     }
 
     private Course findLearnableCourse(Integer courseId) {

@@ -107,8 +107,10 @@ class IntegrationServicesTest extends IntegrationTestBase {
         lessonRepository.save(lesson);
 
         LessonContent content = contentService.getLessonContent(lesson.getId());
-        assertEquals(VIDEO, content.videoUrl());
-        assertEquals("/uploads/doc.pdf", content.documentUrl());
+        assertEquals(VIDEO, content.videoUrl(), "link ngoài (http, https) giữ nguyên");
+        // File pdf trên server được trả dưới dạng link có chữ ký, không lộ đường dẫn thô /uploads/doc.pdf
+        assertTrue(content.documentUrl().startsWith("/media/doc.pdf?exp="), content.documentUrl());
+        assertTrue(content.documentUrl().contains("&sig="), content.documentUrl());
         assertEquals(hidden.getId(), content.courseId());
         // người đã mua khóa bị ngừng bán vẫn xem được cấu trúc
         assertEquals(1, contentService.getCourseStructure(hidden.getId()).modules().size());

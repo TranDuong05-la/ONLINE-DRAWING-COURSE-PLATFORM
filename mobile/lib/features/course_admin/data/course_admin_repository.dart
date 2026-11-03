@@ -142,6 +142,13 @@ class CourseAdminRepository {
     return (data as Map<String, dynamic>)['url'] as String;
   }
 
+  /// Video/PDF trên server không còn công khai: muốn xem thử phải xin link có chữ ký (hết hạn sau ~2 giờ).
+  /// Link ngoài và ảnh được server trả nguyên vẹn.
+  Future<String> signMedia(String path) async {
+    final data = await _api.get('/api/admin/media/sign', query: {'path': path});
+    return (data as Map<String, dynamic>)['url'] as String;
+  }
+
   // ------------------------------------------------------------------ combo
 
   Future<List<AdminBundle>> listBundles() async {

@@ -94,13 +94,17 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/v3/api-docs"
                         ).permitAll()
-                        // Khóa học & combo cho học viên (chỉ GET) và file đã upload (ảnh, video, PDF): công khai.
-                        // Video/ảnh được tải bằng Image.network / video_player nên không gửi kèm token được.
+                        // Khóa học & combo cho học viên (chỉ GET), ảnh đã upload (ảnh bìa) và link media có chữ ký: công khai.
+                        // Ảnh được tải bằng Image.network nên không gửi kèm token được. Video/PDF KHÔNG còn công khai:
+                        // chỉ tải được qua /media/{file}?exp&sig (link có hạn do API cấp cho người có quyền xem).
                         .requestMatchers(HttpMethod.GET,
                                 "/api/courses", "/api/courses/**",
                                 "/api/bundles", "/api/bundles/**",
-                                "/uploads/**"
+                                "/uploads/*.jpg", "/uploads/*.jpeg", "/uploads/*.png", "/uploads/*.webp",
+                                "/media/*"
                         ).permitAll()
+                        // Mọi thứ còn lại dưới /uploads (video, pdf, loại khác) bị chặn, kể cả với người đã đăng nhập
+                        .requestMatchers("/uploads/**").denyAll()
                         // Admin endpoints (gồm quản trị khóa học, combo, sản phẩm, upload của phần B)
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // All other API endpoints require authentication
