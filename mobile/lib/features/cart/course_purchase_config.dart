@@ -4,3 +4,8 @@ const bool coursePurchaseUiEnabled = bool.fromEnvironment(
   'COURSE_PURCHASE_ENABLED',
   defaultValue: false,
 );
+
+const bool productPurchaseUiEnabled = bool.fromEnvironment(
+  'PRODUCT_PURCHASE_ENABLED',
+  defaultValue: false,
+);

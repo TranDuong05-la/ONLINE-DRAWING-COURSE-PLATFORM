@@ -19,7 +19,9 @@ class _CartScreenState extends State<CartScreen> {
   CartSnapshot? _cart;
   bool _busy = false;
   String? _error;
-  bool get _enabled => widget.purchaseEnabled ?? coursePurchaseUiEnabled;
+  bool get _courseEnabled => widget.purchaseEnabled ?? coursePurchaseUiEnabled;
+  bool get _enabled => _courseEnabled || productPurchaseUiEnabled;
+  bool get _hasProducts => _cart?.items.any((item) => item.type == CartItemType.product) ?? false;
 
   @override
   void initState() {
@@ -155,10 +157,7 @@ class _CartScreenState extends State<CartScreen> {
                 ),
               ),
             if (cart != null && cart.items.isNotEmpty) ...[
-              Text(
-                'Course items',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
+              Text(productPurchaseUiEnabled ? 'Cart items' : 'Course items', style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 12),
               for (final item in cart.items) _itemCard(item),
               const SizedBox(height: 12),
@@ -171,7 +170,10 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _itemCard(CartItem item) {
-    final supported = item.isCourseCheckoutItem;
+    // Course and Combo lines follow the Course purchase switch; Product lines follow the Product switch.
+    final supported = item.isCourseCheckoutItem
+        ? _courseEnabled
+        : productPurchaseUiEnabled && widget.repository is ProductCartQuantityRepository;
     final isCombo = item.type == CartItemType.combo;
     final available =
         supported && item.availability == CartItemAvailability.available;
@@ -196,6 +198,24 @@ class _CartScreenState extends State<CartScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (available) Text(formatVnd(item.subtotalVnd)),
+            if (available && item.type == CartItemType.product)
+              IconButton(
+                tooltip: 'Decrease quantity',
+                onPressed: _busy || item.quantity <= 1
+                    ? null
+                    : () => _run(() => (widget.repository as ProductCartQuantityRepository)
+                        .setProductQuantity(item.id, item.quantity - 1)),
+                icon: const Icon(Icons.remove_circle_outline),
+              ),
+            if (available && item.type == CartItemType.product)
+              IconButton(
+                tooltip: 'Increase quantity',
+                onPressed: _busy || item.quantity >= 99
+                    ? null
+                    : () => _run(() => (widget.repository as ProductCartQuantityRepository)
+                        .setProductQuantity(item.id, item.quantity + 1)),
+                icon: const Icon(Icons.add_circle_outline),
+              ),
             IconButton(
               tooltip: 'Remove ${item.name}',
               onPressed: _busy
@@ -218,7 +238,7 @@ class _CartScreenState extends State<CartScreen> {
           Text('Order estimate', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 12),
           Text(
-            'Current Course subtotal: ${formatVnd(cart.subtotalVnd)} VND',
+            'Current subtotal: ${formatVnd(cart.subtotalVnd)} VND',
             key: const ValueKey('cart-total'),
           ),
           const SizedBox(height: 8),
@@ -228,18 +248,11 @@ class _CartScreenState extends State<CartScreen> {
           const SizedBox(height: 16),
           FilledButton.icon(
             key: const ValueKey('start-course-checkout'),
-            onPressed:
-                _busy ||
-                    !cart.canCheckout ||
-                    cart.items.any(
-                      (item) =>
-                          !item.isCourseCheckoutItem ||
-                          item.availability != CartItemAvailability.available,
-                    )
+            onPressed: _busy || !cart.canCheckout || !_selectionSupported(cart)
                 ? null
                 : () => context.push('/checkout', extra: cart),
             icon: const Icon(Icons.lock_outline),
-            label: const Text('Continue to checkout'),
+            label: Text(_hasProducts ? 'Continue to product checkout' : 'Continue to Course checkout'),
           ),
           if (!cart.canCheckout || cart.hasUnavailableItems)
             const Padding(
@@ -250,4 +263,15 @@ class _CartScreenState extends State<CartScreen> {
       ),
     ),
   );
+
+  bool _selectionSupported(CartSnapshot cart) {
+    if (cart.items.any((item) => item.availability != CartItemAvailability.available)) return false;
+    final hasCourse = cart.items.any((item) => item.isCourseCheckoutItem);
+    final hasProduct = cart.items.any((item) => item.type == CartItemType.product);
+    // A Combo is sold only through the Course-only flow: never together with Products.
+    if (hasProduct && cart.items.any((item) => item.type == CartItemType.combo)) return false;
+    if (hasCourse && !_courseEnabled) return false;
+    if (hasProduct && (!productPurchaseUiEnabled || widget.repository is! ProductCartQuantityRepository)) return false;
+    return hasProduct || (hasCourse && _courseEnabled);
+  }
 }

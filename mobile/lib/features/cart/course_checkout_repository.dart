@@ -20,6 +20,32 @@ abstract interface class CourseCheckoutRepository {
   Future<Set<int>> refreshOwnedCourses();
 }
 
+abstract interface class ProductCheckoutRepository implements CourseCheckoutRepository {
+  Future<int> createProductOrder({
+    required CartSnapshot cart,
+    required String idempotencyKey,
+    required ProductShippingAddress address,
+    String? voucherCode,
+  });
+}
+
+class ProductShippingAddress {
+  const ProductShippingAddress({
+    required this.recipient,
+    required this.phone,
+    required this.addressLine,
+    required this.locality,
+    required this.countryCode,
+    this.postalCode = '',
+  });
+  final String recipient;
+  final String phone;
+  final String addressLine;
+  final String locality;
+  final String countryCode;
+  final String postalCode;
+}
+
 class CoursePaymentSession {
   const CoursePaymentSession({
     required this.orderId,
@@ -65,7 +91,7 @@ class CoursePaymentSession {
   }
 }
 
-class ApiCourseCheckoutRepository implements CourseCheckoutRepository {
+class ApiCourseCheckoutRepository implements ProductCheckoutRepository {
   ApiCourseCheckoutRepository({
     ApiClient? apiClient,
     ApiOrderHistoryRepository? orders,
@@ -119,6 +145,47 @@ class ApiCourseCheckoutRepository implements CourseCheckoutRepository {
       throw const FormatException(
         'Checkout response did not contain a valid Order ID.',
       );
+    }
+    return (data['orderId'] as num).toInt();
+  }
+
+  @override
+  Future<int> createProductOrder({
+    required CartSnapshot cart,
+    required String idempotencyKey,
+    required ProductShippingAddress address,
+    String? voucherCode,
+  }) async {
+    if (!cart.canCheckout || cart.items.isEmpty ||
+        !cart.items.any((item) => item.type == CartItemType.product) ||
+        cart.items.any((item) => item.availability != CartItemAvailability.available)) {
+      throw const FormatException('Only available Product or mixed Cart items can be checked out here.');
+    }
+    final response = await _api.post<dynamic>(
+      '/api/checkout',
+      headers: {'Idempotency-Key': idempotencyKey},
+      data: {
+        'cartRevision': cart.revision,
+        'selections': cart.items.map((item) => {
+          'cartItemId': item.id,
+          'quantity': item.quantity,
+        }).toList(growable: false),
+        if (voucherCode != null && voucherCode.trim().isNotEmpty) 'voucherCode': voucherCode.trim(),
+        'address': {
+          'recipient': address.recipient,
+          'phone': address.phone,
+          'addressLine': address.addressLine,
+          'locality': address.locality,
+          'postalCode': address.postalCode,
+          'countryCode': address.countryCode,
+        },
+      },
+      fromJsonT: (json) => json,
+    );
+    if (!response.success) throw ApiException(message: response.message, statusCode: 200);
+    final data = response.data;
+    if (data is! Map<String, dynamic> || data['orderId'] is! num || (data['orderId'] as num) <= 0) {
+      throw const FormatException('Product Checkout response did not contain a valid Order ID.');
     }
     return (data['orderId'] as num).toInt();
   }

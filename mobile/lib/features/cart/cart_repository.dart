@@ -12,3 +12,9 @@ abstract interface class CartRepository {
   Future<CartSnapshot> remove(int cartItemId);
   Future<CartSnapshot> clear();
 }
+
+/// Separate capability for the general Product cart. Course quantities remain
+/// constrained to one by the Course-only repository and backend.
+abstract interface class ProductCartQuantityRepository {
+  Future<CartSnapshot> setProductQuantity(int cartItemId, int quantity);
+}
