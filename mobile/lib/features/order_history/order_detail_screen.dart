@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/network/api_exceptions.dart';
+import '../refund/refund_screens.dart';
 import 'data/order_history_repository.dart';
 import 'models/order_history_models.dart';
 import 'state/order_history_controller.dart';
@@ -12,8 +13,11 @@ class OrderDetailScreen extends StatefulWidget {
     required this.orderId,
     required this.repository,
     this.onSessionExpired,
+    this.showRefunds = true,
   });
   final int? orderId;
+  /// Hiện khối hoàn tiền cho dòng khóa học (tắt trong test widget không có backend).
+  final bool showRefunds;
   final OrderHistoryRepository repository;
   final SessionExpiryHandler? onSessionExpired;
 
@@ -85,7 +89,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             const SizedBox(height: 16),
             Text('Items', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            for (final item in order.items) _itemCard(context, item),
+            for (final item in order.items) _itemCard(context, item, order),
             const SizedBox(height: 16),
             Text('Order totals', style: Theme.of(context).textTheme.titleLarge),
             _moneyRow('Merchandise subtotal', order.merchandiseSubtotalVnd),
@@ -131,7 +135,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
     ),
   );
 
-  Widget _itemCard(BuildContext context, OrderItem item) => Card(
+  Widget _itemCard(BuildContext context, OrderItem item, OrderDetail order) => Card(
     key: ValueKey('order-line-${item.orderItemId}'),
     margin: const EdgeInsets.only(bottom: 10),
     child: Padding(
@@ -151,6 +155,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
           _moneyRow('Gross', item.grossAmountVnd),
           _moneyRow('Allocated discount', -item.allocatedDiscountVnd),
           _moneyRow('Net paid', item.netAmountVnd, emphasis: true),
+          // Hoàn tiền khóa học (chỉ đơn đã xác nhận thanh toán)
+          if (widget.showRefunds &&
+              item.itemType == OrderItemType.course &&
+              order.status.wireName == 'CONFIRMED')
+            RefundItemSection(orderId: order.orderId, orderItemId: item.orderItemId),
         ],
       ),
     ),
