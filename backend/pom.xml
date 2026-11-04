@@ -179,6 +179,15 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <!-- Test chạy từ thư mục target/ để KHÔNG đọc backend/.env của từng máy
+                     (application.yaml import optional:file:.env). Cờ bật trong .env không được làm đổi kết quả test. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <workingDirectory>${project.build.directory}</workingDirectory>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 

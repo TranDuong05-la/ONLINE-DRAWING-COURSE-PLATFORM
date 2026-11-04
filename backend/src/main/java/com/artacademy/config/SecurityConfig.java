@@ -39,6 +39,8 @@ public class SecurityConfig {
     private boolean vnPayEnabled;
     @Value("${app.payment.vnpay.ipn.enabled:false}")
     private boolean vnPayIpnEnabled;
+    @Value("${app.payment.vnpay.allow-local-http-return:false}")
+    private boolean vnPayLocalReturnEnabled;
 
     public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter,
                           CustomUserDetailsService userDetailsService,
@@ -86,6 +88,10 @@ public class SecurityConfig {
                     if (vnPayEnabled && vnPayIpnEnabled) {
                         auth.requestMatchers(HttpMethod.GET, "/api/payments/vnpay/ipn")
                                 .permitAll();
+                    }
+                    // Trình duyệt được VNPay chuyển về (không có token); chỉ bật khi chạy local.
+                    if (vnPayEnabled && vnPayLocalReturnEnabled) {
+                        auth.requestMatchers(HttpMethod.GET, "/api/payments/vnpay/return").permitAll();
                     }
                     auth
                         // Public auth endpoints

@@ -107,6 +107,8 @@ app:
       secret-key: ${VNPAY_SECRET_KEY:}
       return-url: ${VNPAY_RETURN_URL:}
       ipn-url: ${VNPAY_IPN_URL:}
+      # Chỉ khi chạy trên máy cá nhân: cho phép URL http và bật trang /api/payments/vnpay/return xác nhận thanh toán
+      allow-local-http-return: ${VNPAY_ALLOW_LOCAL_HTTP_RETURN:false}
       api-version: ${VNPAY_API_VERSION:2.1.0}
       command: ${VNPAY_COMMAND:pay}
   jwt:
