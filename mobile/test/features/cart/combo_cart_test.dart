@@ -147,7 +147,7 @@ void main() {
       );
     });
 
-    testWidgets('a Combo plus a Product still blocks Course-only checkout', (
+    testWidgets('a Combo plus a Product needs Product purchasing enabled in this build', (
       tester,
     ) async {
       await showCart(
@@ -233,7 +233,60 @@ void main() {
       ]);
     });
 
-    test('checkout still refuses a cart that has a Product', () async {
+    test('a Combo and a Product go through one Product checkout with the shipping address', () async {
+      adapter.respond = (request) => {
+        'success': true,
+        'message': 'ok',
+        'data': {'orderId': 91, 'replayed': false},
+      };
+      final cart = CartSnapshot(
+        revision: 6,
+        items: [
+          CartItem(
+            id: 41,
+            itemId: 7,
+            type: CartItemType.combo,
+            name: 'Watercolor + Portrait combo',
+            unitPriceVnd: 799000,
+          ),
+          CartItem(
+            id: 42,
+            itemId: 9,
+            type: CartItemType.product,
+            name: 'Brush set',
+            unitPriceVnd: 50000,
+            quantity: 2,
+          ),
+        ],
+        subtotalVnd: 899000,
+        canCheckout: true,
+        hasUnavailableItems: false,
+      );
+
+      final orderId = await ApiCourseCheckoutRepository(apiClient: api).createProductOrder(
+        cart: cart,
+        idempotencyKey: 'mixed-key',
+        address: const ProductShippingAddress(
+          recipient: 'Buyer',
+          phone: '0900000000',
+          addressLine: '1 Street',
+          locality: 'District 1',
+          countryCode: 'VN',
+        ),
+      );
+
+      expect(orderId, 91);
+      final request = adapter.requests.single;
+      expect(request.path, '/api/checkout');
+      expect(request.data['selections'], [
+        {'cartItemId': 41, 'quantity': 1},
+        {'cartItemId': 42, 'quantity': 2},
+      ]);
+      expect(request.data['address']['recipient'], 'Buyer');
+      expect((request.data as Map).containsKey('price'), isFalse);
+    });
+
+    test('Course-only checkout still refuses a cart that has a Product', () async {
       final cart = CartSnapshot(
         revision: 1,
         items: [

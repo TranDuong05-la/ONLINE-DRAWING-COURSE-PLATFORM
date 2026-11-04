@@ -43,6 +43,16 @@ public final class CourseSellableCartCatalogAdapter implements CourseCartCatalog
         return Optional.of(new CourseListing(courseId, sellable.title(), sellable.effectivePrice(), true));
     }
 
+    @Override
+    public boolean requiresGift(Integer courseId) {
+        if (courseId == null || courseId <= 0) return false;
+        try {
+            return !kits.findByCourse(courseId).isEmpty() && courses.getSellableCourse(courseId) != null;
+        } catch (NotFoundException unavailable) {
+            return false;
+        }
+    }
+
     static int checkedCartCourseId(Integer catalogId) {
         return checkedCartCourseId(catalogId == null ? null : catalogId.longValue());
     }

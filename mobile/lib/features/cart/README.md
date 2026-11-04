@@ -4,7 +4,7 @@ The authenticated mobile Cart uses the backend Course-only Cart contract at `/ap
 
 Checkout posts the Cart revision, selected Cart item IDs, and optional voucher code to `/api/checkout/course-only` with an `Idempotency-Key`. It then uses the persisted Order snapshot and `/api/orders/{id}/payment-session`. VNPay browser return is never treated as payment confirmation; the client rereads Order History and Course ownership from the backend.
 
-The Flutter screens are independently gated by `COURSE_PURCHASE_ENABLED` (default `false`). A demo build opts in with `--dart-define=COURSE_PURCHASE_ENABLED=true`; backend Cart, Course-only Checkout, and VNPay session flags must also be explicitly enabled in the server configuration. Product and mixed-item purchases remain unsupported. A Combo whose Courses include a physical gift is shown but cannot be added until gift delivery exists. `MockCartRepository` remains available only for isolated widget tests.
+The Flutter screens are independently gated by `COURSE_PURCHASE_ENABLED` (default `false`). A demo build opts in with `--dart-define=COURSE_PURCHASE_ENABLED=true`; backend Cart, Course-only Checkout, and VNPay session flags must also be explicitly enabled in the server configuration. Products are bought through the general Cart and Product checkout when the product purchase flag is on; a Combo can share one Order with Courses and Products (the shipping address is needed only when the Order has a Product). A Combo whose Courses include a physical gift is shown but cannot be added until gift delivery exists. `MockCartRepository` remains available only for isolated widget tests.
 
 Run checks from `mobile/`:
 

@@ -256,8 +256,9 @@ public class AuthController {
     @Operation(summary = "Activate or deactivate a user (Admin)", description = "Toggles user active status. Cannot deactivate the last active admin. Requires ADMIN role.", tags = {"Admin User Management"})
     public ResponseEntity<ApiResponse<UserResponse>> updateUserStatus(
             @PathVariable Integer id,
-            @RequestBody Map<String, Boolean> body) {
-        Boolean isActive = body.get("isActive");
+            @RequestBody UpdateUserStatusRequest body) {
+        // Cùng dạng dữ liệu với PUT: isActive hoặc status (ACTIVE/INACTIVE/LOCKED), có thể kèm reason
+        Boolean isActive = body.resolveIsActive();
         if (isActive == null) {
             return ResponseEntity.badRequest()
                     .body(ApiResponse.error("isActive field is required"));

@@ -41,7 +41,8 @@ class _ProductCheckoutScreenState extends State<ProductCheckoutScreen> with Widg
   bool get _validCart => widget.cart.canCheckout &&
       widget.cart.items.any((item) => item.type == CartItemType.product) &&
       widget.cart.items.every((item) => item.availability == CartItemAvailability.available &&
-          (item.type != CartItemType.course || item.quantity == 1));
+          // Courses and Combos are always one line of quantity one; only Products can have a larger quantity.
+          (item.type == CartItemType.product || item.quantity == 1));
 
   @override
   void initState() {

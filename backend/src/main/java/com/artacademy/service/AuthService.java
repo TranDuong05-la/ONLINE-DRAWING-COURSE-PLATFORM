@@ -73,6 +73,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final GoogleTokenInfoClient googleTokenInfoClient;
     private final CloudinaryService cloudinaryService;
+    private final AdminCatalogMetrics catalogMetrics;
     private final Map<String, OtpData> passwordResetOtpCache = new ConcurrentHashMap<>();
 
     public static class OtpData {
@@ -102,7 +103,9 @@ public class AuthService {
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
                        GoogleTokenInfoClient googleTokenInfoClient,
-                       CloudinaryService cloudinaryService) {
+                       CloudinaryService cloudinaryService,
+                       AdminCatalogMetrics catalogMetrics) {
+        this.catalogMetrics = catalogMetrics;
         this.userRepository = userRepository;
         this.addressRepository = addressRepository;
         this.userProfileRepository = userProfileRepository;
@@ -253,6 +256,8 @@ public class AuthService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        // Thu hồi mọi token cũ (access và refresh) của tài khoản này
+        user.setTokenVersion(user.getTokenVersion() != null ? user.getTokenVersion() + 1 : 2);
         userRepository.save(user);
     }
 
@@ -307,6 +312,8 @@ public class AuthService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        // Thu hồi mọi token cũ: ai đang giữ token trước khi đặt lại mật khẩu phải đăng nhập lại
+        user.setTokenVersion(user.getTokenVersion() != null ? user.getTokenVersion() + 1 : 2);
         userRepository.save(user);
 
         // Remove OTP from cache after successful reset
@@ -722,9 +729,9 @@ public class AuthService {
                 .totalStaff(totalStaff)
                 .activeUsers(activeUsers)
                 .inactiveUsers(inactiveUsers)
-                .totalCourses(0L)
-                .totalOrders(0L)
-                .totalRevenue(java.math.BigDecimal.ZERO)
+                .totalCourses(catalogMetrics != null ? catalogMetrics.totalCourses() : 0L)
+                .totalOrders(catalogMetrics != null ? catalogMetrics.totalOrders() : 0L)
+                .totalRevenue(catalogMetrics != null ? catalogMetrics.totalRevenue() : java.math.BigDecimal.ZERO)
                 .build();
     }
 

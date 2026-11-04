@@ -168,6 +168,33 @@ class CheckoutCoordinatorComboTest {
     }
 
     @Test
+    void generalCoordinatorSellsAComboAndAProductInOneOrder() {
+        Fixture f = new Fixture();
+        f.cart.items = List.of(new CartState.Item(1, CartItemType.COMBO, 7, 1),
+                new CartState.Item(2, CartItemType.PRODUCT, 22, 2));
+        var reserved = new ArrayList<String>();
+        var general = new CheckoutCoordinator(f.idempotency, f.cart, f.courseCatalog,
+                id -> Optional.of(new com.drawingcourse.backend.service.checkout.ProductCatalogPort.ProductOffer(
+                        id, "Product", 50_000, true)),
+                f.standalone, new RecordingInventory(reserved), f.vouchers, (user, lines, address) -> 15_000,
+                f.orders, f.clock, f.tx(), f.catalog, f.combos);
+        var request = new CheckoutRequest(3,
+                List.of(new CheckoutRequest.Selection(1, 1), new CheckoutRequest.Selection(2, 2)), Optional.empty(),
+                Optional.of(new CheckoutRequest.Address("Buyer", "0900000000", "1 Street", "District 1", "700000", "VN")));
+
+        var result = general.checkout(17, "general-mixed", request);
+
+        assertEquals(new CheckoutCoordinator.CheckoutResult(501, false), result);
+        assertThat(f.orders.saved.getItems()).extracting(i -> i.catalogSnapshot().itemType())
+                .containsExactly(OrderItemType.COMBO, OrderItemType.PRODUCT);
+        assertEquals(250_000L, f.orders.saved.getItems().get(0).netAmountVnd());
+        assertEquals(250_000L + 100_000L + 15_000L, f.orders.saved.getTotalVnd());
+        assertEquals(1, f.combos.claims.size());
+        assertEquals(1000, f.combos.claims.getFirst().orderItemId());
+        assertThat(reserved).containsExactly("22x2@501");
+    }
+
+    @Test
     void comboVoucherIsRejectedBecauseComboCarriesNoEligibleAmount() {
         Fixture f = new Fixture();
         f.cart.items = List.of(new CartState.Item(1, CartItemType.COMBO, 7, 1));
@@ -300,6 +327,17 @@ class CheckoutCoordinatorComboTest {
         public void releaseForOrder(Integer u, Integer o, VoucherClaim.ReleaseReason reason, Instant at) { }
         public void consumeForOrder(Integer u, Integer o, String ref, Instant paidAt, Instant receivedAt,
                                     Instant settledAt) { }
+    }
+
+    private static final class RecordingInventory implements
+            com.drawingcourse.backend.service.checkout.InventoryReservationPort {
+        private final List<String> reserved;
+        RecordingInventory(List<String> reserved) { this.reserved = reserved; }
+        public void reserveForOrder(Integer u, Integer p, int q, Integer o, Instant expiry) {
+            reserved.add(p + "x" + q + "@" + o);
+        }
+        public void confirmForOrder(Integer u, Integer p, Integer o, Instant at) { }
+        public void releaseForOrder(Integer u, Integer p, Integer o, String reason, Instant at) { }
     }
 
     private static final class NoInventory implements com.drawingcourse.backend.service.checkout.InventoryReservationPort {

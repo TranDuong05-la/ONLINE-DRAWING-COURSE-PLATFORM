@@ -5,9 +5,11 @@ import com.drawingcourse.backend.dto.CartResponse;
 import com.drawingcourse.backend.entity.CartItemType;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Builds a display-only response from persisted Cart identity/quantity and trusted live providers.
@@ -16,6 +18,9 @@ import java.util.Optional;
 public final class CartAvailabilityProjector {
     private static final String COURSE_UNAVAILABLE = "Course is unavailable or not eligible for this account.";
     private static final String PRODUCT_UNAVAILABLE = "Product is unavailable.";
+    private static final String COMBO_UNAVAILABLE = "Combo is unavailable or not eligible for this account.";
+    private static final String COMBO_OVERLAP =
+            "This item covers a Course that is already in your Cart. Remove one of them.";
     private static final String OUT_OF_STOCK = "Insufficient stock for the Cart quantity.";
 
     private final CourseCartCatalogProvider courses;
@@ -24,10 +29,19 @@ public final class CartAvailabilityProjector {
     private final ProductCartCatalogProvider products;
     private final ProductStockAvailabilityProvider stock;
     private final Clock clock;
+    /** Null when Combos are not part of this deployment. */
+    private final ComboCartCatalogProvider combos;
 
     public CartAvailabilityProjector(CourseCartCatalogProvider courses, CourseOwnershipProvider ownership,
             ActivePendingCoursePurchaseProvider pendingPurchases, ProductCartCatalogProvider products,
             ProductStockAvailabilityProvider stock, Clock clock) {
+        this(courses, ownership, pendingPurchases, products, stock, clock, null);
+    }
+
+    public CartAvailabilityProjector(CourseCartCatalogProvider courses, CourseOwnershipProvider ownership,
+            ActivePendingCoursePurchaseProvider pendingPurchases, ProductCartCatalogProvider products,
+            ProductStockAvailabilityProvider stock, Clock clock, ComboCartCatalogProvider combos) {
+        this.combos = combos;
         this.courses = Objects.requireNonNull(courses);
         this.ownership = Objects.requireNonNull(ownership);
         this.pendingPurchases = Objects.requireNonNull(pendingPurchases);
@@ -41,8 +55,11 @@ public final class CartAvailabilityProjector {
         List<CartResponse.Item> projected = new ArrayList<>(cart.items().size());
         List<CartResponse.AvailabilityWarning> warnings = new ArrayList<>();
         long subtotal = 0;
+        // Courses already covered by an earlier line (standalone or inside a Combo): a later line covering the same
+        // Course cannot be bought together with it (checkout rejects duplicate coverage).
+        Set<Integer> covered = new HashSet<>();
         for (CartState.Item item : cart.items()) {
-            CartResponse.Item line = projectItem(cart.userId(), item);
+            CartResponse.Item line = projectItem(cart.userId(), item, covered);
             projected.add(line);
             if (line.availabilityStatus() == CartAvailabilityStatus.AVAILABLE) {
                 subtotal = Math.addExact(subtotal, Objects.requireNonNull(line.lineTotalVnd()));
@@ -56,12 +73,37 @@ public final class CartAvailabilityProjector {
                 !projected.isEmpty() && !unavailable, warnings);
     }
 
-    private CartResponse.Item projectItem(Integer userId, CartState.Item item) {
-        if (item.itemType() == CartItemType.COURSE) return projectCourse(userId, item);
-        // Combos are only purchasable through the Course-only Cart; never mistake a Combo ID for a Product ID.
-        if (item.itemType() == CartItemType.COMBO)
-            throw new CartItemTypeNotSupportedException("General Cart cannot project Combo items");
+    private CartResponse.Item projectItem(Integer userId, CartState.Item item, Set<Integer> covered) {
+        if (item.itemType() == CartItemType.COURSE) {
+            CartResponse.Item line = projectCourse(userId, item);
+            if (line.availabilityStatus() == CartAvailabilityStatus.AVAILABLE && !covered.add(item.itemId()))
+                return unavailable(item, line.displayName(), COMBO_OVERLAP);
+            return line;
+        }
+        if (item.itemType() == CartItemType.COMBO) {
+            // Never mistake a Combo ID for a Product ID: without a Combo catalog the Combo cannot be shown.
+            if (combos == null) throw new CartItemTypeNotSupportedException("Cart cannot project Combo items");
+            return projectCombo(userId, item, covered);
+        }
         return projectProduct(item);
+    }
+
+    private CartResponse.Item projectCombo(Integer userId, CartState.Item item, Set<Integer> covered) {
+        Optional<ComboCartCatalogProvider.ComboListing> found = combos.findCombo(item.itemId());
+        if (found.isEmpty()) return unavailable(item, null, COMBO_UNAVAILABLE);
+        var combo = found.get();
+        boolean eligible = combo.active();
+        for (Integer courseId : combo.courseIds()) {
+            if (!eligible) break;
+            eligible = !ownership.isOwnedBy(userId, courseId)
+                    && !pendingPurchases.hasActivePendingPurchase(userId, courseId, clock.instant());
+        }
+        if (!eligible) return unavailable(item, combo.name(), COMBO_UNAVAILABLE);
+        if (combo.courseIds().stream().anyMatch(covered::contains))
+            return unavailable(item, combo.name(), COMBO_OVERLAP);
+        covered.addAll(combo.courseIds());
+        long total = Math.multiplyExact(combo.currentPriceVnd(), item.quantity());
+        return available(item, combo.name(), combo.currentPriceVnd(), total);
     }
 
     private CartResponse.Item projectCourse(Integer userId, CartState.Item item) {

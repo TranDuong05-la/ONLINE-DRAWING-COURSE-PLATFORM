@@ -8,6 +8,7 @@ import com.drawingcourse.backend.service.OrderPersistenceService;
 import com.drawingcourse.backend.service.AuthenticatedOrderCurrentUser;
 import com.drawingcourse.backend.service.checkout.*;
 import java.time.Clock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -37,9 +38,19 @@ public class ProductCheckoutConfiguration {
             CoursePurchasePort coursePurchases, InventoryReservationPort inventory, ShippingQuotePort shipping,
             VoucherReservationPort vouchers, CartRepository carts, CheckoutRequestRepository checkoutRequests,
             UserRepository users, OrderRepository orders, OrderItemRepository orderItems, OrderCurrentUser currentUser,
-            OrderShippingAddressRepository shippingAddresses, PlatformTransactionManager transactions) {
+            OrderShippingAddressRepository shippingAddresses, PlatformTransactionManager transactions,
+            ObjectProvider<ComboCatalogPort> comboCatalog, ObjectProvider<ComboPurchasePort> comboPurchases) {
         var idempotency = new CheckoutIdempotencyService(checkoutRequests, users, orders, Clock.systemUTC(), transactions);
         var persistence = new OrderPersistenceService(orders, orderItems, currentUser, transactions, shippingAddresses);
+        // A Combo can share an Order with Products only when B's Combo catalog and C's claim participant are present.
+        ComboCatalogPort combos = comboCatalog.getIfAvailable();
+        ComboPurchasePort comboClaims = comboPurchases.getIfAvailable();
+        if (combos != null && comboClaims != null) {
+            return new CheckoutCoordinator(idempotency, new JpaCheckoutCartPort(carts), courses, products,
+                    coursePurchases, inventory, vouchers, shipping,
+                    new OrderPersistenceCheckoutPort(persistence), Clock.systemUTC(), transactions,
+                    combos, comboClaims);
+        }
         return new CheckoutCoordinator(idempotency, new JpaCheckoutCartPort(carts), courses, products,
                 coursePurchases, inventory, vouchers, shipping,
                 new OrderPersistenceCheckoutPort(persistence), Clock.systemUTC(), transactions);

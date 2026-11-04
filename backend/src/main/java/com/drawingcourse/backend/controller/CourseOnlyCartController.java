@@ -44,7 +44,8 @@ public final class CourseOnlyCartController {
     public ResponseEntity<ApiResponse<CartResponse>> addCourse(@Valid @RequestBody CartItemRequest request) {
         // A Combo is one purchasable line (quantity 1), like a Course; Products belong to the general Cart.
         if (request.itemType() != CartItemType.COURSE && request.itemType() != CartItemType.COMBO)
-            throw new CartPolicyConflictException("Course-only Cart accepts Course and Combo items only");
+            throw new CartPolicyConflictException(
+                    com.drawingcourse.backend.service.CartPolicyMessages.TYPE_NOT_SUPPORTED);
         return ok("Cart item added successfully", carts.add(request.itemType(), request.itemId(), request.quantity()));
     }
 

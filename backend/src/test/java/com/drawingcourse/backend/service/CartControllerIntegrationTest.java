@@ -39,7 +39,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(classes = ArtAcademyApplication.class, properties = "app.cart.api-enabled=true")
+@SpringBootTest(classes = ArtAcademyApplication.class,
+        properties = {"app.cart.api-enabled=true", "app.cart.test-fixtures=true"})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import(CartControllerIntegrationTest.CartApiTestConfiguration.class)
@@ -230,7 +231,8 @@ class CartControllerIntegrationTest {
     }
 
     @TestConfiguration(proxyBeanMethods = false)
-    @ConditionalOnProperty(name = "app.cart.api-enabled", havingValue = "true")
+    // Cờ riêng để các test khác bật giỏ chung (app.cart.api-enabled) không bị lẫn dữ liệu giả của test này
+    @ConditionalOnProperty(name = {"app.cart.api-enabled", "app.cart.test-fixtures"}, havingValue = "true")
     static class CartApiTestConfiguration {
         @Bean TestCartFixtures cartTestFixtures() { return new TestCartFixtures(); }
         @Bean @Primary CartCatalog<Integer, Integer> cartCatalog(TestCartFixtures f) {

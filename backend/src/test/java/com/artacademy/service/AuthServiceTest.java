@@ -60,6 +60,9 @@ class AuthServiceTest {
     @Mock
     private CloudinaryService cloudinaryService;
 
+    @Mock
+    private AdminCatalogMetrics catalogMetrics;
+
     @InjectMocks
     private AuthService authService;
 
@@ -548,6 +551,9 @@ class AuthServiceTest {
         when(userRepository.countByRole(Role.STAFF)).thenReturn(1L);
         when(userRepository.countByIsActive(true)).thenReturn(8L);
         when(userRepository.countByIsActive(false)).thenReturn(2L);
+        when(catalogMetrics.totalCourses()).thenReturn(7L);
+        when(catalogMetrics.totalOrders()).thenReturn(12L);
+        when(catalogMetrics.totalRevenue()).thenReturn(new java.math.BigDecimal("3450000"));
 
         AdminDashboardResponse dashboard = authService.getAdminDashboard();
 
@@ -557,6 +563,66 @@ class AuthServiceTest {
         assertThat(dashboard.getTotalStaff()).isEqualTo(1L);
         assertThat(dashboard.getActiveUsers()).isEqualTo(8L);
         assertThat(dashboard.getInactiveUsers()).isEqualTo(2L);
+        // số liệu khóa học và đơn hàng lấy từ dữ liệu thật, không còn gán cứng bằng 0
+        assertThat(dashboard.getTotalCourses()).isEqualTo(7L);
+        assertThat(dashboard.getTotalOrders()).isEqualTo(12L);
+        assertThat(dashboard.getTotalRevenue()).isEqualByComparingTo("3450000");
+    }
+
+    @Test
+    @DisplayName("Đổi mật khẩu: thu hồi mọi token cũ bằng cách tăng tokenVersion")
+    void changePassword_revokesOldTokens() {
+        testUser.setTokenVersion(3);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(java.util.Optional.of(testUser));
+        when(passwordEncoder.matches("OldPassword1!", testUser.getPasswordHash())).thenReturn(true);
+        when(passwordEncoder.matches("NewPassword1!", testUser.getPasswordHash())).thenReturn(false);
+        when(passwordEncoder.encode("NewPassword1!")).thenReturn("$2a$10$newhash");
+        ChangePasswordRequest request = new ChangePasswordRequest();
+        request.setCurrentPassword("OldPassword1!");
+        request.setNewPassword("NewPassword1!");
+        request.setConfirmPassword("NewPassword1!");
+
+        authService.changePassword("user@example.com", request);
+
+        assertThat(testUser.getPasswordHash()).isEqualTo("$2a$10$newhash");
+        assertThat(testUser.getTokenVersion()).isEqualTo(4);
+        verify(userRepository).save(testUser);
+    }
+
+    @Test
+    @DisplayName("Đặt lại mật khẩu bằng OTP: thu hồi mọi token cũ bằng cách tăng tokenVersion")
+    void resetPasswordWithOtp_revokesOldTokens() {
+        testUser.setTokenVersion(5);
+        when(userRepository.findByEmail("user@example.com")).thenReturn(java.util.Optional.of(testUser));
+        when(passwordEncoder.matches("NewPassword1!", testUser.getPasswordHash())).thenReturn(false);
+        when(passwordEncoder.encode("NewPassword1!")).thenReturn("$2a$10$resethash");
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, AuthService.OtpData> cache = (java.util.Map<String, AuthService.OtpData>)
+                org.springframework.test.util.ReflectionTestUtils.getField(authService, "passwordResetOtpCache");
+        cache.put("user@example.com", new AuthService.OtpData("123456", LocalDateTime.now().plusMinutes(5)));
+        ResetPasswordRequest request = new ResetPasswordRequest();
+        request.setEmail("user@example.com");
+        request.setOtp("123456");
+        request.setNewPassword("NewPassword1!");
+        request.setConfirmPassword("NewPassword1!");
+
+        authService.resetPasswordWithOtp(request);
+
+        assertThat(testUser.getPasswordHash()).isEqualTo("$2a$10$resethash");
+        assertThat(testUser.getTokenVersion()).isEqualTo(6);
+        assertThat(cache).doesNotContainKey("user@example.com");
+    }
+
+    @Test
+    @DisplayName("Đổi trạng thái tài khoản bằng PATCH chấp nhận reason như PUT")
+    void patchStatusRequest_acceptsReason_andStatusWords() throws Exception {
+        UpdateUserStatusRequest withReason = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                "{\"isActive\":false,\"reason\":\"Vi phạm quy định\"}", UpdateUserStatusRequest.class);
+        assertThat(withReason.resolveIsActive()).isFalse();
+        assertThat(withReason.getReason()).isEqualTo("Vi phạm quy định");
+        UpdateUserStatusRequest byStatus = new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                "{\"status\":\"ACTIVE\",\"reason\":\"Đã giải quyết\"}", UpdateUserStatusRequest.class);
+        assertThat(byStatus.resolveIsActive()).isTrue();
     }
 
     @Test

@@ -121,7 +121,7 @@ Video/PDF đã upload **không còn công khai**: `/uploads/**` chỉ phục v�
 
 ## 6c. Mua combo (giỏ → đặt hàng → thanh toán → cấp quyền học)
 
-Phạm vi: chế độ **Course-only** (`app.cart.course-only.api-enabled`, `app.checkout.course-only.*`). Giỏ chung có Product và Product Checkout **không nhận combo** (từ chối rõ ràng, không bao giờ coi id combo là id sản phẩm).
+Phạm vi: **hai chế độ**. (1) **Course-only** (`app.cart.course-only.api-enabled`, `app.checkout.course-only.*`): giỏ chỉ khóa học và combo. (2) **Giỏ chung + Product Checkout** (`app.cart.api-enabled`, `app.checkout.product.*`): một đơn có thể gồm khóa lẻ, **combo** và học cụ (PRODUCT) cùng lúc; phần học cụ chạy đúng luồng của C/E (địa chỉ giao hàng, phí giao hàng cố định, giữ hàng ở kho E, tạo chuyến giao khi thanh toán xong), phần combo chạy như mô tả dưới đây. Trong cả hai chế độ id combo **không bao giờ** bị coi là id sản phẩm: coordinator nào không được nối `ComboCatalogPort`/`ComboPurchasePort` thì từ chối dòng COMBO.
 
 - **Loại hàng mới `COMBO`** (giỏ `cart_items` và đơn `order_items`; cùng từ vựng `COMBO` với refund của D). Một combo là **MỘT dòng**, số lượng luôn 1, giá = giá combo, **không áp voucher** (`voucher_eligible = false`).
 - **Giỏ:** `POST /api/cart/items {"itemType":"COMBO","itemId":<id>,"quantity":1}`. Thêm được khi B báo combo bán được (`BundleSellableService.getSnapshot`), **không khóa nào kèm quà**, học viên chưa sở hữu và không có đơn chờ cho khóa nào trong combo. Thêm lại cùng combo là idempotent. Dòng combo trùng khóa với dòng khác trong giỏ (khóa lẻ hoặc combo khác) được báo `UNAVAILABLE`.
@@ -129,7 +129,8 @@ Phạm vi: chế độ **Course-only** (`app.cart.course-only.api-enabled`, `app
 - **Snapshot của combo chính là tập claim:** C lưu mỗi khóa một claim `COMBO_COMPONENT` (có `component_position`, gắn `order_item_id`). Settlement/hết hạn/hoàn tiền dùng tập claim này, **không đọc lại** định nghĩa combo hiện tại, nên sửa combo sau khi đặt không đổi những gì đã mua. Giá lấy lúc đặt hàng (như khóa lẻ), không ghim theo lúc thêm vào giỏ; `definitionVersion` chưa lưu vào đơn.
 - **Thanh toán xong:** `SettlementCoordinator` gọi `confirmComboForOrder` (C) xác nhận toàn bộ claim của OrderItem và cấp Enrollment từng khóa (có `source_order_item_id`). **Hết hạn:** `OrderExpirationCoordinator` gọi `releaseComboForExpiredOrder` nhả mọi claim còn RESERVED. Hai hàm mới là `default` ném lỗi ở interface của D để participant không hỗ trợ combo thì từ chối chứ không cấp nửa chừng; C đã cài đủ.
 - **DB:** migration `V18__combo_cart_and_order_items.sql` chỉ nới `CHECK` của `cart_items`/`order_items` thêm `COMBO` (combo và khóa số lượng 1, sản phẩm tùy ý). Đã chạy V1→V18 trên MySQL 8 thật (database tạm) và kiểm tra ràng buộc.
-- **Chưa làm:** hoàn tiền combo (D chưa có API refund), combo kèm quà học cụ (cần giao hàng/kho), voucher cho combo (D chốt không áp).
+- **Đơn hỗn hợp combo + học cụ:** một transaction giữ hàng (E) và giữ chỗ từng khóa của combo (C); thiếu hàng hoặc lỗi một khóa thì hủy cả đơn. Thanh toán xong: tạo giao hàng cho học cụ và cấp quyền học đủ khóa. Hết hạn: trả hàng và nhả chỗ mọi khóa. Địa chỉ chỉ bắt buộc khi đơn có học cụ; đơn chỉ có combo/khóa không cần địa chỉ và không có phí giao hàng. Combo không áp voucher; voucher (nếu có) chỉ tính trên khóa lẻ và học cụ đủ điều kiện.
+- **Chưa làm:** hoàn tiền combo (D chưa có API refund; luồng hoàn tiền khóa lẻ của C từ chối dòng COMBO), combo kèm quà học cụ (cần giao hàng/kho), voucher cho combo (D chốt không áp).
 
 ## 7. Migration `V10__course_catalog.sql` (chỉ là tài liệu tham chiếu schema, chưa chạy)
 

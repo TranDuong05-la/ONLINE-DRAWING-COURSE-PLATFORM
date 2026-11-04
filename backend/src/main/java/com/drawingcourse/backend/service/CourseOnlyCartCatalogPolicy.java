@@ -35,29 +35,33 @@ public final class CourseOnlyCartCatalogPolicy implements CartCatalog<Integer, I
             return;
         }
         if (item.getItemType() != CartItemType.COURSE)
-            throw new CartItemTypeNotSupportedException("Course-only Cart does not accept Product items");
+            throw new CartItemTypeNotSupportedException(CartPolicyMessages.TYPE_NOT_SUPPORTED);
         if (item.getItemId() == null || item.getItemId() <= 0)
             throw new IllegalArgumentException("Course ID must be positive");
-        var listing = courses.findCourse(item.getItemId())
-                .orElseThrow(() -> new CartPolicyConflictException("Course is unavailable for purchase"));
-        if (!listing.active() || ownership.isOwnedBy(userId, item.getItemId())
-                || pending.hasActivePendingPurchase(userId, item.getItemId(), clock.instant())) {
-            throw new CartPolicyConflictException("Course is unavailable for this account");
-        }
+        var listing = courses.findCourse(item.getItemId()).orElseThrow(() -> new CartPolicyConflictException(
+                courses.requiresGift(item.getItemId()) ? CartPolicyMessages.COURSE_GIFT
+                        : CartPolicyMessages.COURSE_NOT_FOR_SALE));
+        if (!listing.active()) throw new CartPolicyConflictException(CartPolicyMessages.COURSE_NOT_FOR_SALE);
+        if (ownership.isOwnedBy(userId, item.getItemId()))
+            throw new CartPolicyConflictException(CartPolicyMessages.COURSE_OWNED);
+        if (pending.hasActivePendingPurchase(userId, item.getItemId(), clock.instant()))
+            throw new CartPolicyConflictException(CartPolicyMessages.COURSE_PENDING);
     }
 
     /** A Combo is purchasable only if it is sellable and the account owns none of its Courses and has none pending. */
     private void requireComboPurchasable(Integer userId, CartItem<Integer> item) {
-        if (combos == null) throw new CartItemTypeNotSupportedException("Cart does not accept Combo items");
+        if (combos == null) throw new CartItemTypeNotSupportedException(CartPolicyMessages.TYPE_NOT_SUPPORTED);
         if (item.getItemId() == null || item.getItemId() <= 0)
             throw new IllegalArgumentException("Combo ID must be positive");
-        var combo = combos.findCombo(item.getItemId())
-                .orElseThrow(() -> new CartPolicyConflictException("Combo is unavailable for purchase"));
-        if (!combo.active()) throw new CartPolicyConflictException("Combo is unavailable for purchase");
+        var combo = combos.findCombo(item.getItemId()).orElseThrow(() -> new CartPolicyConflictException(
+                combos.requiresGift(item.getItemId()) ? CartPolicyMessages.COMBO_GIFT
+                        : CartPolicyMessages.COMBO_NOT_FOR_SALE));
+        if (!combo.active()) throw new CartPolicyConflictException(CartPolicyMessages.COMBO_NOT_FOR_SALE);
         for (Integer courseId : combo.courseIds()) {
-            if (ownership.isOwnedBy(userId, courseId)
-                    || pending.hasActivePendingPurchase(userId, courseId, clock.instant()))
-                throw new CartPolicyConflictException("Combo is unavailable for this account");
+            if (ownership.isOwnedBy(userId, courseId))
+                throw new CartPolicyConflictException(CartPolicyMessages.COMBO_OWNED);
+            if (pending.hasActivePendingPurchase(userId, courseId, clock.instant()))
+                throw new CartPolicyConflictException(CartPolicyMessages.COMBO_PENDING);
         }
     }
 }

@@ -40,6 +40,20 @@ public final class BundleSellableCartCatalogAdapter implements ComboCartCatalogP
         return Optional.of(new ComboListing(comboId, snapshot.title(), snapshot.priceVnd(), snapshot.courseIds(), true));
     }
 
+    @Override
+    public boolean requiresGift(Integer comboId) {
+        if (comboId == null || comboId <= 0) return false;
+        try {
+            var snapshot = bundles.getSnapshot(comboId);
+            // Combo còn bán (kể cả khi quà tạm hết) nhưng có khóa kèm quà học cụ thật
+            return snapshot != null && hasGift(snapshot)
+                    && (snapshot.isSellable()
+                    || snapshot.status() == com.artacademy.bundle.BundleSellableStatus.KIT_UNAVAILABLE);
+        } catch (NotFoundException unavailable) {
+            return false;
+        }
+    }
+
     /** Any configured gift (available or not) means physical fulfillment, which this flow cannot do. */
     public static boolean hasGift(BundleSnapshot snapshot) {
         return snapshot.courses().stream()

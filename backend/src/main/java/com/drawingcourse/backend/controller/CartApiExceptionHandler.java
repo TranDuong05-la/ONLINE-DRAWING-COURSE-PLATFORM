@@ -36,13 +36,13 @@ public final class CartApiExceptionHandler {
     @ExceptionHandler({CartConflictException.class, BusinessException.class, ArithmeticException.class})
     public ResponseEntity<ApiResponse<Void>> conflict(RuntimeException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error("Cart operation conflicts with current state"));
+                .body(ApiResponse.error("Giỏ hàng vừa thay đổi hoặc thao tác này không hợp lệ. Vui lòng tải lại giỏ hàng và thử lại."));
     }
 
+    /** Lý do cụ thể (đã sở hữu, đang chờ thanh toán, có quà tặng kèm, không còn bán...) do chính sách giỏ hàng tạo, an toàn để hiển thị. */
     @ExceptionHandler({CartPolicyConflictException.class, CartItemTypeNotSupportedException.class})
     public ResponseEntity<ApiResponse<Void>> policyConflict(RuntimeException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error("Cart operation conflicts with current state"));
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.error(ex.getMessage()));
     }
 
     @ExceptionHandler(CartCatalogUnavailableException.class)

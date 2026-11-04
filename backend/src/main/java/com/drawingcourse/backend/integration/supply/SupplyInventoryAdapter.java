@@ -36,8 +36,13 @@ public final class SupplyInventoryAdapter implements InventoryReservationPort,
     @Override public void confirmProductForOrder(Integer userId, Integer productId, Integer orderId, Instant confirmedAt) {
         var a = addresses.findByOrder_IdAndOrder_UserId(orderId, userId)
                 .orElseThrow(() -> new IllegalStateException("Physical Order has no trusted shipping snapshot")).toSnapshot();
-        String address = String.join(", ", a.addressLine(), a.locality(), a.postalCode(), a.countryCode());
+        // Bỏ phần trống (ví dụ không có mã bưu chính) để địa chỉ không bị thừa dấu phẩy
+        String address = formatAddress(a.addressLine(), a.locality(), a.postalCode(), a.countryCode());
         supply.onOrderPaid(orderId, userId, new ShippingInfo(a.recipient(), a.phone(), address));
+    }
+    static String formatAddress(String... parts) {
+        return java.util.Arrays.stream(parts).filter(p -> p != null && !p.isBlank()).map(String::strip)
+                .collect(java.util.stream.Collectors.joining(", "));
     }
     @Override public void releaseForOrder(Integer userId, Integer productId, Integer orderId, String reason, Instant releasedAt) {
         supply.releaseForOrder(orderId, reason);

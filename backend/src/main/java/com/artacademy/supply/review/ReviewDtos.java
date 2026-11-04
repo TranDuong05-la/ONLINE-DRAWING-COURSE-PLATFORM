@@ -12,6 +12,7 @@ public final class ReviewDtos {
     private ReviewDtos() {
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "ProductReviewRequest")
     public record ReviewRequest(
             @NotNull(message = "Chọn số sao") @Min(value = 1, message = "Tối thiểu 1 sao")
             @Max(value = 5, message = "Tối đa 5 sao") Integer rating,

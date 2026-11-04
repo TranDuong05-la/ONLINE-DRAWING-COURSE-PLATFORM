@@ -76,6 +76,19 @@ public final class CheckoutCoordinator {
         this.transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRED);
     }
 
+    /**
+     * General (Course + Product + Combo) coordinator: like the plain constructor, and a Combo line also sells its
+     * Courses (one Order line, one claim per Course) in the same Order and transaction as the Products.
+     */
+    public CheckoutCoordinator(CheckoutIdempotencyPort idempotency, CheckoutCartPort carts,
+            CourseCatalogPort courses, ProductCatalogPort products, CoursePurchasePort coursePurchases,
+            InventoryReservationPort inventory, VoucherReservationPort vouchers, ShippingQuotePort shipping,
+            CheckoutOrderPort orders, Clock clock, PlatformTransactionManager transactionManager,
+            ComboCatalogPort combos, ComboPurchasePort comboPurchases) {
+        this(idempotency, carts, courses, products, coursePurchases, inventory, vouchers, shipping,
+                orders, clock, transactionManager, false, combos, comboPurchases);
+    }
+
     /** Constructs a Course-only coordinator without fake Product, Inventory, or Shipping participants. */
     public static CheckoutCoordinator courseOnly(CheckoutIdempotencyPort idempotency, CheckoutCartPort carts,
             CourseCatalogPort courses, CoursePurchasePort coursePurchases, VoucherReservationPort vouchers,
@@ -154,9 +167,9 @@ public final class CheckoutCoordinator {
             throw rejected(CheckoutRejectedException.Reason.UNSUPPORTED_ITEM_TYPE,
                     "Course-only Checkout does not support Product items");
         }
-        // Combos are Course bundles: only the Course-only mode wired with Combo participants can sell them. A Combo ID
+        // Combos are Course bundles: only a coordinator wired with Combo participants can sell them. A Combo ID
         // must never fall through to the Product branch below.
-        if ((!courseOnly || combos == null)
+        if (combos == null
                 && selected.stream().anyMatch(line -> line.cartItem().itemType() == CartItemType.COMBO)) {
             throw rejected(CheckoutRejectedException.Reason.UNSUPPORTED_ITEM_TYPE,
                     "This Checkout does not support Combo items");

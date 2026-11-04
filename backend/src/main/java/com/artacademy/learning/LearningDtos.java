@@ -96,6 +96,7 @@ public final class LearningDtos {
 			String imagePath, List<SubmissionDto> history) {
 	}
 
+	@io.swagger.v3.oas.annotations.media.Schema(name = "SubmissionReviewRequest")
 	public record ReviewRequest(@NotBlank String decision, @Size(max = 2000) String feedback,
 			@DecimalMin("0") @DecimalMax("100") BigDecimal score) {
 	}

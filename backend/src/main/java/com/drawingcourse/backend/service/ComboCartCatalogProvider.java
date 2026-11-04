@@ -12,6 +12,9 @@ import java.util.Optional;
 public interface ComboCartCatalogProvider {
     Optional<ComboListing> findCombo(Integer comboId);
 
+    /** True when the Combo exists but is not sold here only because one of its Courses carries a physical gift. */
+    default boolean requiresGift(Integer comboId) { return false; }
+
     /** The Combo is ONE purchasable line; courseIds are the Courses whose access it grants. */
     record ComboListing(Integer comboId, String name, long currentPriceVnd, List<Integer> courseIds, boolean active) {
         public ComboListing {

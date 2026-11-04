@@ -204,21 +204,31 @@ class ComboPurchaseH2IntegrationTest {
         User buyer = user();
         String auth = bearer(buyer);
 
-        addToCart(auth, "COMBO", 999_999, 409); // không tồn tại
+        assertThat(addToCart(auth, "COMBO", 999_999, 409).path("message").asText())
+                .isEqualTo("Combo này hiện không bán được."); // không tồn tại
 
         Combo inactive = combo(220_000);
         CourseBundle row = bundles.findById(inactive.id).orElseThrow();
         row.setActive(false);
         bundles.saveAndFlush(row);
-        addToCart(auth, "COMBO", inactive.id, 409); // đã tắt
+        assertThat(addToCart(auth, "COMBO", inactive.id, 409).path("message").asText())
+                .isEqualTo("Combo này hiện không bán được."); // đã tắt
 
         Combo withGift = combo(220_000);
         kits.saveAndFlush(new CourseIncludedKit(courses.findById(withGift.courseIds.getFirst()).orElseThrow(), 999_999, 1));
-        addToCart(auth, "COMBO", withGift.id, 409); // có khóa kèm quà học cụ thật: chưa giao quà được
+        // có khóa kèm quà học cụ thật: chưa giao quà được, và thông báo nói rõ lý do
+        assertThat(addToCart(auth, "COMBO", withGift.id, 409).path("message").asText())
+                .contains("quà tặng").contains("học cụ");
+        // cùng lý do với khóa lẻ có quà tặng kèm
+        assertThat(addToCart(auth, "COURSE", withGift.courseIds.getFirst(), 409).path("message").asText())
+                .contains("quà tặng").contains("học cụ");
 
         Combo pending = combo(220_000);
         seedPendingClaim(buyer, pending.courseIds.getLast());
-        addToCart(auth, "COMBO", pending.id, 409); // một khóa trong combo đang chờ thanh toán ở đơn khác
+        // một khóa trong combo đang chờ thanh toán ở đơn khác
+        assertThat(addToCart(auth, "COMBO", pending.id, 409).path("message").asText()).contains("chờ thanh toán");
+        assertThat(addToCart(auth, "COURSE", pending.courseIds.getLast(), 409).path("message").asText())
+                .contains("chờ thanh toán");
 
         assertThat(cartRows(buyer.getId())).isZero();
     }
@@ -333,7 +343,8 @@ class ComboPurchaseH2IntegrationTest {
 
         // đã sở hữu: combo trong giỏ báo không khả dụng, từng khóa cũng không thêm lại được
         assertThat(cartLine(auth, 0).path("availabilityStatus").asText()).isEqualTo("UNAVAILABLE");
-        addToCart(auth, "COURSE", combo.courseIds.getLast(), 409);
+        assertThat(addToCart(auth, "COURSE", combo.courseIds.getLast(), 409).path("message").asText())
+                .isEqualTo("Bạn đã sở hữu khóa học này rồi.");
         Combo again = new Combo(combo.id, combo.title, combo.courseIds);
         User other = user();
         assertThat(addToCart(bearer(other), "COMBO", again.id, 200).path("data").path("items").get(0)

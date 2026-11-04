@@ -268,8 +268,6 @@ class _CartScreenState extends State<CartScreen> {
     if (cart.items.any((item) => item.availability != CartItemAvailability.available)) return false;
     final hasCourse = cart.items.any((item) => item.isCourseCheckoutItem);
     final hasProduct = cart.items.any((item) => item.type == CartItemType.product);
-    // A Combo is sold only through the Course-only flow: never together with Products.
-    if (hasProduct && cart.items.any((item) => item.type == CartItemType.combo)) return false;
     if (hasCourse && !_courseEnabled) return false;
     if (hasProduct && (!productPurchaseUiEnabled || widget.repository is! ProductCartQuantityRepository)) return false;
     return hasProduct || (hasCourse && _courseEnabled);

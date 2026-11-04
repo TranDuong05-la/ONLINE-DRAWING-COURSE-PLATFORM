@@ -117,7 +117,7 @@ class ApiCourseCartGateway implements CartGateway {
     required String title,
   }) async {
     if (!coursePurchaseUiEnabled) {
-      showMessage(context, 'Course purchasing is disabled in this app build.');
+      showMessage(context, 'Bản ứng dụng này chưa bật tính năng mua khóa học.');
       return;
     }
     final messenger = ScaffoldMessenger.of(context);
@@ -135,7 +135,7 @@ class ApiCourseCartGateway implements CartGateway {
             SnackBar(
               content: Text(
                 response.message.isEmpty
-                    ? 'Could not add this Combo.'
+                    ? 'Không thể thêm combo này vào giỏ hàng.'
                     : response.message,
               ),
             ),
@@ -146,21 +146,22 @@ class ApiCourseCartGateway implements CartGateway {
       if (!messenger.mounted) return;
       messenger.showSnackBar(
         SnackBar(
-          content: const Text('Combo added to your cart.'),
+          content: const Text('Đã thêm combo vào giỏ hàng.'),
           action: SnackBarAction(
-            label: 'View Cart',
+            label: 'Xem giỏ hàng',
             onPressed: () => router.push('/cart'),
           ),
         ),
       );
-    } on ConflictException {
-      // 409: gift required, a Course is already owned or pending, or the Combo is no longer on sale.
+    } on ConflictException catch (error) {
+      // 409: server nêu rõ lý do (đã sở hữu khóa trong combo, có quà tặng kèm, không còn bán...)
       if (messenger.mounted) {
         messenger.showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'This Combo cannot be bought right now: you may already own one of its Courses, '
-              'or it is currently unavailable.',
+              error.message.isEmpty
+                  ? 'Không thể mua combo này lúc này.'
+                  : error.message,
             ),
           ),
         );
@@ -173,7 +174,7 @@ class ApiCourseCartGateway implements CartGateway {
       if (messenger.mounted) {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('Could not add this Combo. Please try again.'),
+            content: Text('Không thể thêm combo. Vui lòng thử lại.'),
           ),
         );
       }

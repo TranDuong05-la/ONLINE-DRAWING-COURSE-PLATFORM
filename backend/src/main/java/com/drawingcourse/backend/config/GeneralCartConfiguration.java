@@ -1,5 +1,6 @@
 package com.drawingcourse.backend.config;
 
+import com.artacademy.bundle.BundleSellableService;
 import com.artacademy.course.CourseKitRepository;
 import com.artacademy.course.integration.CourseSellableService;
 import com.artacademy.learning.claim.CourseClaimService;
@@ -28,22 +29,27 @@ public class GeneralCartConfiguration {
     @Bean ActivePendingCoursePurchaseProvider generalCartPendingCourses(CourseClaimService claims) {
         return claims::hasActivePendingPurchase;
     }
+    /** B's Combo catalog: a Combo is one Cart line; Combos whose Courses carry physical gifts stay unavailable. */
+    @Bean ComboCartCatalogProvider generalCartComboCatalog(BundleSellableService bundles) {
+        return new BundleSellableCartCatalogAdapter(bundles);
+    }
     @Bean CartCatalog<Integer, Integer> generalCartCatalog(CourseCartCatalogProvider courses,
             @Qualifier("generalCartCourseOwnership") CourseOwnershipProvider ownership,
             @Qualifier("generalCartPendingCourses") ActivePendingCoursePurchaseProvider pending,
-            ProductCartCatalogProvider products) {
-        return new GeneralCartCatalogPolicy(courses, ownership, pending, products, Clock.systemUTC());
+            ProductCartCatalogProvider products, ComboCartCatalogProvider combos) {
+        return new GeneralCartCatalogPolicy(courses, ownership, pending, products, Clock.systemUTC(), combos);
     }
     @Bean CartApplicationService generalCartApplicationService(CartRepository carts, CartItemRepository items,
             AuthenticatedCartCurrentUser currentUser, CartCatalog<Integer, Integer> generalCartCatalog,
             PlatformTransactionManager transactions) {
         return new CartApplicationService(carts, items, currentUser, generalCartCatalog, transactions,
-                Set.of(CartItemType.COURSE, CartItemType.PRODUCT));
+                Set.of(CartItemType.COURSE, CartItemType.PRODUCT, CartItemType.COMBO));
     }
     @Bean CartAvailabilityProjector generalCartAvailabilityProjector(CourseCartCatalogProvider courses,
             @Qualifier("generalCartCourseOwnership") CourseOwnershipProvider ownership,
             @Qualifier("generalCartPendingCourses") ActivePendingCoursePurchaseProvider pending,
-            ProductCartCatalogProvider products, ProductStockAvailabilityProvider stock) {
-        return new CartAvailabilityProjector(courses, ownership, pending, products, stock, Clock.systemUTC());
+            ProductCartCatalogProvider products, ProductStockAvailabilityProvider stock,
+            ComboCartCatalogProvider combos) {
+        return new CartAvailabilityProjector(courses, ownership, pending, products, stock, Clock.systemUTC(), combos);
     }
 }
