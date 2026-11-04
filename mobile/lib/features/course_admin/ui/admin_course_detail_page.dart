@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/staff_area.dart';
 import '../../../core/network/api_exceptions.dart';
 import '../../../core/utils/format.dart';
 import '../../../core/widgets/app_image.dart';
@@ -13,7 +14,8 @@ import 'admin_course_form_page.dart';
 import 'admin_kits_page.dart';
 import 'admin_module_page.dart';
 
-/// Màn quản lý một khóa học: thông tin, trạng thái, quà tặng, danh sách module (kéo thả để sắp xếp).
+/// Màn quản lý một khóa học: thông tin, trạng thái, quà tặng, giảng viên, danh sách module (kéo thả để sắp xếp).
+/// Giảng viên ([StaffArea.instructor]) chỉ sửa module / bài học: không sửa thông tin, giá, trạng thái, quà, giảng viên.
 class AdminCourseDetailPage extends StatefulWidget {
   const AdminCourseDetailPage({super.key, required this.courseId});
 
@@ -25,8 +27,10 @@ class AdminCourseDetailPage extends StatefulWidget {
 
 class _AdminCourseDetailPageState extends State<AdminCourseDetailPage> {
   final _repo = CourseAdminRepository();
+  final bool _admin = !StaffArea.instructor;
   AdminCourseDetail? _detail;
   List<AdminModule> _modules = []; // bản sao để kéo thả mượt, đồng bộ lại từ server sau mỗi lần tải
+  List<CourseInstructor> _instructors = [];
   String? _error;
   bool _loading = true;
   bool _busy = false;
@@ -46,10 +50,12 @@ class _AdminCourseDetailPageState extends State<AdminCourseDetailPage> {
     }
     try {
       final detail = await _repo.getCourse(widget.courseId);
+      final instructors = _admin ? await _repo.listInstructors(widget.courseId) : <CourseInstructor>[];
       if (!mounted) return;
       setState(() {
         _detail = detail;
         _modules = List.of(detail.modules);
+        _instructors = instructors;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -120,6 +126,35 @@ class _AdminCourseDetailPageState extends State<AdminCourseDetailPage> {
     if (mounted) _load(silent: true);
   }
 
+  Future<void> _assignInstructor() async {
+    final email = await showTextInputDialog(context, title: 'Phân công giảng viên', hint: 'Email giảng viên');
+    if (email == null || email.isEmpty) return;
+    try {
+      await _repo.assignInstructor(widget.courseId, email);
+      if (!mounted) return;
+      showMessage(context, 'Đã phân công $email');
+      _load(silent: true);
+    } on ApiException catch (e) {
+      if (mounted) showMessage(context, e.displayMessage, error: true);
+    }
+  }
+
+  Future<void> _unassignInstructor(CourseInstructor i) async {
+    final ok = await confirmDialog(context,
+        title: 'Gỡ giảng viên?',
+        message: '${i.fullName ?? i.email} sẽ không sửa nội dung / chấm bài khóa này được nữa.',
+        confirmLabel: 'Gỡ');
+    if (!ok) return;
+    try {
+      await _repo.unassignInstructor(widget.courseId, i.userId);
+      if (!mounted) return;
+      showMessage(context, 'Đã gỡ giảng viên');
+      _load(silent: true);
+    } on ApiException catch (e) {
+      if (mounted) showMessage(context, e.displayMessage, error: true);
+    }
+  }
+
   Future<void> _editKits() async {
     final saved = await Navigator.of(context).push<bool>(MaterialPageRoute(
       builder: (_) => AdminKitsPage(courseId: widget.courseId, currentKits: _detail!.kits),
@@ -140,7 +175,8 @@ class _AdminCourseDetailPageState extends State<AdminCourseDetailPage> {
       appBar: AppBar(
         title: Text(course.title, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
-          IconButton(tooltip: 'Sửa thông tin', icon: const Icon(Icons.edit_outlined), onPressed: _edit),
+          if (_admin)
+            IconButton(tooltip: 'Sửa thông tin', icon: const Icon(Icons.edit_outlined), onPressed: _edit),
         ],
       ),
       body: RefreshIndicator(
@@ -151,8 +187,12 @@ class _AdminCourseDetailPageState extends State<AdminCourseDetailPage> {
             _buildInfoCard(detail),
             const SizedBox(height: 12),
             _buildStatusCard(detail),
-            const SizedBox(height: 12),
-            _buildKitsCard(detail),
+            if (_admin) ...[
+              const SizedBox(height: 12),
+              _buildKitsCard(detail),
+              const SizedBox(height: 12),
+              _buildInstructorsCard(),
+            ],
             const SizedBox(height: 20),
             Row(
               children: [
@@ -275,7 +315,9 @@ class _AdminCourseDetailPageState extends State<AdminCourseDetailPage> {
                   ],
                 ),
               ),
-            if (status == 'PUBLISHED')
+            if (!_admin)
+              Text('Xuất bản / ngừng bán do ADMIN thực hiện.', style: Theme.of(context).textTheme.bodySmall)
+            else if (status == 'PUBLISHED')
               OutlinedButton.icon(
                 onPressed: _busy ? null : () => _changeStatus('HIDDEN'),
                 icon: const Icon(Icons.visibility_off_outlined),
@@ -324,6 +366,42 @@ class _AdminCourseDetailPageState extends State<AdminCourseDetailPage> {
                 '• ${kit.name} x${kit.quantity}${kit.available ? '' : ' (đã ngừng bán, khóa tạm không bán được)'}',
                 style: kit.available ? null : TextStyle(color: Theme.of(context).colorScheme.error),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInstructorsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.school_outlined, size: 20),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Giảng viên phụ trách', style: Theme.of(context).textTheme.titleSmall)),
+                TextButton(onPressed: _assignInstructor, child: const Text('Phân công')),
+              ],
+            ),
+            if (_instructors.isEmpty)
+              Text('Chưa phân công giảng viên', style: Theme.of(context).textTheme.bodySmall)
+            else
+              for (final i in _instructors)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(i.fullName ?? i.email ?? 'Giảng viên #${i.userId}'),
+                  subtitle: i.email == null ? null : Text(i.email!),
+                  trailing: IconButton(
+                    tooltip: 'Gỡ',
+                    icon: const Icon(Icons.person_remove_outlined),
+                    onPressed: () => _unassignInstructor(i),
+                  ),
+                ),
           ],
         ),
       ),

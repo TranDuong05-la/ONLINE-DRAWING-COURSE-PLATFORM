@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../core/constants/staff_area.dart';
 import '../core/network/api_client.dart';
 import '../core/storage/token_storage.dart';
 import '../models/learning_models.dart';
@@ -118,13 +119,13 @@ class LearningRepository {
       });
 
   Future<SubmissionSummary> adminSummary() =>
-      _data(_get('/api/admin/submissions/summary'), (j) => SubmissionSummary.fromJson(_map(j)));
+      _data(_get('${StaffArea.api}/submissions/summary'), (j) => SubmissionSummary.fromJson(_map(j)));
 
   Future<List<CourseOption>> adminSubmissionCourses() =>
-      _data(_get('/api/admin/submissions/courses'), (j) => _list(j, CourseOption.fromJson));
+      _data(_get('${StaffArea.api}/submissions/courses'), (j) => _list(j, CourseOption.fromJson));
 
   Future<SubmissionPage> adminSubmissions({int? courseId, String? status, int page = 0, int size = 20}) => _data(
-      _get('/api/admin/submissions', queryParameters: {
+      _get('${StaffArea.api}/submissions', queryParameters: {
         'courseId': ?courseId,
         'status': ?status,
         'page': page,
@@ -133,10 +134,10 @@ class LearningRepository {
       (j) => SubmissionPage.fromJson(_map(j)));
 
   Future<AdminSubmission> adminSubmission(int id) =>
-      _data(_get('/api/admin/submissions/$id'), (j) => AdminSubmission.fromJson(_map(j)));
+      _data(_get('${StaffArea.api}/submissions/$id'), (j) => AdminSubmission.fromJson(_map(j)));
 
   Future<AdminSubmission> review(int id, {required String decision, String? feedback, double? score}) => _data(
-      _post('/api/admin/submissions/$id/review', data: {
+      _post('${StaffArea.api}/submissions/$id/review', data: {
         'decision': decision,
         'feedback': feedback,
         'score': score,
@@ -145,8 +146,12 @@ class LearningRepository {
 
   /// Danh sách khóa cho màn soạn đề: lấy từ API quản trị khóa học của B.
   /// Học viên của một khóa (đang học trước) để admin cấp / thu hồi quyền học thủ công.
+  /// Ở khu vực giảng viên chỉ xem được (cấp / thu hồi vẫn là của ADMIN).
   Future<List<AdminEnrollment>> adminEnrollments(int courseId) => _data(
-      _get('/api/admin/learning/courses/$courseId/enrollments'), (j) => _list(j, AdminEnrollment.fromJson));
+      _get(StaffArea.instructor
+          ? '/api/instructor/courses/$courseId/enrollments'
+          : '/api/admin/learning/courses/$courseId/enrollments'),
+      (j) => _list(j, AdminEnrollment.fromJson));
 
   Future<AdminEnrollment> grantEnrollment(int courseId, String email) => _data(
       _post('/api/admin/learning/courses/$courseId/enrollments', data: {'email': email}),
@@ -157,18 +162,23 @@ class LearningRepository {
       _post('/api/admin/learning/enrollments/$enrollmentId/revoke', data: {'reason': reason}),
       (j) => AdminEnrollment.fromJson(_map(j)));
 
-  Future<List<CourseOption>> adminAllCourses() => _data(
-      _get('/api/admin/courses', queryParameters: {'page': 0, 'size': 100}),
-      (j) => _list(_map(j)['content'], (c) => CourseOption((c['id'] as num).toInt(), c['title'] as String? ?? '')));
+  /// Giảng viên: chỉ khóa được phân công (server trả danh sách, không phân trang).
+  Future<List<CourseOption>> adminAllCourses() => StaffArea.instructor
+      ? _data(_get('/api/instructor/courses'),
+          (j) => _list(j, (c) => CourseOption((c['id'] as num).toInt(), c['title'] as String? ?? '')))
+      : _data(_get('/api/admin/courses', queryParameters: {'page': 0, 'size': 100}),
+          (j) => _list(_map(j)['content'], (c) => CourseOption((c['id'] as num).toInt(), c['title'] as String? ?? '')));
 
   Future<List<LessonAssignmentAdmin>> adminLessonAssignments(int courseId) => _data(
-      _get('/api/admin/learning/courses/$courseId/assignments'),
+      _get(StaffArea.instructor
+          ? '/api/instructor/courses/$courseId/assignments'
+          : '/api/admin/learning/courses/$courseId/assignments'),
       (j) => _list(j, LessonAssignmentAdmin.fromJson));
 
   Future<LessonAssignmentAdmin> saveAssignment(int lessonId,
           {required String title, String? instructions, required bool required, required bool active}) =>
       _data(
-          _put('/api/admin/lessons/$lessonId/assignment', data: {
+          _put('${StaffArea.api}/lessons/$lessonId/assignment', data: {
             'title': title,
             'instructions': instructions,
             'required': required,

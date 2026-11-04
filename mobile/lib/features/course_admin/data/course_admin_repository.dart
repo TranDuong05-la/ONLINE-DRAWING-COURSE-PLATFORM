@@ -1,9 +1,11 @@
+import '../../../core/constants/staff_area.dart';
 import '../../../core/network/course_api.dart';
 import '../../bundle/models/bundle_models.dart';
 import '../../course/models/course_models.dart';
 import '../models/admin_models.dart';
 
-/// Gọi API quản trị (/api/admin/**).
+/// Gọi API quản trị (/api/admin/**). Ở khu vực giảng viên ([StaffArea.instructor]) các hàm sửa nội dung gọi
+/// /api/instructor/** thay thế; các hàm chỉ ADMIN được dùng (tạo khóa, giá, trạng thái, quà, combo) giữ nguyên.
 /// TODO(A): khi có đăng nhập JWT, gắn token vào header Authorization trong ApiClient.
 class CourseAdminRepository {
   final CourseApi _api = CourseApi.instance;
@@ -16,6 +18,7 @@ class CourseAdminRepository {
     int page = 0,
     int size = 20,
   }) async {
+    if (StaffArea.instructor) return _instructorCourses(status, keyword);
     final data = await _api.get('/api/admin/courses', query: {
       'status': ?status,
       if (keyword != null && keyword.trim().isNotEmpty) 'keyword': keyword.trim(),
@@ -25,10 +28,34 @@ class CourseAdminRepository {
     return PageResult.fromJson(data as Map<String, dynamic>, CourseSummary.fromJson);
   }
 
+  /// Khóa được phân công (server trả cả danh sách, thường ít): lọc trạng thái / tên ngay trên máy.
+  Future<PageResult<CourseSummary>> _instructorCourses(String? status, String? keyword) async {
+    final data = await _api.get('/api/instructor/courses');
+    final q = keyword?.trim().toLowerCase() ?? '';
+    final items = (data as List)
+        .map((e) => CourseSummary.fromJson(e as Map<String, dynamic>))
+        .where((c) => (status == null || c.status == status) && (q.isEmpty || c.title.toLowerCase().contains(q)))
+        .toList();
+    return PageResult(items: items, page: 0, totalPages: 1, totalElements: items.length);
+  }
+
   Future<AdminCourseDetail> getCourse(int id) async {
-    final data = await _api.get('/api/admin/courses/$id');
+    final data = await _api.get('${StaffArea.api}/courses/$id');
     return AdminCourseDetail.fromJson(data as Map<String, dynamic>);
   }
+
+  // ------------------------------------------------------------------ giảng viên của khóa (chỉ ADMIN)
+
+  Future<List<CourseInstructor>> listInstructors(int courseId) async {
+    final data = await _api.get('/api/admin/courses/$courseId/instructors');
+    return (data as List).map((e) => CourseInstructor.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  Future<void> assignInstructor(int courseId, String email) =>
+      _api.post('/api/admin/courses/$courseId/instructors', body: {'email': email});
+
+  Future<void> unassignInstructor(int courseId, int userId) =>
+      _api.delete('/api/admin/courses/$courseId/instructors/$userId');
 
   /// [id] = null thì tạo mới (POST), ngược lại cập nhật (PUT).
   Future<AdminCourseDetail> saveCourse({
@@ -67,19 +94,19 @@ class CourseAdminRepository {
   // ------------------------------------------------------------------ module / bài học
 
   Future<AdminModule> createModule(int courseId, String title) async {
-    final data = await _api.post('/api/admin/courses/$courseId/modules',
+    final data = await _api.post('${StaffArea.api}/courses/$courseId/modules',
         body: {'title': title, 'hidden': false});
     return AdminModule.fromJson(data as Map<String, dynamic>);
   }
 
   Future<AdminModule> updateModule(int moduleId, {required String title, required bool hidden}) async {
-    final data = await _api.put('/api/admin/modules/$moduleId',
+    final data = await _api.put('${StaffArea.api}/modules/$moduleId',
         body: {'title': title, 'hidden': hidden});
     return AdminModule.fromJson(data as Map<String, dynamic>);
   }
 
   Future<void> reorderModules(int courseId, List<int> ids) =>
-      _api.put('/api/admin/courses/$courseId/modules/reorder', body: {'ids': ids});
+      _api.put('${StaffArea.api}/courses/$courseId/modules/reorder', body: {'ids': ids});
 
   /// [lessonId] = null thì tạo mới trong [moduleId], ngược lại cập nhật bài đó.
   Future<AdminLesson> saveLesson({
@@ -105,13 +132,13 @@ class CourseAdminRepository {
       'hidden': hidden,
     };
     final data = lessonId == null
-        ? await _api.post('/api/admin/modules/$moduleId/lessons', body: body)
-        : await _api.put('/api/admin/lessons/$lessonId', body: body);
+        ? await _api.post('${StaffArea.api}/modules/$moduleId/lessons', body: body)
+        : await _api.put('${StaffArea.api}/lessons/$lessonId', body: body);
     return AdminLesson.fromJson(data as Map<String, dynamic>);
   }
 
   Future<void> reorderLessons(int moduleId, List<int> ids) =>
-      _api.put('/api/admin/modules/$moduleId/lessons/reorder', body: {'ids': ids});
+      _api.put('${StaffArea.api}/modules/$moduleId/lessons/reorder', body: {'ids': ids});
 
   // ------------------------------------------------------------------ quà tặng
 
@@ -137,7 +164,7 @@ class CourseAdminRepository {
     required String fileName,
     void Function(double progress)? onProgress,
   }) async {
-    final data = await _api.upload('/api/admin/uploads',
+    final data = await _api.upload('${StaffArea.api}/uploads',
         filePath: filePath, fileName: fileName, onProgress: onProgress);
     return (data as Map<String, dynamic>)['url'] as String;
   }
@@ -145,7 +172,7 @@ class CourseAdminRepository {
   /// Video/PDF trên server không còn công khai: muốn xem thử phải xin link có chữ ký (hết hạn sau ~2 giờ).
   /// Link ngoài và ảnh được server trả nguyên vẹn.
   Future<String> signMedia(String path) async {
-    final data = await _api.get('/api/admin/media/sign', query: {'path': path});
+    final data = await _api.get('${StaffArea.api}/media/sign', query: {'path': path});
     return (data as Map<String, dynamic>)['url'] as String;
   }
 

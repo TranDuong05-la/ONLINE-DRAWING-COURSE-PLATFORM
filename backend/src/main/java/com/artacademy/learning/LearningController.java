@@ -170,7 +170,7 @@ public class LearningController {
 				.cacheControl(CacheControl.noStore()).body(bytes);
 	}
 
-	static ResponseEntity<byte[]> imageResponse(byte[] b) {
+	public static ResponseEntity<byte[]> imageResponse(byte[] b) {
 		MediaType type = b.length > 3 && (b[0] & 0xFF) == 0x89 ? MediaType.IMAGE_PNG : MediaType.IMAGE_JPEG;
 		return ResponseEntity.ok().cacheControl(CacheControl.noStore()).contentType(type).body(b);
 	}

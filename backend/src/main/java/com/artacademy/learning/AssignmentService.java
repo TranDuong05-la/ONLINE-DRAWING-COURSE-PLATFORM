@@ -2,6 +2,7 @@ package com.artacademy.learning;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -237,6 +238,42 @@ public class AssignmentService {
 	@Transactional(readOnly = true)
 	public List<CourseOption> coursesWithSubmissions() {
 		return courses.findAllById(submissions.distinctCourseIds()).stream()
+				.map(c -> new CourseOption(c.getId(), c.getTitle())).toList();
+	}
+
+	// ---- giảng viên: như 3 hàm trên nhưng chỉ trong các khóa được phân công (courseIds rỗng thì không có gì)
+
+	@Transactional(readOnly = true)
+	public SubmissionSummary summaryInCourses(Collection<Integer> courseIds) {
+		if (courseIds.isEmpty()) {
+			return new SubmissionSummary(0, 0, 0);
+		}
+		return new SubmissionSummary(
+				submissions.countByCourseIdInAndStatus(courseIds, AssignmentSubmission.Status.PENDING),
+				submissions.countByCourseIdInAndStatus(courseIds, AssignmentSubmission.Status.NEEDS_REVISION),
+				submissions.countByCourseIdInAndStatus(courseIds, AssignmentSubmission.Status.APPROVED));
+	}
+
+	@Transactional(readOnly = true)
+	public PageDto<AdminSubmissionDto> listInCourses(Collection<Integer> courseIds, Integer courseId, String status,
+			int page, int size) {
+		int p = Math.max(0, page);
+		int s = Math.min(Math.max(1, size), 50);
+		if (courseIds.isEmpty()) {
+			return new PageDto<>(List.of(), 0, p, s);
+		}
+		Page<AssignmentSubmission> result = submissions.searchInCourses(courseIds, courseId, parseStatus(status),
+				PageRequest.of(p, s));
+		return new PageDto<>(result.getContent().stream().map(x -> toAdminDto(x, false)).toList(),
+				result.getTotalElements(), result.getNumber(), result.getSize());
+	}
+
+	@Transactional(readOnly = true)
+	public List<CourseOption> coursesWithSubmissionsIn(Collection<Integer> courseIds) {
+		if (courseIds.isEmpty()) {
+			return List.of();
+		}
+		return courses.findAllById(submissions.distinctCourseIdsIn(courseIds)).stream()
 				.map(c -> new CourseOption(c.getId(), c.getTitle())).toList();
 	}
 

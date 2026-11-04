@@ -32,6 +32,11 @@ class CourseApi {
     return res.data;
   }
 
+  Future<dynamic> delete(String path) async {
+    final res = await _client.delete<dynamic>(path, fromJsonT: (j) => j);
+    return res.data;
+  }
+
   /// Upload file (multipart, field `file`). [onProgress] nhận giá trị 0..1.
   Future<dynamic> upload(
     String path, {

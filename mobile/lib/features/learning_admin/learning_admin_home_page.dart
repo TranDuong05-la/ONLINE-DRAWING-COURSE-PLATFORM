@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/staff_area.dart';
 import '../../models/learning_models.dart';
 import '../../repositories/learning_repository.dart';
 import '../learning/learning_widgets.dart';
@@ -12,6 +13,8 @@ import 'submission_review_page.dart';
 /// - "Chấm bài": danh sách bài nộp, lọc theo trạng thái / khóa, mở chi tiết để duyệt hoặc yêu cầu sửa.
 /// - "Đề bài tập": chọn khóa → bài học → soạn đề (bắt buộc / không bắt buộc, ẩn đề).
 /// - "Quyền học": chọn khóa → danh sách học viên; cấp quyền thủ công theo email, thu hồi quyền cấp tay.
+/// Giảng viên ([StaffArea.instructor]) dùng lại màn này cho khóa được phân công; tab thứ 3 thành "Học viên" (chỉ xem
+/// tiến độ, không cấp / thu hồi).
 class LearningAdminHomePage extends StatelessWidget {
   const LearningAdminHomePage({super.key});
 
@@ -23,7 +26,11 @@ class LearningAdminHomePage extends StatelessWidget {
         backgroundColor: Colors.white,
         appBar: AppBar(
           title: const Text('Chấm bài & đề bài tập'),
-          bottom: const TabBar(tabs: [Tab(text: 'Chấm bài'), Tab(text: 'Đề bài tập'), Tab(text: 'Quyền học')]),
+          bottom: TabBar(tabs: [
+            const Tab(text: 'Chấm bài'),
+            const Tab(text: 'Đề bài tập'),
+            Tab(text: StaffArea.instructor ? 'Học viên' : 'Quyền học'),
+          ]),
         ),
         body: const TabBarView(children: [_SubmissionsTab(), _AssignmentsTab(), _EnrollmentsTab()]),
       ),
@@ -117,13 +124,15 @@ class _EnrollmentsTabState extends State<_EnrollmentsTab> with AutomaticKeepAliv
                       onChanged: (v) => setState(() => _courseId = v),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: () => _grant(selected),
-                    icon: const Icon(Icons.person_add_alt_1, size: 18),
-                    label: const Text('Cấp quyền'),
-                    style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
-                  ),
+                  if (!StaffArea.instructor) ...[
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      onPressed: () => _grant(selected),
+                      icon: const Icon(Icons.person_add_alt_1, size: 18),
+                      label: const Text('Cấp quyền'),
+                      style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -175,7 +184,7 @@ class _EnrollmentsTabState extends State<_EnrollmentsTab> with AutomaticKeepAliv
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             StatusPill(label: label, color: color),
-            if (e.active && e.manual)
+            if (e.active && e.manual && !StaffArea.instructor)
               InkWell(
                 onTap: () => _revoke(e),
                 child: Padding(

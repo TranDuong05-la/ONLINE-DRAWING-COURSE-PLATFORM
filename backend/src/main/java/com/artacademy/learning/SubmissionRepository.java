@@ -44,4 +44,22 @@ public interface SubmissionRepository extends JpaRepository<AssignmentSubmission
 
 	@Query("select distinct s.courseId from AssignmentSubmission s")
 	List<Integer> distinctCourseIds();
+
+	// ---- giảng viên: chỉ bài nộp của các khóa được phân công
+
+	@Query("""
+			select s from AssignmentSubmission s
+			where s.courseId in :courseIds
+			  and (:courseId is null or s.courseId = :courseId)
+			  and (:status is null or s.status = :status)
+			order by s.submittedAt desc, s.id desc
+			""")
+	Page<AssignmentSubmission> searchInCourses(@Param("courseIds") Collection<Integer> courseIds,
+			@Param("courseId") Integer courseId, @Param("status") AssignmentSubmission.Status status,
+			Pageable pageable);
+
+	long countByCourseIdInAndStatus(Collection<Integer> courseIds, AssignmentSubmission.Status status);
+
+	@Query("select distinct s.courseId from AssignmentSubmission s where s.courseId in :courseIds")
+	List<Integer> distinctCourseIdsIn(@Param("courseIds") Collection<Integer> courseIds);
 }

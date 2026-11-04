@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/staff_area.dart';
 import '../../models/learning_models.dart';
 import '../../repositories/learning_repository.dart';
 import '../learning/learning_widgets.dart';
@@ -106,7 +107,10 @@ class _SubmissionReviewPageState extends State<SubmissionReviewPage> {
                 borderRadius: BorderRadius.circular(12),
                 child: InteractiveViewer(
                   child: Image.network(
-                    _repo.url(s.imagePath),
+                    // Server trả link ảnh của admin; giảng viên tải qua /api/instructor (chỉ khóa được phân công)
+                    _repo.url(StaffArea.instructor
+                        ? s.imagePath.replaceFirst('/api/admin/', '/api/instructor/')
+                        : s.imagePath),
                     headers: _headers,
                     fit: BoxFit.contain,
                     errorBuilder: (_, _, _) =>
