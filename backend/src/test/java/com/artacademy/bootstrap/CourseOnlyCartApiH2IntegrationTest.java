@@ -87,8 +87,10 @@ class CourseOnlyCartApiH2IntegrationTest {
         assertThat(context.getBeansOfType(CartAvailabilityProjector.class)).isEmpty();
         assertThat(context.getBeansOfType(CartCatalog.class)).hasSize(1);
         assertThat(context.getBeansOfType(CheckoutCoordinator.class)).isEmpty();
-        assertThat(context.getBeansOfType(com.drawingcourse.backend.service.ProductCartCatalogProvider.class)).isEmpty();
-        assertThat(context.getBeansOfType(com.drawingcourse.backend.service.ProductStockAvailabilityProvider.class)).isEmpty();
+        // E's real Product adapter is part of the integrated application, but the gated
+        // Course-only Cart composition must not register the general Product projector.
+        assertThat(context.getBeansOfType(com.drawingcourse.backend.service.ProductCartCatalogProvider.class)).hasSize(1);
+        assertThat(context.getBeansOfType(com.drawingcourse.backend.service.ProductStockAvailabilityProvider.class)).hasSize(1);
         mvc.perform(get("/api/cart")).andExpect(status().isUnauthorized());
     }
 

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../models/page_response.dart';
+import '../data/cart_bridge.dart';
+import '../../cart/course_purchase_config.dart';
 import '../data/supply_repository.dart';
 import '../models/supply_models.dart';
 import 'review_form_sheet.dart';
@@ -27,6 +30,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   int _reviewPage = 0;
   bool _reviewHasMore = false;
   bool _loadingReviews = false;
+  bool _addingToCart = false;
   int _quantity = 1;
 
   @override
@@ -137,6 +141,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   Widget _buildBuyBar(SupplyProduct p) {
     final outOfStock = p.available <= 0;
+    final enabled = productPurchaseUiEnabled && !outOfStock && !_addingToCart;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -145,21 +150,51 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             _QuantityStepper(
               value: _quantity,
               max: outOfStock ? 1 : p.available,
-              enabled: false,
+              enabled: enabled,
               onChanged: (v) => setState(() => _quantity = v),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton.icon(
-                onPressed: null,
+                onPressed: enabled ? () => _addToCart(p) : null,
                 icon: const Icon(Icons.add_shopping_cart),
-                label: Text(outOfStock ? 'Out of stock' : 'Product checkout unavailable'),
+                label: Text(_addingToCart
+                    ? 'Adding…'
+                    : outOfStock
+                        ? 'Out of stock'
+                        : productPurchaseUiEnabled
+                            ? 'Add to cart'
+                            : 'Product purchase unavailable'),
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _addToCart(SupplyProduct product) async {
+    if (!productPurchaseUiEnabled || _addingToCart) return;
+    setState(() => _addingToCart = true);
+    try {
+      await CartBridge.instance.addProduct(product.id, _quantity);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Product added to your cart.'),
+        action: SnackBarAction(
+          label: 'View Cart',
+          onPressed: () => context.push('/cart'),
+        ),
+      ));
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not add product: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _addingToCart = false);
+    }
   }
 }
 

@@ -18,10 +18,13 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/register_screen.dart';
 import '../../features/cart/cart_screen.dart';
 import '../../features/cart/api_course_cart_repository.dart';
+import '../../features/cart/api_product_cart_repository.dart';
 import '../../features/cart/cart_item.dart';
 import '../../features/cart/cart_repository.dart';
 import '../../features/cart/course_checkout_repository.dart';
 import '../../features/cart/course_checkout_screen.dart';
+import '../../features/cart/product_checkout_screen.dart';
+import '../../features/cart/course_purchase_config.dart';
 import '../../features/order_history/data/api_order_history_repository.dart';
 import '../../features/order_history/data/order_history_repository.dart';
 import '../../features/order_history/order_detail_screen.dart';
@@ -43,7 +46,9 @@ class AppRouter {
     CourseCheckoutRepository? courseCheckoutRepository,
   }) {
     final orders = orderHistoryRepository ?? ApiOrderHistoryRepository();
-    final cart = cartRepository ?? ApiCourseCartRepository();
+    final cart = cartRepository ?? (productPurchaseUiEnabled
+        ? ApiProductCartRepository()
+        : ApiCourseCartRepository());
     final checkout = courseCheckoutRepository ?? ApiCourseCheckoutRepository();
     return GoRouter(
       initialLocation: '/splash',
@@ -83,18 +88,19 @@ class AppRouter {
         ),
         GoRoute(
           path: '/checkout',
-          builder: (context, state) => CourseCheckoutScreen(
-            cart: state.extra is CartSnapshot
+          builder: (context, state) {
+            final snapshot = state.extra is CartSnapshot
                 ? state.extra! as CartSnapshot
-                : const CartSnapshot(
-                    revision: 0,
-                    items: [],
-                    subtotalVnd: 0,
-                    canCheckout: false,
-                    hasUnavailableItems: true,
-                  ),
-            repository: checkout,
-          ),
+                : const CartSnapshot(revision: 0, items: [], subtotalVnd: 0,
+                    canCheckout: false, hasUnavailableItems: true);
+            if (snapshot.items.any((item) => item.type == CartItemType.product)) {
+              final productCheckout = checkout is ProductCheckoutRepository
+                  ? checkout
+                  : ApiCourseCheckoutRepository();
+              return ProductCheckoutScreen(cart: snapshot, repository: productCheckout);
+            }
+            return CourseCheckoutScreen(cart: snapshot, repository: checkout);
+          },
         ),
         GoRoute(
           path: '/orders',
