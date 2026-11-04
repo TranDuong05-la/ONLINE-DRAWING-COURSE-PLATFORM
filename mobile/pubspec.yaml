@@ -47,6 +47,7 @@ dependencies:
   file_selector: ^1.1.0
   # C: chọn/chụp ảnh bài làm để nộp (A cũng dùng cho ảnh đại diện)
   image_picker: ^1.2.4
+  youtube_player_iframe: ^6.0.2
 
 dev_dependencies:
   flutter_test:

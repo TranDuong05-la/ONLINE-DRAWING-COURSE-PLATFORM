@@ -1,8 +1,10 @@
 import 'package:chewie/chewie.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../network/media_url.dart';
+import '../network/video_link.dart';
 
 /// Màn phát video toàn màn hình (dùng cho học thử và xem trước của admin).
 /// [url] có thể là đường dẫn tương đối ("/uploads/a.mp4") hoặc link ngoài.
@@ -19,6 +21,7 @@ class VideoPlayerPage extends StatefulWidget {
 class _VideoPlayerPageState extends State<VideoPlayerPage> {
   VideoPlayerController? _video;
   ChewieController? _chewie;
+  YoutubePlayerController? _youtube;
   String? _error;
 
   @override
@@ -28,6 +31,19 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
   }
 
   Future<void> _init() async {
+    final youtubeId = youtubeVideoId(widget.url);
+    if (youtubeId != null) {
+      _youtube = YoutubePlayerController.fromVideoId(
+        videoId: youtubeId,
+        autoPlay: true,
+        params: const YoutubePlayerParams(showFullscreenButton: true, strictRelatedVideos: true),
+      );
+      return;
+    }
+    if (!isDirectVideoLink(widget.url)) {
+      setState(() => _error = videoLinkProblem(widget.url));
+      return;
+    }
     try {
       final video = VideoPlayerController.networkUrl(Uri.parse(resolveMediaUrl(widget.url)));
       _video = video;
@@ -52,6 +68,7 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
     // Phải giải phóng, nếu không video vẫn chạy ngầm và tốn pin/RAM
     _chewie?.dispose();
     _video?.dispose();
+    _youtube?.close();
     super.dispose();
   }
 
@@ -66,7 +83,9 @@ class _VideoPlayerPageState extends State<VideoPlayerPage> {
         surfaceTintColor: Colors.black,
       ),
       body: Center(
-        child: _error != null
+        child: _youtube != null
+            ? YoutubePlayer(controller: _youtube!)
+            : _error != null
             ? Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(_error!, style: const TextStyle(color: Colors.white), textAlign: TextAlign.center),

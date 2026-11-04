@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:file_selector/file_selector.dart' show XFile;
 
 import 'api_client.dart';
 
@@ -38,14 +39,15 @@ class CourseApi {
   }
 
   /// Upload file (multipart, field `file`). [onProgress] nhận giá trị 0..1.
+  /// Đọc file theo luồng từ [XFile] nên chạy được cả bản web (file chọn trên web không có đường dẫn
+  /// thật, MultipartFile.fromFile chỉ chạy trên Android/iOS/desktop) mà không nạp cả file vào RAM ở mobile.
   Future<dynamic> upload(
     String path, {
-    required String filePath,
-    required String fileName,
+    required XFile file,
     void Function(double progress)? onProgress,
   }) async {
     final form = FormData.fromMap({
-      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+      'file': MultipartFile.fromStream(file.openRead, await file.length(), filename: file.name),
     });
     final res = await _client.postMultipart<dynamic>(
       path,

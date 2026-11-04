@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:file_selector/file_selector.dart' show XFile;
 
 import '../core/constants/staff_area.dart';
 import '../core/network/api_client.dart';
@@ -58,10 +59,13 @@ class LearningRepository {
   Future<AssignmentInfo> getAssignment(int lessonId) =>
       _data(_get('/api/learning/lessons/$lessonId/assignment'), (j) => AssignmentInfo.fromJson(_map(j)));
 
+  /// Đọc ảnh theo luồng từ [XFile] (không dùng đường dẫn) nên nộp được cả trên bản web.
   Future<Submission> submitAssignment(int lessonId,
-      {required String filePath, required String mimeType, String? note}) async {
+      {required XFile file, required String mimeType, String? note}) async {
+    final ext = mimeType == 'image/png' ? 'png' : 'jpg';
     final form = FormData.fromMap({
-      'image': await MultipartFile.fromFile(filePath, contentType: DioMediaType.parse(mimeType)),
+      'image': MultipartFile.fromStream(file.openRead, await file.length(),
+          filename: 'submission.$ext', contentType: DioMediaType.parse(mimeType)),
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
     });
     return _data(_multipart('/api/learning/lessons/$lessonId/submissions', formData: form),

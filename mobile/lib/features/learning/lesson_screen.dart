@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
+import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 import '../../core/constants/app_colors.dart';
+import '../../core/network/video_link.dart';
 import '../../models/learning_models.dart';
 import '../../repositories/learning_repository.dart';
 import 'assignment_screen.dart';
@@ -34,6 +36,11 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
   LessonContent? _lesson;
   String? _loadError;
   VideoPlayerController? _controller;
+  // Bài học dùng link YouTube: phát bằng trình phát nhúng thay cho video_player
+  YoutubePlayerController? _youtube;
+  StreamSubscription<YoutubePlayerValue>? _youtubeStateSub;
+  StreamSubscription<YoutubeVideoState>? _youtubePositionSub;
+  int _youtubePosition = 0;
   String? _videoError;
   bool _completed = false;
   int? _coursePercent;
@@ -91,6 +98,7 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
     _timer?.cancel();
     await _controller?.dispose();
     _controller = null;
+    await _closeYoutube();
     final url = lesson.videoUrl;
     if (url == null || url.isEmpty) {
       setState(() => _videoError = 'Bài học này không có video.');
@@ -106,6 +114,16 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
           }
         } catch (_) {}
       }
+      return;
+    }
+    final youtubeId = youtubeVideoId(url);
+    if (youtubeId != null) {
+      _initYoutube(lesson, youtubeId);
+      return;
+    }
+    if (!isDirectVideoLink(url)) {
+      setState(() => _videoError = 'Link video của bài học này không phát được trong app. '
+          'Vui lòng báo giảng viên cập nhật video.');
       return;
     }
     // Uploaded videos are served by our backend and need the login header; sample videos are public URLs.
@@ -139,6 +157,49 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
     setState(() => _controller = c);
   }
 
+  /// YouTube: tiến độ tính giống video thường (đồng hồ chỉ chạy khi đang phát, báo theo chu kỳ / khi dừng / khi hết).
+  void _initYoutube(LessonContent lesson, String videoId) {
+    final resume = lesson.completed ? 0 : lesson.lastPositionSeconds;
+    final yt = YoutubePlayerController.fromVideoId(
+      videoId: videoId,
+      startSeconds: resume > 0 ? resume.toDouble() : null,
+      params: const YoutubePlayerParams(showFullscreenButton: true, strictRelatedVideos: true),
+    );
+    _youtubePosition = resume;
+    _lastReportedPosition = resume;
+    _youtubePositionSub = yt.videoStateStream.listen((s) => _youtubePosition = s.position.inSeconds);
+    _youtubeStateSub = yt.stream.listen((v) {
+      if (v.error != YoutubeError.none) {
+        if (_videoError == null && mounted) {
+          setState(() => _videoError = 'Không phát được video YouTube này (video riêng tư, đã xóa hoặc bị chặn nhúng).');
+        }
+        return;
+      }
+      final playing = v.playerState == PlayerState.playing;
+      if (playing && !_played.isRunning) {
+        _played.start();
+      } else if (!playing && _played.isRunning) {
+        _played.stop();
+        _report();
+      }
+      if (v.playerState == PlayerState.ended) _report();
+    });
+    _timer = Timer.periodic(_reportEvery, (_) {
+      if (_played.isRunning) _report();
+    });
+    setState(() => _youtube = yt);
+  }
+
+  Future<void> _closeYoutube() async {
+    await _youtubeStateSub?.cancel();
+    await _youtubePositionSub?.cancel();
+    _youtubeStateSub = null;
+    _youtubePositionSub = null;
+    final yt = _youtube;
+    _youtube = null;
+    await yt?.close();
+  }
+
   void _onVideoTick() {
     final c = _controller;
     if (c == null) return;
@@ -166,8 +227,8 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
   /// goes out with the next report.
   Future<void> _report({bool closing = false}) async {
     final c = _controller;
-    if (c == null || _reporting) return;
-    final position = c.value.position.inSeconds;
+    if ((c == null && _youtube == null) || _reporting) return;
+    final position = c != null ? c.value.position.inSeconds : _youtubePosition;
     final delta = ((_played.elapsedMilliseconds - _creditedMs) / 1000).floor().clamp(0, 300);
     if (delta == 0 && position == _lastReportedPosition) return;
     _reporting = true;
@@ -205,6 +266,7 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _controller?.pause();
+      _youtube?.pauseVideo();
       _report();
     }
   }
@@ -219,6 +281,11 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
       _report(closing: true); // reads the controller before it is disposed below
       c.removeListener(_onVideoTick);
       Future.delayed(const Duration(milliseconds: 200), c.dispose);
+    }
+    if (_youtube != null) {
+      _played.stop();
+      _report(closing: true); // đọc vị trí trước khi đóng trình phát
+      Future.delayed(const Duration(milliseconds: 200), _closeYoutube);
     }
     super.dispose();
   }
@@ -356,6 +423,8 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
         ),
       );
     }
+    final yt = _youtube;
+    if (yt != null) return YoutubePlayer(controller: yt);
     if (c == null) {
       return const AspectRatio(
         aspectRatio: 16 / 9,

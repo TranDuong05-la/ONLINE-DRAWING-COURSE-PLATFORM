@@ -43,10 +43,12 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
   Future<void> _pick(ImageSource source) async {
     final file = await ImagePicker().pickImage(source: source, maxWidth: 2400, imageQuality: 85);
     if (file == null) return;
-    final lower = file.path.toLowerCase();
-    final mime = lower.endsWith('.png')
+    // Trên web file.path là link "blob:..." không có đuôi: xét tên file và loại nội dung thay vì đường dẫn
+    final lower = file.name.toLowerCase();
+    final type = file.mimeType?.toLowerCase();
+    final mime = (lower.endsWith('.png') || type == 'image/png')
         ? 'image/png'
-        : (lower.endsWith('.jpg') || lower.endsWith('.jpeg'))
+        : (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || type == 'image/jpeg')
             ? 'image/jpeg'
             : null;
     if (mime == null) {
@@ -68,7 +70,7 @@ class _AssignmentScreenState extends State<AssignmentScreen> {
     if (file == null || _mime == null) return;
     setState(() => _busy = true);
     try {
-      await _repo.submitAssignment(widget.lessonId, filePath: file.path, mimeType: _mime!, note: _note.text);
+      await _repo.submitAssignment(widget.lessonId, file: file, mimeType: _mime!, note: _note.text);
       if (!mounted) return;
       showSnack(context, 'Đã nộp bài. Giảng viên sẽ chấm và phản hồi sớm.');
       setState(() {

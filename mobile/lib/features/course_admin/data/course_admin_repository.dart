@@ -1,3 +1,5 @@
+import 'package:file_selector/file_selector.dart' show XFile;
+
 import '../../../core/constants/staff_area.dart';
 import '../../../core/network/course_api.dart';
 import '../../bundle/models/bundle_models.dart';
@@ -160,12 +162,10 @@ class CourseAdminRepository {
 
   /// Upload ảnh/video/pdf, trả về đường dẫn tương đối như "/uploads/xxx.mp4".
   Future<String> upload({
-    required String filePath,
-    required String fileName,
+    required XFile file,
     void Function(double progress)? onProgress,
   }) async {
-    final data = await _api.upload('${StaffArea.api}/uploads',
-        filePath: filePath, fileName: fileName, onProgress: onProgress);
+    final data = await _api.upload('${StaffArea.api}/uploads', file: file, onProgress: onProgress);
     return (data as Map<String, dynamic>)['url'] as String;
   }
 

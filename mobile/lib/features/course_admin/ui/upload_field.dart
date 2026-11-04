@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/network/api_exceptions.dart';
 import '../../../core/network/media_url.dart';
+import '../../../core/network/video_link.dart';
 import '../../../core/widgets/app_image.dart';
 import '../../../core/widgets/dialogs.dart';
 import '../../../core/widgets/state_views.dart';
@@ -59,9 +60,10 @@ class _UploadFieldState extends State<UploadField> {
       ],
     );
     if (file == null) return; // người dùng bấm hủy
-    final path = file.path;
-    if (path.isEmpty) {
-      if (mounted) showMessage(context, 'Không đọc được file đã chọn', error: true);
+    // Bản web không kiểm tra được đuôi file trong hộp chọn trên mọi trình duyệt: kiểm tra lại ở đây
+    final ext = file.name.contains('.') ? file.name.split('.').last.toLowerCase() : '';
+    if (!_extensions.contains(ext)) {
+      if (mounted) showMessage(context, 'Chỉ nhận file ${_extensions.map((e) => '.$e').join(', ')}', error: true);
       return;
     }
 
@@ -71,8 +73,7 @@ class _UploadFieldState extends State<UploadField> {
     });
     try {
       final url = await _repo.upload(
-        filePath: path,
-        fileName: file.name,
+        file: file,
         onProgress: (p) {
           if (mounted) setState(() => _progress = p);
         },
@@ -81,6 +82,9 @@ class _UploadFieldState extends State<UploadField> {
       widget.onChanged(url);
     } on ApiException catch (e) {
       if (mounted) showMessage(context, e.displayMessage, error: true);
+    } catch (_) {
+      // Lỗi đọc file hoặc lỗi không phải từ server: trước đây bị nuốt mất, người dùng không thấy gì
+      if (mounted) showMessage(context, 'Không upload được file, vui lòng thử lại', error: true);
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
@@ -100,6 +104,11 @@ class _UploadFieldState extends State<UploadField> {
     if (link.isEmpty) {
       widget.onChanged(null);
     } else if (link.startsWith('http://') || link.startsWith('https://')) {
+      final problem = widget.kind == UploadKind.video ? videoLinkProblem(link) : null;
+      if (problem != null) {
+        if (mounted) showMessage(context, problem, error: true);
+        return;
+      }
       widget.onChanged(link);
     } else if (mounted) {
       showMessage(context, 'Link phải bắt đầu bằng http:// hoặc https://', error: true);
