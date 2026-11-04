@@ -11,6 +11,7 @@ import '../../features/supplies/ui/admin/admin_supply_home.dart';
 import '../../features/supplies/ui/admin/admin_shipment_detail_screen.dart';
 import '../../features/course_admin/ui/course_admin_home_page.dart';
 import '../../features/learning/lesson_comments_screen.dart';
+import '../../features/refund/refund_screens.dart';
 import '../../features/learning/my_assignments_screen.dart';
 import '../../features/learning_admin/admin_certificates_screen.dart';
 import '../../features/learning_admin/learning_admin_home_page.dart';
@@ -126,6 +127,15 @@ class AppRouter {
         GoRoute(
           path: '/comments/inbox',
           builder: (context, state) => const CommentInboxScreen(),
+        ),
+        // Hoàn tiền khóa học: học viên theo dõi, admin duyệt (/admin/** đã có Admin guard)
+        GoRoute(
+          path: '/profile/refunds',
+          builder: (context, state) => const MyRefundsScreen(),
+        ),
+        GoRoute(
+          path: '/admin/refunds',
+          builder: (context, state) => const AdminRefundsScreen(),
         ),
         // C: bài tập của học viên (cần làm / chờ chấm / đã chấm)
         GoRoute(
