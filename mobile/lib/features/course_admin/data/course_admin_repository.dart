@@ -142,6 +142,14 @@ class CourseAdminRepository {
     return (data as Map<String, dynamic>)['url'] as String;
   }
 
+  /// Converts a protected uploaded lesson file path into a short-lived URL.
+  /// The endpoint is ADMIN-only; callers should keep the stored `/uploads/...`
+  /// path and use this URL only for preview/playback.
+  Future<String> signMedia(String path) async {
+    final data = await _api.get('/api/admin/media/sign', query: {'path': path});
+    return (data as Map<String, dynamic>)['url'] as String;
+  }
+
   // ------------------------------------------------------------------ combo
 
   Future<List<AdminBundle>> listBundles() async {

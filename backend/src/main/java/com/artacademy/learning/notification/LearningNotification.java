@@ -37,7 +37,10 @@ public class LearningNotification {
 		/** Bài nộp bị yêu cầu sửa. */
 		GRADED_REVISION,
 		/** Được cấp chứng nhận hoàn thành. */
-		CERTIFICATE
+		CERTIFICATE,
+		/** New lesson comment for staff/instructors or a reply to a learner comment. */
+		NEW_COMMENT,
+		COMMENT_REPLY
 	}
 
 	@Id

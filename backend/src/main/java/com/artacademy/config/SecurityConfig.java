@@ -82,6 +82,10 @@ public class SecurityConfig {
                         })
                 )
                 .authorizeHttpRequests(auth -> {
+                    if (vnPayEnabled) {
+                        auth.requestMatchers(HttpMethod.GET, "/api/payments/vnpay/return")
+                                .permitAll();
+                    }
                     if (vnPayEnabled && vnPayIpnEnabled) {
                         auth.requestMatchers(HttpMethod.GET, "/api/payments/vnpay/ipn")
                                 .permitAll();
@@ -109,7 +113,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/courses", "/api/courses/**",
                                 "/api/bundles", "/api/bundles/**",
-                                "/uploads/**"
+                                "/uploads/*.jpg", "/uploads/*.jpeg", "/uploads/*.png", "/uploads/*.webp",
+                                "/media/**"
                         ).permitAll()
                         // C: link tải chứng nhận có token ký số ngắn hạn (kiểm tra trong CertificateService)
                         .requestMatchers(HttpMethod.GET, "/api/files/certificates/*/pdf").permitAll()

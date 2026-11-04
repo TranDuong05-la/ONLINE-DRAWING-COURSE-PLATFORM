@@ -33,7 +33,10 @@ public class WebConfig implements WebMvcConfigurer {
         if (!location.endsWith("/")) {
             location += "/";
         }
-        registry.addResourceHandler("/uploads/**").addResourceLocations(location);
+        // Uploaded lesson videos and PDFs are served only through expiring signed /media links.
+        // Keep image assets public for course thumbnails and avatars.
+        registry.addResourceHandler("/uploads/*.jpg", "/uploads/*.jpeg", "/uploads/*.png", "/uploads/*.webp")
+                .addResourceLocations(location);
     }
 
     // CORS đã được cấu hình tập trung ở CorsConfig (qua Spring Security), không khai báo lại ở đây.

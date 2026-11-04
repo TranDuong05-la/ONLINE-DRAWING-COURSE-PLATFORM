@@ -33,6 +33,23 @@ class OrderConfirmationTest {
     }
 
     @Test
+    void confirmsFromPersistedAppliedOnTimeQueryDrEvidence() {
+        var fixture = fixture(PaymentEvent.Outcome.SUCCEEDED, PaymentStatus.SUCCEEDED,
+                PaymentAttempt.ReviewReason.NONE, PaymentEventAudit.Disposition.APPLIED,
+                PaymentAttempt.ReviewReason.NONE, "VND", 1000, CREATED.plusSeconds(10), CREATED.plusSeconds(11));
+        var event = new PaymentEvent("vnpay", fixture.audit.event().eventReference(),
+                fixture.audit.event().merchantReference(), fixture.audit.event().transactionReference(),
+                fixture.audit.event().amountVnd(), fixture.audit.event().currency(), fixture.audit.event().outcome(),
+                fixture.audit.event().occurredAt(), fixture.audit.event().receivedAt(), DIGEST,
+                "vnpay-querydr-hmac-sha512;paydate=valid");
+        var audit = new PaymentEventAudit(EVENT_ID, ATTEMPT_ID, ORDER_ID, USER_ID, event, event.fingerprint(),
+                fixture.audit.beforeStatus(), fixture.audit.afterStatus(), fixture.audit.disposition(),
+                fixture.audit.reason(), fixture.audit.observedOrderStatus());
+
+        assertEquals(OrderStatus.CONFIRMED, fixture.order.confirmPayment(fixture.attempt, audit).getStatus());
+    }
+
+    @Test
     void rejectsDuplicateConfirmation() {
         var fixture = fixture(PaymentEvent.Outcome.SUCCEEDED, PaymentStatus.SUCCEEDED,
                 PaymentAttempt.ReviewReason.NONE, PaymentEventAudit.Disposition.APPLIED,

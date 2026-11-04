@@ -5,12 +5,19 @@ import java.util.Objects;
 
 /** Immutable, verified callback value. Package-private construction is reserved for the verifier. */
 public final class VerifiedVnPayCallback {
+    enum Source { IPN, QUERY_DR }
     private final Map<String, String> signedParameters;
     private final String signature;
+    private final Source source;
 
     VerifiedVnPayCallback(Map<String, String> signedParameters, String signature) {
+        this(signedParameters, signature, Source.IPN);
+    }
+
+    VerifiedVnPayCallback(Map<String, String> signedParameters, String signature, Source source) {
         this.signedParameters = Map.copyOf(Objects.requireNonNull(signedParameters));
         this.signature = Objects.requireNonNull(signature);
+        this.source = Objects.requireNonNull(source);
     }
 
     public Map<String, String> signedParameters() { return signedParameters; }
@@ -23,4 +30,5 @@ public final class VerifiedVnPayCallback {
     public String responseCode() { return signedParameters.get("vnp_ResponseCode"); }
     public String transactionStatus() { return signedParameters.get("vnp_TransactionStatus"); }
     public String providerPaymentDate() { return signedParameters.get("vnp_PayDate"); }
+    Source source() { return source; }
 }

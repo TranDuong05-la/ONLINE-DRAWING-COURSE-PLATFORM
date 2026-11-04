@@ -71,6 +71,20 @@ public class VnPayIpnReconciliationService {
         Objects.requireNonNull(callback, "verified callback");
         Instant receivedAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
         VerifiedVnPayCallback verified = verifier.verify(asSingleValueLists(callback));
+        return reconcileVerified(verified, receivedAt);
+    }
+
+    /** Only the local QueryDR adapter can construct QUERY_DR evidence after its distinct signature check. */
+    IpnReconciliationResult reconcileQueryDr(VerifiedVnPayCallback callback) {
+        properties.validateReady();
+        Objects.requireNonNull(callback, "verified QueryDR result");
+        if (!properties.getQueryDr().isEnabled() || callback.source() != VerifiedVnPayCallback.Source.QUERY_DR)
+            throw new IllegalArgumentException("Verified local QueryDR evidence is required");
+        Instant receivedAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
+        return reconcileVerified(callback, receivedAt);
+    }
+
+    private IpnReconciliationResult reconcileVerified(VerifiedVnPayCallback verified, Instant receivedAt) {
         boolean participatingInOuterTransaction = TransactionSynchronizationManager.isActualTransactionActive();
         try {
             return transaction.execute(status -> reconcileInTransaction(verified, receivedAt));
@@ -156,7 +170,7 @@ public class VnPayIpnReconciliationService {
         String eventCurrency = "VND"; // The VNPay payment contract is VND-only.
         var event = new PaymentEvent(PROVIDER, eventReference, merchantReference, transactionReference,
                 amountVnd, eventCurrency, outcome, timestamp.occurredAt(), receivedAt,
-                digest, verificationReference(timestamp.state()));
+                digest, verificationReference(timestamp.state(), verified.source()));
 
         var previousRow = events.findByProviderAndEventReference(PROVIDER, eventReference);
         if (previousRow.isPresent()) {
@@ -252,7 +266,7 @@ public class VnPayIpnReconciliationService {
                 && event.amountVnd() == order.getTotalVnd()
                 && attempt.currency().equals(order.getCurrency())
                 && event.currency().equals(order.getCurrency())
-                && "vnpay-hmac-sha512;paydate=valid".equals(event.verificationReference())
+                && isVerifiedVnPayEvidence(event.verificationReference())
                 && deadline != null
                 && event.occurredAt().isBefore(deadline)
                 && event.receivedAt().isBefore(deadline)
@@ -373,8 +387,15 @@ public class VnPayIpnReconciliationService {
         } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
 
-    private static String verificationReference(String timestampState) {
-        return "vnpay-hmac-sha512;paydate=" + timestampState;
+    private static String verificationReference(String timestampState, VerifiedVnPayCallback.Source source) {
+        String verificationType = source == VerifiedVnPayCallback.Source.QUERY_DR
+                ? "vnpay-querydr-hmac-sha512" : "vnpay-hmac-sha512";
+        return verificationType + ";paydate=" + timestampState;
+    }
+
+    private static boolean isVerifiedVnPayEvidence(String value) {
+        return "vnpay-hmac-sha512;paydate=valid".equals(value)
+                || "vnpay-querydr-hmac-sha512;paydate=valid".equals(value);
     }
 
     private static String payloadDigest(Map<String, String> parameters) {

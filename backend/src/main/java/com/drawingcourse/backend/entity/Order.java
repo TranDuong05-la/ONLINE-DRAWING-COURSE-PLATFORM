@@ -140,7 +140,8 @@ public final class Order {
                 && Objects.equals(event.transactionReference(), attempt.transactionReference())
                 && event.currency().equals(attempt.currency())
                 && event.currency().equals(getCurrency())
-                && "vnpay-hmac-sha512;paydate=valid".equals(event.verificationReference())
+                && ("vnpay-hmac-sha512;paydate=valid".equals(event.verificationReference())
+                    || "vnpay-querydr-hmac-sha512;paydate=valid".equals(event.verificationReference()))
                 && event.amountVnd() == attempt.expectedAmountVnd()
                 && event.amountVnd() == totalVnd
                 && attempt.expectedAmountVnd() == totalVnd

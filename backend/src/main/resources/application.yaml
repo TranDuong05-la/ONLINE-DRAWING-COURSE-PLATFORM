@@ -78,11 +78,15 @@ app:
         enabled: ${VNPAY_SESSION_API_ENABLED:false}
       ipn:
         enabled: ${VNPAY_IPN_ENABLED:false}
+      query-dr:
+        enabled: ${VNPAY_QUERY_DR_ENABLED:false}
+        ip-address: ${VNPAY_QUERY_DR_IP_ADDRESS:}
       payment-url: ${VNPAY_PAYMENT_URL:https://sandbox.vnpayment.vn/paymentv2/vpcpay.html}
       tmn-code: ${VNPAY_TMN_CODE:}
       secret-key: ${VNPAY_SECRET_KEY:}
       return-url: ${VNPAY_RETURN_URL:}
       ipn-url: ${VNPAY_IPN_URL:}
+      allow-local-http-return-url: ${VNPAY_ALLOW_LOCAL_HTTP_RETURN:false}
       api-version: ${VNPAY_API_VERSION:2.1.0}
       command: ${VNPAY_COMMAND:pay}
     settlement:

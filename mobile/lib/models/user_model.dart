@@ -59,6 +59,8 @@ class UserModel {
   });
 
   bool get isAdmin => role == UserRole.admin;
+  bool get isInstructor => role == UserRole.instructor;
+  bool get isStaff => role == UserRole.staff;
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
     return UserModel(

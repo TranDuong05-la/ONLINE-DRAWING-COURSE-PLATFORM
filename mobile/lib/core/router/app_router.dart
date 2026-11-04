@@ -11,6 +11,7 @@ import '../../features/supplies/ui/admin/admin_supply_home.dart';
 import '../../features/supplies/ui/admin/admin_shipment_detail_screen.dart';
 import '../../features/course_admin/ui/course_admin_home_page.dart';
 import '../../features/learning/my_assignments_screen.dart';
+import '../../features/learning/lesson_comments_screen.dart';
 import '../../features/learning_admin/admin_certificates_screen.dart';
 import '../../features/learning_admin/learning_admin_home_page.dart';
 import '../../features/auth/login_screen.dart';
@@ -125,6 +126,10 @@ class AppRouter {
           builder: (context, state) => const MyAssignmentsScreen(),
         ),
         GoRoute(
+          path: '/comments/inbox',
+          builder: (context, state) => const CommentInboxScreen(),
+        ),
+        GoRoute(
           path: '/profile/change-password',
           builder: (context, state) => const ChangePasswordScreen(),
         ),
@@ -202,6 +207,10 @@ class AppRouter {
           return '/';
         }
         if (location.startsWith('/staff') && !authProvider.isStaff && !authProvider.isAdmin) {
+          return '/';
+        }
+        if (location.startsWith('/comments/inbox') && !authProvider.isStaff &&
+            !authProvider.isInstructor && !authProvider.isAdmin) {
           return '/';
         }
 

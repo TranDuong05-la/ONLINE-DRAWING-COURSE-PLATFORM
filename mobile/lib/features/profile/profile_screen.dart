@@ -234,7 +234,15 @@ class ProfileScreen extends StatelessWidget {
                   subtitle: 'Duyệt / yêu cầu sửa bài nộp, soạn đề bài tập cho bài học',
                   onTap: () => context.push('/admin/learning'),
                 ),
+                const Divider(height: 1, indent: 56),
+                _buildCommentInboxItem(context),
               ]),
+              const SizedBox(height: 20),
+            ],
+
+            if (user.isInstructor || user.isStaff) ...[
+              _buildSectionHeader(user.isInstructor ? 'Khu vực Giảng viên' : 'Khu vực Nhân viên'),
+              _buildMenuCard([_buildCommentInboxItem(context)]),
               const SizedBox(height: 20),
             ],
 
@@ -331,6 +339,14 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
+  Widget _buildCommentInboxItem(BuildContext context) => _buildMenuItem(
+        icon: Icons.forum_outlined,
+        iconColor: AppColors.accentPeach,
+        title: 'Bình luận học viên',
+        subtitle: 'Xem và trả lời câu hỏi dưới bài học',
+        onTap: () => context.push('/comments/inbox'),
+      );
 
   Widget _buildMenuCard(List<Widget> children) {
     return Container(

@@ -6,6 +6,7 @@ import com.artacademy.course.CourseKitRepository;
 import com.artacademy.course.CourseRepository;
 import com.artacademy.course.CourseStatus;
 import java.util.List;
+import java.util.ArrayList;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,14 +36,25 @@ public class CourseSellableService {
         return toSellable(course);
     }
 
+    public SellableCourse requireSellable(Long courseId) {
+        SellableCourse course = getSellableCourse(courseId);
+        if (!course.isSellable()) throw new CourseNotSellableException(course.status(), "A required course kit is unavailable");
+        return course;
+    }
+
     /** Dùng chung cho combo (BundleSellableService). */
     public SellableCourse toSellable(Course course) {
-        List<SellableCourse.SellableKit> kits = kitRepository.findByCourse(course.getId()).stream()
-                .filter(k -> k.getProduct().isActive())
-                .map(k -> new SellableCourse.SellableKit(k.getProduct().getId(), k.getProduct().getSku(),
-                        k.getProduct().getName(), k.getQuantity()))
-                .toList();
+        List<SellableCourse.SellableKit> kits = new ArrayList<>();
+        List<SellableCourse.UnavailableKit> unavailable = new ArrayList<>();
+        for (var kit : kitRepository.findByCourse(course.getId())) {
+            var product = kit.getProduct();
+            if (!product.isActive()) unavailable.add(new SellableCourse.UnavailableKit(product.getId(), kit.getQuantity(),
+                    SellableCourse.UnavailableKit.INACTIVE));
+            else if (product.getAvailable() < kit.getQuantity()) unavailable.add(new SellableCourse.UnavailableKit(product.getId(), kit.getQuantity(),
+                    SellableCourse.UnavailableKit.INSUFFICIENT_STOCK));
+            else kits.add(new SellableCourse.SellableKit(product.getId(), product.getSku(), product.getName(), kit.getQuantity()));
+        }
         return new SellableCourse(course.getId(), course.getTitle(), course.getThumbnailUrl(), course.getPrice(),
-                course.getDiscountPrice(), course.effectivePrice(), kits);
+                course.getDiscountPrice(), course.effectivePrice(), kits, unavailable);
     }
 }

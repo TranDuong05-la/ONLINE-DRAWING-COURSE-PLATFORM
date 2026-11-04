@@ -14,8 +14,14 @@ public interface CourseKitRepository extends JpaRepository<CourseIncludedKit, Lo
 
     /** Id các khóa có ít nhất 1 món quà còn bán (sản phẩm active). Dùng để hiện nhãn "Tặng kèm dụng cụ". */
     @Query("select distinct k.course.id from CourseIncludedKit k "
-            + "where k.course.id in :courseIds and k.product.active = true")
+            + "where k.course.id in :courseIds and k.product.active = true "
+            + "and (k.product.stockOnHand - k.product.stockReserved) >= k.quantity")
     List<Long> courseIdsWithActiveKits(@Param("courseIds") Collection<Long> courseIds);
+
+    @Query("select distinct k.course.id from CourseIncludedKit k "
+            + "where k.course.id in :courseIds and (k.product.active = false "
+            + "or (k.product.stockOnHand - k.product.stockReserved) < k.quantity)")
+    List<Long> courseIdsWithInactiveKits(@Param("courseIds") Collection<Long> courseIds);
 
     /**
      * Xóa hết quà của khóa bằng câu DELETE chạy ngay.

@@ -27,6 +27,7 @@ class AuthProvider extends ChangeNotifier {
   bool get isAuthenticated => _status == AuthStatus.authenticated && _currentUser != null;
   bool get isAdmin => _currentUser?.isAdmin ?? false;
   bool get isStaff => _currentUser?.role == UserRole.staff;
+  bool get isInstructor => _currentUser?.role == UserRole.instructor;
   bool get isLoading => _status == AuthStatus.loading;
 
   void clearError() {

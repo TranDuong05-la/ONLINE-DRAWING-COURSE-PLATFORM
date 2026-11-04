@@ -23,6 +23,7 @@ public record CourseSummaryDto(
         CourseLevel level,
         CourseStatus status,
         boolean hasKits,
+        boolean kitsUnavailable,
         long lessonCount,
         long totalDurationSeconds,
         LocalDateTime publishedAt,

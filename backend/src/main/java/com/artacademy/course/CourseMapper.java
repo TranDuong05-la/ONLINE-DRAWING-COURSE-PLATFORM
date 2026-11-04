@@ -8,6 +8,7 @@ import com.artacademy.course.dto.CourseSummaryDto;
 import com.artacademy.course.dto.KitDto;
 import com.artacademy.course.dto.PublicLessonDto;
 import com.artacademy.course.dto.PublicModuleDto;
+import com.artacademy.media.MediaUrlSigner;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,13 +26,16 @@ public class CourseMapper {
     private final CourseLessonRepository lessonRepository;
     private final CourseKitRepository kitRepository;
     private final CoursePublishValidator publishValidator;
+    private final MediaUrlSigner mediaSigner;
 
     public CourseMapper(CourseModuleRepository moduleRepository, CourseLessonRepository lessonRepository,
-                        CourseKitRepository kitRepository, CoursePublishValidator publishValidator) {
+                        CourseKitRepository kitRepository, CoursePublishValidator publishValidator,
+                        MediaUrlSigner mediaSigner) {
         this.moduleRepository = moduleRepository;
         this.lessonRepository = lessonRepository;
         this.kitRepository = kitRepository;
         this.publishValidator = publishValidator;
+        this.mediaSigner = mediaSigner;
     }
 
     // ---------------------------------------------------------------- danh sách / thẻ khóa học
@@ -48,6 +52,7 @@ public class CourseMapper {
             stats.put((Long) row[0], new long[]{((Number) row[1]).longValue(), ((Number) row[2]).longValue()});
         }
         Set<Long> withKits = new HashSet<>(kitRepository.courseIdsWithActiveKits(ids));
+        Set<Long> withUnavailableKits = new HashSet<>(kitRepository.courseIdsWithInactiveKits(ids));
 
         List<CourseSummaryDto> result = new ArrayList<>();
         for (Course c : courses) {
@@ -55,6 +60,7 @@ public class CourseMapper {
             result.add(new CourseSummaryDto(c.getId(), c.getCode(), c.getSlug(), c.getTitle(),
                     c.getShortDescription(), c.getThumbnailUrl(), c.getPrice(), c.getDiscountPrice(),
                     c.effectivePrice(), c.getLevel(), c.getStatus(), withKits.contains(c.getId()),
+                    withUnavailableKits.contains(c.getId()),
                     s[0], s[1], c.getPublishedAt(), c.getCreatedAt(), c.getUpdatedAt()));
         }
         return result;
@@ -79,16 +85,15 @@ public class CourseMapper {
 
         // Quà của sản phẩm đã bị tắt thì không hiện cho học viên
         List<KitDto> kits = kitRepository.findByCourse(course.getId()).stream()
-                .filter(k -> k.getProduct().isActive())
-                .map(this::toKit)
-                .toList();
+                .filter(k -> k.getProduct().isActive() && k.getProduct().getAvailable() >= k.getQuantity())
+                .map(this::toKit).toList();
         return new CourseDetailDto(toSummary(course), course.getDescription(), modules, kits);
     }
 
     private PublicLessonDto toPublicLesson(CourseLesson l) {
         boolean hasDocument = l.getMaterialUrl() != null && !l.getMaterialUrl().isBlank();
         // Quy tắc quan trọng: chỉ bài học thử mới lộ link video
-        String previewVideoUrl = l.isPreview() ? l.getVideoUrl() : null;
+        String previewVideoUrl = l.isPreview() ? mediaSigner.signIfProtected(l.getVideoUrl()) : null;
         return new PublicLessonDto(l.getId(), l.getTitle(), l.getDescription(), l.getDurationSeconds(),
                 l.isPreview(), l.isRequired(), hasDocument, previewVideoUrl);
     }
@@ -123,6 +128,7 @@ public class CourseMapper {
 
     public KitDto toKit(CourseIncludedKit k) {
         return new KitDto(k.getProduct().getId(), k.getProduct().getSku(), k.getProduct().getName(),
-                k.getProduct().getThumbnailUrl(), k.getQuantity());
+                k.getProduct().getThumbnailUrl(), k.getQuantity(),
+                k.getProduct().isActive() && k.getProduct().getAvailable() >= k.getQuantity());
     }
 }

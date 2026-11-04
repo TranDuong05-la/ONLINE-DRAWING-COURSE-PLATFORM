@@ -385,3 +385,70 @@ class AdminCertificate {
         issuedAt = _date(j['issuedAt']),
         emailStatus = j['emailStatus'] as String? ?? 'PENDING';
 }
+
+class LessonComment {
+  final int id;
+  final int? parentId;
+  final int authorUserId;
+  final String authorName;
+  final String? authorAvatarUrl;
+  final String authorRole;
+  final String body;
+  final DateTime? createdAt;
+  final bool mine;
+  LessonComment.fromJson(Map<String, dynamic> j)
+      : id = _int(j['id']), parentId = _intOrNull(j['parentId']), authorUserId = _int(j['authorUserId']),
+        authorName = j['authorName'] as String? ?? '', authorAvatarUrl = j['authorAvatarUrl'] as String?,
+        authorRole = j['authorRole'] as String? ?? 'USER', body = j['body'] as String? ?? '',
+        createdAt = _date(j['createdAt']), mine = j['mine'] == true;
+  bool get bySupport => authorRole != 'USER';
+  String? get roleLabel => switch (authorRole) {
+    'INSTRUCTOR' => 'Giảng viên', 'STAFF' => 'Nhân viên', 'ADMIN' => 'Admin', _ => null,
+  };
+}
+
+class CommentThread {
+  final LessonComment comment;
+  final List<LessonComment> replies;
+  CommentThread.fromJson(Map<String, dynamic> j)
+      : comment = LessonComment.fromJson(j['comment'] as Map<String, dynamic>),
+        replies = _list(j['replies'], LessonComment.fromJson);
+}
+
+class LessonComments {
+  final int lessonId;
+  final String lessonTitle;
+  final int courseId;
+  final String courseTitle;
+  final bool canModerate;
+  final int total;
+  final List<CommentThread> threads;
+  LessonComments.fromJson(Map<String, dynamic> j)
+      : lessonId = _int(j['lessonId']), lessonTitle = j['lessonTitle'] as String? ?? '',
+        courseId = _int(j['courseId']), courseTitle = j['courseTitle'] as String? ?? '',
+        canModerate = j['canModerate'] == true, total = _int(j['total']),
+        threads = _list(j['threads'], CommentThread.fromJson);
+}
+
+class CommentInboxItem {
+  final LessonComment comment;
+  final int lessonId;
+  final String lessonTitle;
+  final int courseId;
+  final String courseTitle;
+  final int replyCount;
+  final bool answered;
+  CommentInboxItem.fromJson(Map<String, dynamic> j)
+      : comment = LessonComment.fromJson(j['comment'] as Map<String, dynamic>), lessonId = _int(j['lessonId']),
+        lessonTitle = j['lessonTitle'] as String? ?? '', courseId = _int(j['courseId']),
+        courseTitle = j['courseTitle'] as String? ?? '', replyCount = _int(j['replyCount']), answered = j['answered'] == true;
+}
+
+class CommentInboxPage {
+  final List<CommentInboxItem> items;
+  final int total;
+  final int unansweredCount;
+  CommentInboxPage.fromJson(Map<String, dynamic> j)
+      : items = _list(j['items'], CommentInboxItem.fromJson), total = _int(j['total']),
+        unansweredCount = _int(j['unansweredCount']);
+}

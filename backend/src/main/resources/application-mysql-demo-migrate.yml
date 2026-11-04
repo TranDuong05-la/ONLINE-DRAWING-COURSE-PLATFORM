@@ -1,0 +1,81 @@
+spring:
+  config:
+    activate:
+      on-profile: mysql-demo-migrate
+  main:
+    web-application-type: none
+    lazy-initialization: true
+  # Migration-only startup has no mail use case. Keep the shared EmailService
+  # configuration resolvable without requiring SMTP credentials or connecting
+  # to an external mail server.
+  mail:
+    host: localhost
+    port: 1025
+    username: ""
+    password: ""
+    test-connection: false
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+            required: false
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/drawing_course_it
+    username: ${MYSQL_IT_USERNAME:}
+    password: ${MYSQL_IT_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    url: jdbc:mysql://127.0.0.1:3306/drawing_course_it
+    user: ${MYSQL_IT_USERNAME:}
+    password: ${MYSQL_IT_PASSWORD:}
+    enabled: true
+    locations: classpath:db/migration
+    target: 17
+    clean-disabled: true
+    validate-on-migrate: true
+    baseline-on-migrate: false
+    out-of-order: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+app:
+  # No auth endpoints run in this non-web profile. Generate an ephemeral key
+  # when JWT_SECRET is not present so security-related bean definitions do not
+  # require a production/demo signing secret just to migrate the schema.
+  jwt:
+    secret: ${MYSQL_IT_MIGRATION_JWT_SECRET:${random.uuid}${random.uuid}${random.uuid}}
+    access-expiration-ms: 900000
+    refresh-expiration-ms: 604800000
+  cart:
+    api-enabled: false
+    course-only:
+      api-enabled: false
+  checkout:
+    product:
+      enabled: false
+      http-enabled: false
+    course-only:
+      enabled: false
+      http-enabled: false
+  payment:
+    vnpay:
+      enabled: false
+      session-api:
+        enabled: false
+      ipn:
+        enabled: false
+    settlement:
+      enabled: false
+      worker:
+        enabled: false
+        scheduler:
+          enabled: false
+  order:
+    expiration:
+      enabled: false
+      scheduler:
+        enabled: false
+  seed:
+    enabled: false

@@ -10,6 +10,7 @@ import '../../models/learning_models.dart';
 import '../../repositories/learning_repository.dart';
 import 'assignment_screen.dart';
 import 'learning_widgets.dart';
+import 'lesson_comments_screen.dart';
 
 /// Plays a lesson video and saves progress.
 ///
@@ -36,6 +37,7 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
   String? _videoError;
   bool _completed = false;
   int? _coursePercent;
+  int? _commentCount;
 
   final _played = Stopwatch();
   int _creditedMs = 0;
@@ -64,10 +66,25 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
         _lesson = lesson;
         _completed = lesson.completed;
       });
+      _loadCommentCount();
       await _initVideo(lesson);
     } catch (e) {
       if (mounted) setState(() => _loadError = e.toString());
     }
+  }
+
+  Future<void> _loadCommentCount() async {
+    try {
+      final comments = await _repo.getLessonComments(widget.lessonId);
+      if (mounted) setState(() => _commentCount = comments.total);
+    } catch (_) {}
+  }
+
+  Future<void> _openComments() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => LessonCommentsScreen(lessonId: widget.lessonId),
+    ));
+    if (mounted) _loadCommentCount();
   }
 
   Future<void> _initVideo(LessonContent lesson) async {
@@ -211,7 +228,14 @@ class _LessonScreenState extends State<LessonScreen> with WidgetsBindingObserver
     final lesson = _lesson;
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: Text(lesson?.title ?? 'Bài học'), elevation: 0),
+      appBar: AppBar(
+        title: Text(lesson?.title ?? 'Bài học'), elevation: 0,
+        actions: [if (lesson != null) IconButton(
+          tooltip: 'Bình luận', onPressed: _openComments,
+          icon: Badge(isLabelVisible: (_commentCount ?? 0) > 0, label: Text('${_commentCount ?? 0}'),
+            child: const Icon(Icons.chat_bubble_outline_rounded)),
+        )],
+      ),
       body: _loadError != null
           ? ErrorRetry(message: _loadError!, onRetry: _load)
           : lesson == null

@@ -14,7 +14,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.TestPropertySource;
 
-@TestPropertySource(properties = "app.checkout.course-only.catalog-adapter.enabled=true")
+@TestPropertySource(properties = {
+        "app.checkout.course-only.catalog-adapter.enabled=true",
+        "app.payment.vnpay.enabled=false",
+        "app.payment.vnpay.session-api.enabled=false",
+        "app.payment.vnpay.ipn.enabled=false",
+        "app.payment.vnpay.query-dr.enabled=false"
+})
 class CourseSellableCatalogAdapterH2IntegrationTest extends IntegrationTestBase {
     @Autowired private CourseSellableCatalogAdapter adapter;
 

@@ -106,16 +106,31 @@ class _UploadFieldState extends State<UploadField> {
     }
   }
 
+  Future<String?> _previewUrl(String value) async {
+    if (!value.startsWith('/uploads/') ||
+        (!value.toLowerCase().endsWith('.mp4') && !value.toLowerCase().endsWith('.pdf'))) {
+      return value;
+    }
+    try {
+      return await _repo.signMedia(value);
+    } on ApiException catch (e) {
+      if (mounted) showMessage(context, e.displayMessage, error: true);
+      return null;
+    }
+  }
+
   Future<void> _openPreview() async {
     final value = widget.value;
     if (value == null || value.isEmpty) return;
+    final previewValue = await _previewUrl(value);
+    if (previewValue == null || !mounted) return;
     if (widget.kind == UploadKind.video) {
       await Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => VideoPlayerPage(title: widget.label, url: value)),
+        MaterialPageRoute(builder: (_) => VideoPlayerPage(title: widget.label, url: resolveMediaUrl(previewValue))),
       );
     } else if (widget.kind == UploadKind.document) {
       final ok = await launchUrl(
-        Uri.parse(resolveMediaUrl(value)),
+        Uri.parse(resolveMediaUrl(previewValue)),
         mode: LaunchMode.externalApplication,
       );
       if (!ok && mounted) showMessage(context, 'Không mở được tài liệu', error: true);

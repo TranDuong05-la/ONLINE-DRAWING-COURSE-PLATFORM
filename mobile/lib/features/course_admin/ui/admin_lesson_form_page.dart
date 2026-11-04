@@ -66,15 +66,20 @@ class _AdminLessonFormPageState extends State<AdminLessonFormPage> {
     final url = _videoUrl;
     if (url == null || url.isEmpty) return;
     setState(() => _readingDuration = true);
-    final controller = VideoPlayerController.networkUrl(Uri.parse(resolveMediaUrl(url)));
+    VideoPlayerController? controller;
     try {
-      await controller.initialize();
+      final playableUrl = url.startsWith('/uploads/') && url.toLowerCase().endsWith('.mp4')
+          ? await _repo.signMedia(url)
+          : url;
+      final activeController = VideoPlayerController.networkUrl(Uri.parse(resolveMediaUrl(playableUrl)));
+      controller = activeController;
+      await activeController.initialize();
       if (!mounted) return;
-      setState(() => _duration.text = '${controller.value.duration.inSeconds}');
+      setState(() => _duration.text = '${activeController.value.duration.inSeconds}');
     } catch (_) {
       if (mounted) showMessage(context, 'Không đọc được thời lượng, hãy nhập tay', error: true);
     } finally {
-      await controller.dispose();
+      await controller?.dispose();
       if (mounted) setState(() => _readingDuration = false);
     }
   }

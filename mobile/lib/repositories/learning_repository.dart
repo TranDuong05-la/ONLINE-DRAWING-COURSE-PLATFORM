@@ -71,6 +71,17 @@ class LearningRepository {
   Future<List<MyAssignment>> getMyAssignments() =>
       _data(_get('/api/learning/assignments'), (j) => _list(j, MyAssignment.fromJson));
 
+  Future<LessonComments> getLessonComments(int lessonId) =>
+      _data(_get('/api/learning/lessons/$lessonId/comments'), (j) => LessonComments.fromJson(_map(j)));
+
+  Future<LessonComment> postLessonComment(int lessonId, String body, {int? parentId}) => _data(
+      _post('/api/learning/lessons/$lessonId/comments', data: {'body': body, 'parentId': parentId}),
+      (j) => LessonComment.fromJson(_map(j)));
+
+  Future<CommentInboxPage> getCommentInbox({bool unansweredOnly = false, int page = 0, int size = 30}) => _data(
+      _get('/api/learning/comments/inbox', queryParameters: {'unanswered': unansweredOnly, 'page': page, 'size': size}),
+      (j) => CommentInboxPage.fromJson(_map(j)));
+
   // ---------------------------------------------------------------- thông báo (chuông)
 
   Future<List<NotificationItem>> getNotifications() =>

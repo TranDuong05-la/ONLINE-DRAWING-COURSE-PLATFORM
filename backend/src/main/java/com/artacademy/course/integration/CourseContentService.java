@@ -7,6 +7,7 @@ import com.artacademy.course.CourseLessonRepository;
 import com.artacademy.course.CourseModule;
 import com.artacademy.course.CourseRepository;
 import com.artacademy.course.CourseStatus;
+import com.artacademy.media.MediaUrlSigner;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -28,10 +29,13 @@ public class CourseContentService {
 
     private final CourseRepository courseRepository;
     private final CourseLessonRepository lessonRepository;
+    private final MediaUrlSigner mediaSigner;
 
-    public CourseContentService(CourseRepository courseRepository, CourseLessonRepository lessonRepository) {
+    public CourseContentService(CourseRepository courseRepository, CourseLessonRepository lessonRepository,
+                                MediaUrlSigner mediaSigner) {
         this.courseRepository = courseRepository;
         this.lessonRepository = lessonRepository;
+        this.mediaSigner = mediaSigner;
     }
 
     /** Module/bài đang hiển thị, đúng thứ tự sort_order. */
@@ -59,7 +63,8 @@ public class CourseContentService {
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy bài học"));
         Course course = findLearnableCourse(lesson.getModule().getCourse().getId());
         return new LessonContent(lesson.getId(), course.getId(), lesson.getTitle(), lesson.getDescription(),
-                lesson.getVideoUrl(), lesson.getMaterialUrl(), lesson.getDurationSeconds(), lesson.isRequired());
+                mediaSigner.signIfProtected(lesson.getVideoUrl()), mediaSigner.signIfProtected(lesson.getMaterialUrl()),
+                lesson.getDurationSeconds(), lesson.isRequired());
     }
 
     private Course findLearnableCourse(Long courseId) {
