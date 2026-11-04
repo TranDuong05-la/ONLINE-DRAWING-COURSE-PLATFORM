@@ -62,7 +62,7 @@ public final class VnPayIpnController {
         }
     }
 
-    private static Map<String, List<String>> preserveBoundedParameters(MultiValueMap<String, String> parameters) {
+    static Map<String, List<String>> preserveBoundedParameters(MultiValueMap<String, String> parameters) {
         if (parameters == null || parameters.size() > MAX_PARAMETER_COUNT) return null;
         Map<String, List<String>> copy = new LinkedHashMap<>();
         int total = 0;

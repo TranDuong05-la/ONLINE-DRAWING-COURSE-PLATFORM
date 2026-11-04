@@ -14,6 +14,11 @@ public class VnPayProperties {
     private String ipnUrl = "";
     private String apiVersion = "2.1.0";
     private String command = "pay";
+    /**
+     * Chỉ dùng khi chạy trên máy cá nhân (VNPay không gọi IPN về localhost được): cho phép return/IPN URL dùng http
+     * và bật trang /api/payments/vnpay/return xác nhận thanh toán bằng chính chữ ký + đối soát như IPN.
+     */
+    private boolean allowLocalHttpReturn;
 
     @PostConstruct
     void validateWhenEnabled() {
@@ -28,20 +33,22 @@ public class VnPayProperties {
             throw new IllegalStateException("VNPay signing key is not configured");
         if (!"https://sandbox.vnpayment.vn/paymentv2/vpcpay.html".equals(paymentUrl))
             throw new IllegalStateException("VNPay payment URL must use the configured sandbox endpoint");
-        requireHttps(returnUrl, "return URL");
-        requireHttps(ipnUrl, "IPN URL");
+        requireHttps(returnUrl, "return URL", allowLocalHttpReturn);
+        requireHttps(ipnUrl, "IPN URL", allowLocalHttpReturn);
         if (!"2.1.0".equals(apiVersion) || !"pay".equals(command))
             throw new IllegalStateException("Unsupported VNPay API version or command");
     }
 
-    private static void requireHttps(String value, String label) {
+    private static void requireHttps(String value, String label, boolean allowHttp) {
         try {
             var uri = java.net.URI.create(value);
-            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
-                    || uri.getUserInfo() != null || uri.getFragment() != null)
+            boolean schemeOk = "https".equalsIgnoreCase(uri.getScheme())
+                    || allowHttp && "http".equalsIgnoreCase(uri.getScheme());
+            if (!schemeOk || uri.getHost() == null || uri.getUserInfo() != null || uri.getFragment() != null)
                 throw new IllegalArgumentException();
         } catch (RuntimeException ex) {
-            throw new IllegalStateException("VNPay " + label + " must be an absolute HTTPS URL");
+            throw new IllegalStateException("VNPay " + label + " must be an absolute "
+                    + (allowHttp ? "HTTP(S)" : "HTTPS") + " URL");
         }
     }
 
@@ -61,4 +68,6 @@ public class VnPayProperties {
     public void setApiVersion(String apiVersion) { this.apiVersion = apiVersion; }
     public String getCommand() { return command; }
     public void setCommand(String command) { this.command = command; }
+    public boolean isAllowLocalHttpReturn() { return allowLocalHttpReturn; }
+    public void setAllowLocalHttpReturn(boolean allowLocalHttpReturn) { this.allowLocalHttpReturn = allowLocalHttpReturn; }
 }
