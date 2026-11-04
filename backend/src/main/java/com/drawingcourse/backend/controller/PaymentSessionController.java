@@ -5,6 +5,7 @@ import com.artacademy.payment.vnpay.PaymentSession;
 import com.artacademy.payment.vnpay.PaymentSessionApplicationService;
 import com.artacademy.security.AuthenticatedUserIdResolver;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,12 +29,16 @@ public final class PaymentSessionController {
     private final PaymentSessionApplicationService sessions;
     private final AuthenticatedUserIdResolver authenticatedUser;
     private final Clock clock;
+    /** Bật bán học cụ (app.checkout.product.enabled) thì đơn có học cụ / hỗn hợp cũng thanh toán qua VNPay. */
+    private final boolean productOrdersPayable;
 
     public PaymentSessionController(PaymentSessionApplicationService sessions,
-                                    AuthenticatedUserIdResolver authenticatedUser, Clock clock) {
+                                    AuthenticatedUserIdResolver authenticatedUser, Clock clock,
+                                    @Value("${app.checkout.product.enabled:false}") boolean productOrdersPayable) {
         this.sessions = Objects.requireNonNull(sessions);
         this.authenticatedUser = Objects.requireNonNull(authenticatedUser);
         this.clock = Objects.requireNonNull(clock);
+        this.productOrdersPayable = productOrdersPayable;
     }
 
     @PostMapping("/{orderId}/payment-session")
@@ -42,7 +47,9 @@ public final class PaymentSessionController {
         Integer userId = authenticatedUser.requireUserId();
         String clientIp = validatedPeerAddress(request.getRemoteAddr());
         Instant requestTime = clock.instant();
-        PaymentSession result = sessions.createOrReuseForCourseOnlyOrder(userId, orderId, requestTime, clientIp);
+        PaymentSession result = productOrdersPayable
+                ? sessions.createOrReuse(userId, orderId, requestTime, clientIp)
+                : sessions.createOrReuseForCourseOnlyOrder(userId, orderId, requestTime, clientIp);
         var body = new PaymentSessionResponse(result.orderId(), result.paymentUrl(), result.expiresAt(), result.reused());
         return ResponseEntity.ok(ApiResponse.success("Payment session is ready", body));
     }
