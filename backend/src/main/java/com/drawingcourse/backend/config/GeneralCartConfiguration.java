@@ -9,6 +9,7 @@ import com.drawingcourse.backend.repository.CartRepository;
 import com.drawingcourse.backend.service.*;
 import java.time.Clock;
 import java.util.Set;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,6 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 @ConditionalOnProperty(name = "app.cart.api-enabled", havingValue = "true")
 @org.springframework.boot.autoconfigure.condition.ConditionalOnExpression("'${app.cart.course-only.api-enabled:false}' != 'true'")
 public class GeneralCartConfiguration {
+    // Ứng dụng có sẵn nhiều bean cùng kiểu (của C và D): chỉ rõ bean của giỏ hàng chung.
     @Bean CourseCartCatalogProvider generalCourseCartCatalog(CourseSellableService courses, CourseKitRepository kits) {
         return new CourseSellableCartCatalogAdapter(courses, kits);
     }
@@ -27,7 +29,8 @@ public class GeneralCartConfiguration {
         return claims::hasActivePendingPurchase;
     }
     @Bean CartCatalog<Integer, Integer> generalCartCatalog(CourseCartCatalogProvider courses,
-            CourseOwnershipProvider ownership, ActivePendingCoursePurchaseProvider pending,
+            @Qualifier("generalCartCourseOwnership") CourseOwnershipProvider ownership,
+            @Qualifier("generalCartPendingCourses") ActivePendingCoursePurchaseProvider pending,
             ProductCartCatalogProvider products) {
         return new GeneralCartCatalogPolicy(courses, ownership, pending, products, Clock.systemUTC());
     }
@@ -38,7 +41,8 @@ public class GeneralCartConfiguration {
                 Set.of(CartItemType.COURSE, CartItemType.PRODUCT));
     }
     @Bean CartAvailabilityProjector generalCartAvailabilityProjector(CourseCartCatalogProvider courses,
-            CourseOwnershipProvider ownership, ActivePendingCoursePurchaseProvider pending,
+            @Qualifier("generalCartCourseOwnership") CourseOwnershipProvider ownership,
+            @Qualifier("generalCartPendingCourses") ActivePendingCoursePurchaseProvider pending,
             ProductCartCatalogProvider products, ProductStockAvailabilityProvider stock) {
         return new CartAvailabilityProjector(courses, ownership, pending, products, stock, Clock.systemUTC());
     }

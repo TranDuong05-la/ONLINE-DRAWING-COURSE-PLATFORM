@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../models/page_response.dart';
 import '../data/cart_bridge.dart';
+import '../../cart/course_purchase_config.dart';
 import '../data/supply_repository.dart';
 import '../models/supply_models.dart';
 import 'dev_order_sheet.dart';
@@ -95,7 +97,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     setState(() => _adding = true);
     try {
       await CartBridge.instance.addProduct(p.id, _quantity);
-      if (mounted) showMessage(context, 'Đã thêm $_quantity "${p.name}" vào giỏ');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Đã thêm $_quantity "${p.name}" vào giỏ'),
+        // Giỏ hàng chung (khóa học + học cụ) chỉ có khi build với PRODUCT_PURCHASE_ENABLED=true
+        action: productPurchaseUiEnabled
+            ? SnackBarAction(label: 'Xem giỏ', onPressed: () => context.push('/cart'))
+            : null,
+      ));
     } on CartNotReadyException catch (e) {
       if (!mounted) return;
       if (kDebugMode) {
@@ -272,6 +281,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
     );
   }
+
 }
 
 class _QuantityStepper extends StatelessWidget {
