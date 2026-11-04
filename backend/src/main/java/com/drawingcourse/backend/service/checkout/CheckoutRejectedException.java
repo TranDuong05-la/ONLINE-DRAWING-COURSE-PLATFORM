@@ -6,7 +6,9 @@ public final class CheckoutRejectedException extends RuntimeException {
         INVALID_IDEMPOTENCY_KEY, IDEMPOTENCY_KEY_REUSED, IDEMPOTENCY_IN_PROGRESS, IDEMPOTENCY_RACE,
         CART_NOT_FOUND, CART_REVISION_MISMATCH, CART_ITEM_MISSING, CART_SELECTION_MISMATCH,
         ITEM_UNAVAILABLE, UNSUPPORTED_ITEM_TYPE, COURSE_ALREADY_OWNED, COURSE_PENDING_PURCHASE, INSUFFICIENT_STOCK,
-        VOUCHER_REJECTED, SHIPPING_QUOTE_REJECTED
+        VOUCHER_REJECTED, SHIPPING_QUOTE_REJECTED,
+        /** A Combo covers a Course that is also selected on its own or inside another selected Combo. */
+        COMBO_COURSE_OVERLAP
     }
 
     private final Reason reason;

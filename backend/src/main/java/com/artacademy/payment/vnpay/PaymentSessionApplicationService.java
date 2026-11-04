@@ -57,8 +57,9 @@ public class PaymentSessionApplicationService {
         var orderRow = orders.findForUpdate(orderId, authenticatedUserId).orElseThrow(PaymentSessionApplicationService::notFound);
         if (!orderId.equals(orderRow.getId()) || !authenticatedUserId.equals(orderRow.getUserId())) throw notFound();
         var order = orderMapper.toDomain(orderRow);
+        // Course-only Orders hold Courses and/or Combos (a Combo grants Courses); Product lines need the full route.
         if (courseOnly && order.getItems().stream()
-                .anyMatch(item -> item.catalogSnapshot().itemType() != com.drawingcourse.backend.entity.OrderItemType.COURSE))
+                .anyMatch(item -> item.catalogSnapshot().itemType() == com.drawingcourse.backend.entity.OrderItemType.PRODUCT))
             throw new IllegalStateException("Only Course Orders can create a payment session through this route");
         Instant now = currentTime(trustedRequestTime);
         if (order.getStatus() != OrderStatus.PENDING_PAYMENT)

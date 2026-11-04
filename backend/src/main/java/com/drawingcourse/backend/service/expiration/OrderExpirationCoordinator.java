@@ -134,9 +134,11 @@ public final class OrderExpirationCoordinator {
 
         var productIds = new TreeSet<Integer>();
         var courseIds = new TreeSet<Integer>();
+        var comboItems = new java.util.TreeMap<Integer, Integer>();
         for (var item : order.getItems()) {
             if (item.getItemType() == OrderItemType.PRODUCT) productIds.add(item.getItemId());
             else if (item.getItemType() == OrderItemType.COURSE) courseIds.add(item.getItemId());
+            else if (item.getItemType() == OrderItemType.COMBO) comboItems.put(item.getItemId(), item.getId());
         }
         for (Integer productId : productIds) {
             if (inventory == null) throw new IllegalStateException("Product expiration requires an Inventory release participant");
@@ -144,6 +146,8 @@ public final class OrderExpirationCoordinator {
         }
         for (Integer courseId : courseIds)
             courses.releaseCourseForExpiredOrder(userId, courseId, orderId, now);
+        for (Integer comboOrderItemId : comboItems.values())
+            courses.releaseComboForExpiredOrder(userId, orderId, comboOrderItemId, now);
 
         return result(ExpirationResult.Outcome.EXPIRED, orderId, ExpirationResult.Reason.NONE);
     }

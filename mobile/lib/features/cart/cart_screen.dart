@@ -171,20 +171,25 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _itemCard(CartItem item) {
-    final supported = item.type == CartItemType.course;
+    final supported = item.isCourseCheckoutItem;
+    final isCombo = item.type == CartItemType.combo;
     final available =
         supported && item.availability == CartItemAvailability.available;
     return Card(
       key: ValueKey('cart-item-${item.id}'),
       child: ListTile(
-        leading: const Icon(Icons.school_outlined),
+        leading: Icon(
+          isCombo ? Icons.collections_bookmark_outlined : Icons.school_outlined,
+        ),
         title: Text(item.name),
         subtitle: Text(
           available
-              ? 'Course · quantity 1 · ${formatVnd(item.unitPriceVnd!)} VND'
+              ? '${isCombo ? 'Combo' : 'Course'} · quantity 1 · ${formatVnd(item.unitPriceVnd!)} VND'
               : item.availabilityMessage ??
                     (supported
-                        ? 'This Course is unavailable.'
+                        ? (isCombo
+                              ? 'This Combo is unavailable.'
+                              : 'This Course is unavailable.')
                         : 'Product purchases are not supported in Course-only checkout.'),
         ),
         trailing: Row(
@@ -228,7 +233,7 @@ class _CartScreenState extends State<CartScreen> {
                     !cart.canCheckout ||
                     cart.items.any(
                       (item) =>
-                          item.type != CartItemType.course ||
+                          !item.isCourseCheckoutItem ||
                           item.availability != CartItemAvailability.available,
                     )
                 ? null

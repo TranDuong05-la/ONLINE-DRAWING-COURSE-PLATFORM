@@ -14,6 +14,8 @@ import com.drawingcourse.backend.service.OrderCurrentUser;
 import com.drawingcourse.backend.service.OrderPersistenceService;
 import com.drawingcourse.backend.service.checkout.CheckoutCoordinator;
 import com.drawingcourse.backend.service.checkout.CheckoutIdempotencyService;
+import com.drawingcourse.backend.service.checkout.ComboCatalogPort;
+import com.drawingcourse.backend.service.checkout.ComboPurchasePort;
 import com.drawingcourse.backend.service.checkout.CourseCatalogPort;
 import com.drawingcourse.backend.service.checkout.CourseOnlyCheckoutApplicationService;
 import com.drawingcourse.backend.service.checkout.CoursePurchasePort;
@@ -22,6 +24,7 @@ import com.drawingcourse.backend.service.checkout.OrderPersistenceCheckoutPort;
 import com.drawingcourse.backend.service.checkout.VoucherReservationPort;
 import com.drawingcourse.backend.service.checkout.JpaVoucherReservationService;
 import java.time.Clock;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -57,10 +60,19 @@ public class CourseOnlyCheckoutConfiguration {
             CourseCatalogPort courses, CoursePurchasePort coursePurchases, VoucherReservationPort vouchers,
             CartRepository carts, CheckoutRequestRepository checkoutRequests, UserRepository users,
             OrderRepository orders, OrderItemRepository orderItems, OrderCurrentUser currentUser,
-            PlatformTransactionManager transactionManager) {
+            PlatformTransactionManager transactionManager,
+            ObjectProvider<ComboCatalogPort> comboCatalog, ObjectProvider<ComboPurchasePort> comboPurchases) {
         var idempotency = new CheckoutIdempotencyService(checkoutRequests, users, orders,
                 Clock.systemUTC(), transactionManager);
         var persistence = new OrderPersistenceService(orders, orderItems, currentUser, transactionManager);
+        // Combos are sold only when B's Combo catalog and C's claim participant are both present.
+        ComboCatalogPort combos = comboCatalog.getIfAvailable();
+        ComboPurchasePort comboClaims = comboPurchases.getIfAvailable();
+        if (combos != null && comboClaims != null) {
+            return CheckoutCoordinator.courseOnlyWithCombos(idempotency, new JpaCheckoutCartPort(carts), courses,
+                    coursePurchases, combos, comboClaims, vouchers, new OrderPersistenceCheckoutPort(persistence),
+                    Clock.systemUTC(), transactionManager);
+        }
         return CheckoutCoordinator.courseOnly(idempotency, new JpaCheckoutCartPort(carts), courses,
                 coursePurchases, vouchers, new OrderPersistenceCheckoutPort(persistence),
                 Clock.systemUTC(), transactionManager);

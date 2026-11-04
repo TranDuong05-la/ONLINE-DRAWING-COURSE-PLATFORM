@@ -119,6 +119,18 @@ Video/PDF đã upload **không còn công khai**: `/uploads/**` chỉ phục v�
 - Cấu hình: `app.media.url-ttl-seconds` (mặc định 7200), `app.media.signing-secret` (mặc định lấy từ `app.jwt.secret`; production nên đặt riêng).
 - Hạn chế: link ngoài (YouTube...) B không bảo vệ được; ai nhận được link còn hạn thì xem được tới khi hết hạn.
 
+## 6c. Mua combo (giỏ → đặt hàng → thanh toán → cấp quyền học)
+
+Phạm vi: chế độ **Course-only** (`app.cart.course-only.api-enabled`, `app.checkout.course-only.*`). Giỏ chung có Product và Product Checkout **không nhận combo** (từ chối rõ ràng, không bao giờ coi id combo là id sản phẩm).
+
+- **Loại hàng mới `COMBO`** (giỏ `cart_items` và đơn `order_items`; cùng từ vựng `COMBO` với refund của D). Một combo là **MỘT dòng**, số lượng luôn 1, giá = giá combo, **không áp voucher** (`voucher_eligible = false`).
+- **Giỏ:** `POST /api/cart/items {"itemType":"COMBO","itemId":<id>,"quantity":1}`. Thêm được khi B báo combo bán được (`BundleSellableService.getSnapshot`), **không khóa nào kèm quà**, học viên chưa sở hữu và không có đơn chờ cho khóa nào trong combo. Thêm lại cùng combo là idempotent. Dòng combo trùng khóa với dòng khác trong giỏ (khóa lẻ hoặc combo khác) được báo `UNAVAILABLE`.
+- **Đặt hàng:** `POST /api/checkout/course-only` đọc snapshot combo MỘT lần (`ComboCatalogPort`, B), kiểm tra trùng khóa/đã sở hữu/đang chờ bằng `ComboCheckoutValidator`, tạo một `OrderItem` COMBO rồi giữ chỗ **từng khóa** (`ComboPurchasePort`, C) trong cùng transaction: lỗi ở một khóa thì hủy cả đơn. Mã lỗi nghiệp vụ mới `COMBO_COURSE_OVERLAP` (HTTP 409 như các lỗi checkout khác).
+- **Snapshot của combo chính là tập claim:** C lưu mỗi khóa một claim `COMBO_COMPONENT` (có `component_position`, gắn `order_item_id`). Settlement/hết hạn/hoàn tiền dùng tập claim này, **không đọc lại** định nghĩa combo hiện tại, nên sửa combo sau khi đặt không đổi những gì đã mua. Giá lấy lúc đặt hàng (như khóa lẻ), không ghim theo lúc thêm vào giỏ; `definitionVersion` chưa lưu vào đơn.
+- **Thanh toán xong:** `SettlementCoordinator` gọi `confirmComboForOrder` (C) xác nhận toàn bộ claim của OrderItem và cấp Enrollment từng khóa (có `source_order_item_id`). **Hết hạn:** `OrderExpirationCoordinator` gọi `releaseComboForExpiredOrder` nhả mọi claim còn RESERVED. Hai hàm mới là `default` ném lỗi ở interface của D để participant không hỗ trợ combo thì từ chối chứ không cấp nửa chừng; C đã cài đủ.
+- **DB:** migration `V17__combo_cart_and_order_items.sql` chỉ nới `CHECK` của `cart_items`/`order_items` thêm `COMBO` (combo và khóa số lượng 1, sản phẩm tùy ý). Đã chạy V1→V17 trên MySQL 8 thật (database tạm) và kiểm tra ràng buộc.
+- **Chưa làm:** hoàn tiền combo (D chưa có API refund), combo kèm quà học cụ (cần giao hàng/kho), voucher cho combo (D chốt không áp).
+
 ## 7. Migration `V10__course_catalog.sql` (chỉ là tài liệu tham chiếu schema, chưa chạy)
 
 Integration đã có Flyway V1 đến V13 (và V14 của A chưa áp dụng). Theo thống nhất: **không đưa file này vào database chung** và không đổi thành V14; phía integration tự review schema và nếu cần migration mới thì dùng V15 trở đi. File giữ nguyên tên `V10` để làm tài liệu tham chiếu.

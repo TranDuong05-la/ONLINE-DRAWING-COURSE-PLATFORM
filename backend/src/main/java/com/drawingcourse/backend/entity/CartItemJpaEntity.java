@@ -11,7 +11,7 @@ import java.util.Objects;
 
 @Entity
 @org.hibernate.annotations.Check(name = "ck_cart_items_values", constraints =
-        "quantity > 0 AND item_type IN ('COURSE', 'PRODUCT') AND (item_type <> 'COURSE' OR quantity = 1)")
+        "quantity > 0 AND item_type IN ('COURSE', 'PRODUCT', 'COMBO') AND (item_type = 'PRODUCT' OR quantity = 1)")
 @Table(name = "cart_items", uniqueConstraints = @UniqueConstraint(
         name = "uk_cart_items_reference", columnNames = {"cart_id", "item_type", "item_id"}))
 @Getter
@@ -42,6 +42,6 @@ public class CartItemJpaEntity {
         new CartItem<>(itemType, itemId, quantity);
         this.quantity = quantity;
     }
-    @AssertTrue(message = "Courses require quantity 1")
-    public boolean isCourseQuantityValid() { return itemType != CartItemType.COURSE || quantity == 1; }
+    @AssertTrue(message = "Courses and combos require quantity 1")
+    public boolean isCourseQuantityValid() { return itemType == CartItemType.PRODUCT || quantity == 1; }
 }

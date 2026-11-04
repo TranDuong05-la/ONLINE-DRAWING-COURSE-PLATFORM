@@ -51,7 +51,7 @@ class _CourseCheckoutScreenState extends State<CourseCheckoutScreen>
       widget.cart.items.isNotEmpty &&
       widget.cart.items.every(
         (item) =>
-            item.type == CartItemType.course &&
+            item.isCourseCheckoutItem &&
             item.availability == CartItemAvailability.available &&
             item.quantity == 1,
       );

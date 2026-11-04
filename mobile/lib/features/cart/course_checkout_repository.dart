@@ -88,12 +88,12 @@ class ApiCourseCheckoutRepository implements CourseCheckoutRepository {
         cart.items.isEmpty ||
         cart.items.any(
           (item) =>
-              item.type != CartItemType.course ||
+              !item.isCourseCheckoutItem ||
               item.availability != CartItemAvailability.available ||
               item.quantity != 1,
         )) {
       throw const FormatException(
-        'Only available Course items can be checked out.',
+        'Only available Course and Combo items can be checked out.',
       );
     }
     final response = await _api.post<dynamic>(

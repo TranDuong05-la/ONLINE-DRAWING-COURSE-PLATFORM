@@ -1,5 +1,6 @@
 package com.drawingcourse.backend.config;
 
+import com.artacademy.bundle.BundleSellableService;
 import com.artacademy.course.CourseKitRepository;
 import com.artacademy.course.integration.CourseSellableService;
 import com.artacademy.learning.claim.CourseClaimService;
@@ -7,8 +8,10 @@ import com.drawingcourse.backend.entity.CartItemType;
 import com.drawingcourse.backend.repository.CartItemRepository;
 import com.drawingcourse.backend.repository.CartRepository;
 import com.drawingcourse.backend.service.ActivePendingCoursePurchaseProvider;
+import com.drawingcourse.backend.service.BundleSellableCartCatalogAdapter;
 import com.drawingcourse.backend.service.CartApplicationService;
 import com.drawingcourse.backend.service.CartCatalog;
+import com.drawingcourse.backend.service.ComboCartCatalogProvider;
 import com.drawingcourse.backend.service.CourseCartCatalogProvider;
 import com.drawingcourse.backend.service.CourseOnlyCartCatalogPolicy;
 import com.drawingcourse.backend.service.CourseOnlyCartProjector;
@@ -44,11 +47,18 @@ public class CourseOnlyCartConfiguration {
         return claims::hasActivePendingPurchase;
     }
 
+    /** B's Combo catalog: a Combo is one Cart line; Combos whose Courses carry physical gifts stay unavailable. */
+    @Bean
+    ComboCartCatalogProvider courseOnlyCartComboCatalogProvider(BundleSellableService bundles) {
+        return new BundleSellableCartCatalogAdapter(bundles);
+    }
+
     @Bean
     CartCatalog<Integer, Integer> courseOnlyCartCatalog(CourseCartCatalogProvider courses,
             @Qualifier(OWNERSHIP) CourseOwnershipProvider ownership,
-            @Qualifier(PENDING) ActivePendingCoursePurchaseProvider pending) {
-        return new CourseOnlyCartCatalogPolicy(courses, ownership, pending, Clock.systemUTC());
+            @Qualifier(PENDING) ActivePendingCoursePurchaseProvider pending,
+            ComboCartCatalogProvider combos) {
+        return new CourseOnlyCartCatalogPolicy(courses, ownership, pending, Clock.systemUTC(), combos);
     }
 
     @Bean
@@ -57,13 +67,14 @@ public class CourseOnlyCartConfiguration {
             CartCatalog<Integer, Integer> courseOnlyCartCatalog,
             PlatformTransactionManager transactions) {
         return new CartApplicationService(carts, items, currentUser, courseOnlyCartCatalog, transactions,
-                Set.of(CartItemType.COURSE));
+                Set.of(CartItemType.COURSE, CartItemType.COMBO));
     }
 
     @Bean
     CourseOnlyCartProjector courseOnlyCartProjector(CourseCartCatalogProvider courses,
             @Qualifier(OWNERSHIP) CourseOwnershipProvider ownership,
-            @Qualifier(PENDING) ActivePendingCoursePurchaseProvider pending) {
-        return new CourseOnlyCartProjector(courses, ownership, pending, Clock.systemUTC());
+            @Qualifier(PENDING) ActivePendingCoursePurchaseProvider pending,
+            ComboCartCatalogProvider combos) {
+        return new CourseOnlyCartProjector(courses, ownership, pending, Clock.systemUTC(), combos);
     }
 }

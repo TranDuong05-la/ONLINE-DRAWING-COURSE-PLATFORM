@@ -6,6 +6,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +23,8 @@ import com.artacademy.supply.catalog.SupplyProductRepository;
  */
 @Component
 @Profile("!prod")
+// Chạy trước CourseDataSeeder của B để quà mẫu của khóa học tìm được sản phẩm theo SKU
+@Order(Ordered.LOWEST_PRECEDENCE - 10)
 public class SupplySeeder implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(SupplySeeder.class);
 

@@ -58,6 +58,9 @@ public final class CartAvailabilityProjector {
 
     private CartResponse.Item projectItem(Integer userId, CartState.Item item) {
         if (item.itemType() == CartItemType.COURSE) return projectCourse(userId, item);
+        // Combos are only purchasable through the Course-only Cart; never mistake a Combo ID for a Product ID.
+        if (item.itemType() == CartItemType.COMBO)
+            throw new CartItemTypeNotSupportedException("General Cart cannot project Combo items");
         return projectProduct(item);
     }
 

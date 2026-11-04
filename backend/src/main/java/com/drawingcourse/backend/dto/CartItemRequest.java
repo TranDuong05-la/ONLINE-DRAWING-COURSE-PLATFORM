@@ -10,8 +10,8 @@ public record CartItemRequest(
         @NotNull CartItemType itemType,
         @NotNull @Positive Integer itemId,
         @NotNull @Positive Integer quantity) {
-    @AssertTrue(message = "Courses require quantity 1")
+    @AssertTrue(message = "Courses and combos require quantity 1")
     public boolean isCourseQuantityValid() {
-        return itemType != CartItemType.COURSE || quantity == null || quantity == 1;
+        return itemType == CartItemType.PRODUCT || quantity == null || quantity == 1;
     }
 }

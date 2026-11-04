@@ -1,4 +1,4 @@
-enum CartItemType { course, product }
+enum CartItemType { course, product, combo }
 
 enum CartItemAvailability { available, unavailable, outOfStock }
 
@@ -13,9 +13,9 @@ class CartItem {
     this.availability = CartItemAvailability.available,
     this.availabilityMessage,
   }) {
-    if (quantity < 1 || (type == CartItemType.course && quantity != 1)) {
+    if (quantity < 1 || (type != CartItemType.product && quantity != 1)) {
       throw ArgumentError(
-        'Courses require 1; products require positive quantity.',
+        'Courses and combos require 1; products require positive quantity.',
       );
     }
     final price = unitPriceVnd;
@@ -37,6 +37,10 @@ class CartItem {
   final CartItemAvailability availability;
   final String? availabilityMessage;
   int get subtotalVnd => (unitPriceVnd ?? 0) * quantity;
+
+  /// Course purchase flow sells Courses and Combos (a Combo is one line granting several Courses); never Products.
+  bool get isCourseCheckoutItem =>
+      type == CartItemType.course || type == CartItemType.combo;
 
   CartItem withQuantity(int value) => CartItem(
     id: id,
@@ -83,6 +87,7 @@ class CartSnapshot {
           final type = switch (raw['itemType']) {
             'COURSE' => CartItemType.course,
             'PRODUCT' => CartItemType.product,
+            'COMBO' => CartItemType.combo,
             _ => throw const FormatException('Unsupported cart item type.'),
           };
           final availability = switch (raw['availabilityStatus']) {
@@ -92,8 +97,8 @@ class CartSnapshot {
             _ => throw const FormatException('Unsupported cart availability.'),
           };
           final quantity = _cartInt(raw['quantity'], 'quantity');
-          if (type == CartItemType.course && quantity != 1) {
-            throw const FormatException('Course quantity must be one.');
+          if (type != CartItemType.product && quantity != 1) {
+            throw const FormatException('Course and combo quantity must be one.');
           }
           return CartItem(
             id: _cartInt(raw['cartItemId'], 'cartItemId'),
@@ -101,7 +106,7 @@ class CartSnapshot {
             type: type,
             name: raw['displayName'] is String
                 ? raw['displayName'] as String
-                : 'Course',
+                : (type == CartItemType.combo ? 'Combo' : 'Course'),
             unitPriceVnd:
                 availability != CartItemAvailability.available ||
                     raw['unitPriceVnd'] == null

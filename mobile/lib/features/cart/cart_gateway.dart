@@ -116,7 +116,68 @@ class ApiCourseCartGateway implements CartGateway {
     required int bundleId,
     required String title,
   }) async {
-    showMessage(context, 'Combo purchases are not available yet.');
+    if (!coursePurchaseUiEnabled) {
+      showMessage(context, 'Course purchasing is disabled in this app build.');
+      return;
+    }
+    final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
+    try {
+      // A Combo is one cart line that grants every Course inside it; the server decides the price.
+      final response = await ApiClient().post<dynamic>(
+        '/api/cart/items',
+        data: {'itemType': 'COMBO', 'itemId': bundleId, 'quantity': 1},
+        fromJsonT: (json) => json,
+      );
+      if (!response.success) {
+        if (messenger.mounted) {
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                response.message.isEmpty
+                    ? 'Could not add this Combo.'
+                    : response.message,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      if (!messenger.mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Combo added to your cart.'),
+          action: SnackBarAction(
+            label: 'View Cart',
+            onPressed: () => router.push('/cart'),
+          ),
+        ),
+      );
+    } on ConflictException {
+      // 409: gift required, a Course is already owned or pending, or the Combo is no longer on sale.
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This Combo cannot be bought right now: you may already own one of its Courses, '
+              'or it is currently unavailable.',
+            ),
+          ),
+        );
+      }
+    } on ApiException catch (error) {
+      if (messenger.mounted) {
+        messenger.showSnackBar(SnackBar(content: Text(error.displayMessage)));
+      }
+    } catch (_) {
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Could not add this Combo. Please try again.'),
+          ),
+        );
+      }
+    }
   }
 }
 

@@ -10,7 +10,7 @@ public record OrderLineSnapshot(OrderItemType itemType, Integer itemId, String n
         Objects.requireNonNull(itemType, "itemType");
         Objects.requireNonNull(itemId, "itemId");
         Objects.requireNonNull(name, "name");
-        if (name.isBlank() || quantity < 1 || (itemType == OrderItemType.COURSE && quantity != 1)
+        if (name.isBlank() || quantity < 1 || (itemType != OrderItemType.PRODUCT && quantity != 1)
                 || unitPriceVnd < 0) {
             throw new IllegalArgumentException("Invalid order line snapshot");
         }

@@ -5,6 +5,9 @@ import 'cart_item.dart';
 abstract interface class CartRepository {
   Future<CartSnapshot> load();
   Future<CartSnapshot> addCourse(int courseId);
+
+  /// A Combo is ONE cart line (quantity 1) that grants every Course inside it.
+  Future<CartSnapshot> addCombo(int comboId);
   Future<CartSnapshot> setQuantity(int cartItemId, int quantity);
   Future<CartSnapshot> remove(int cartItemId);
   Future<CartSnapshot> clear();

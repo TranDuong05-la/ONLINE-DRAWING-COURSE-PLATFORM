@@ -36,6 +36,43 @@ void main() {
     expect(detail.shippingAddress?.countryCode, 'VN');
   });
 
+  test('a Combo order line is one whole line and never discounted', () {
+    final json = orderDetailJson(31, nullable: true);
+    json['merchandiseSubtotalVnd'] = 799000;
+    json['eligibleSubtotalVnd'] = 0;
+    json['discountVnd'] = 0;
+    json['shippingFeeVnd'] = 0;
+    json['totalVnd'] = 799000;
+    json['items'] = [
+      {
+        'orderItemId': 6,
+        'linePosition': 0,
+        'itemType': 'COMBO',
+        'itemId': 7,
+        'nameSnapshot': 'Watercolor + Portrait combo',
+        'quantity': 1,
+        'unitPriceVnd': 799000,
+        'voucherEligible': false,
+        'grossAmountVnd': 799000,
+        'allocatedDiscountVnd': 0,
+        'netAmountVnd': 799000,
+      },
+    ];
+
+    final detail = OrderDetail.fromJson(json);
+
+    expect(detail.items.single.itemType, OrderItemType.combo);
+    expect(detail.items.single.itemType.wireName, 'COMBO');
+    expect(detail.items.single.voucherEligible, isFalse);
+
+    // một combo luôn là một dòng: số lượng khác 1 là dữ liệu sai
+    (json['items'] as List).first['quantity'] = 2;
+    expect(
+      () => OrderDetail.fromJson(json),
+      throwsA(isA<OrderHistoryFormatException>()),
+    );
+  });
+
   test('missing required monetary fields and list content are rejected', () {
     final summary = orderSummaryJson(30)..remove('totalVnd');
     expect(

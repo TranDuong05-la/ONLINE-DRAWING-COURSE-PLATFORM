@@ -108,7 +108,7 @@ enum OrderPaymentStatus {
   unknown,
 }
 
-enum OrderItemType { course, product }
+enum OrderItemType { course, product, combo }
 
 enum OrderVoucherKind { fixedVnd, percentBasisPoints }
 
@@ -289,7 +289,7 @@ class OrderItem {
         item.linePosition < 0 ||
         item.itemId <= 0 ||
         item.quantity <= 0 ||
-        (item.itemType == OrderItemType.course && item.quantity != 1) ||
+        (item.itemType != OrderItemType.product && item.quantity != 1) ||
         item.unitPriceVnd < 0 ||
         item.grossAmountVnd < 0 ||
         item.allocatedDiscountVnd < 0 ||

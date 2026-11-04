@@ -20,6 +20,9 @@ spring:
     password: test
 
 app:
+  # Test của B dùng danh mục sản phẩm tạm trong bộ nhớ (ứng dụng thật dùng bảng products của E)
+  products:
+    stand-in: true
   jwt:
     secret: dGVzdC1zZWNyZXQta2V5LWZvci1hcnQtYWNhZGVteS1hcGktdGVzdGluZy1vbmx5LW11c3QtYmUtYXQtbGVhc3QtMjU2LWJpdHM=
     access-expiration-ms: 900000

@@ -42,16 +42,17 @@ public final class CourseOnlyCartController {
 
     @PostMapping("/items")
     public ResponseEntity<ApiResponse<CartResponse>> addCourse(@Valid @RequestBody CartItemRequest request) {
-        if (request.itemType() != CartItemType.COURSE)
-            throw new CartPolicyConflictException("Course-only Cart accepts Course items only");
-        return ok("Cart item added successfully", carts.add(CartItemType.COURSE, request.itemId(), request.quantity()));
+        // A Combo is one purchasable line (quantity 1), like a Course; Products belong to the general Cart.
+        if (request.itemType() != CartItemType.COURSE && request.itemType() != CartItemType.COMBO)
+            throw new CartPolicyConflictException("Course-only Cart accepts Course and Combo items only");
+        return ok("Cart item added successfully", carts.add(request.itemType(), request.itemId(), request.quantity()));
     }
 
     @PatchMapping("/items/{cartItemId}")
     public ResponseEntity<ApiResponse<CartResponse>> updateCourseQuantity(@PathVariable Integer cartItemId,
             @Valid @RequestBody CartItemQuantityRequest request) {
         requirePositiveId(cartItemId);
-        if (request.quantity() != 1) throw new CartInvalidRequestException("Course quantity must be one");
+        if (request.quantity() != 1) throw new CartInvalidRequestException("Course and Combo quantity must be one");
         return ok("Cart item updated successfully", carts.update(cartItemId, 1));
     }
 

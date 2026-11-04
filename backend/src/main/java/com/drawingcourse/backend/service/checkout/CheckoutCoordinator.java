@@ -1,6 +1,7 @@
 package com.drawingcourse.backend.service.checkout;
 
 import com.drawingcourse.backend.entity.CartItemType;
+import com.drawingcourse.backend.entity.ComboCheckoutValidator;
 import com.drawingcourse.backend.entity.Order;
 import com.drawingcourse.backend.entity.OrderItemType;
 import com.drawingcourse.backend.entity.OrderLineSnapshot;
@@ -33,20 +34,27 @@ public final class CheckoutCoordinator {
     private final Clock clock;
     private final TransactionTemplate transaction;
     private final boolean courseOnlyMode;
+    /** Combo participants exist only in Course-only mode and only when explicitly wired; otherwise null. */
+    private final ComboCatalogPort combos;
+    private final ComboPurchasePort comboPurchases;
 
     public CheckoutCoordinator(CheckoutIdempotencyPort idempotency, CheckoutCartPort carts,
             CourseCatalogPort courses, ProductCatalogPort products, CoursePurchasePort coursePurchases,
             InventoryReservationPort inventory, VoucherReservationPort vouchers, ShippingQuotePort shipping,
             CheckoutOrderPort orders, Clock clock, PlatformTransactionManager transactionManager) {
         this(idempotency, carts, courses, products, coursePurchases, inventory, vouchers, shipping,
-                orders, clock, transactionManager, false);
+                orders, clock, transactionManager, false, null, null);
     }
 
     private CheckoutCoordinator(CheckoutIdempotencyPort idempotency, CheckoutCartPort carts,
             CourseCatalogPort courses, ProductCatalogPort products, CoursePurchasePort coursePurchases,
             InventoryReservationPort inventory, VoucherReservationPort vouchers, ShippingQuotePort shipping,
             CheckoutOrderPort orders, Clock clock, PlatformTransactionManager transactionManager,
-            boolean courseOnlyMode) {
+            boolean courseOnlyMode, ComboCatalogPort combos, ComboPurchasePort comboPurchases) {
+        if ((combos == null) != (comboPurchases == null))
+            throw new IllegalArgumentException("Combo catalog and purchase participants must be wired together");
+        this.combos = combos;
+        this.comboPurchases = comboPurchases;
         this.idempotency = Objects.requireNonNull(idempotency);
         this.carts = Objects.requireNonNull(carts);
         this.courses = Objects.requireNonNull(courses);
@@ -73,7 +81,20 @@ public final class CheckoutCoordinator {
             CourseCatalogPort courses, CoursePurchasePort coursePurchases, VoucherReservationPort vouchers,
             CheckoutOrderPort orders, Clock clock, PlatformTransactionManager transactionManager) {
         return new CheckoutCoordinator(idempotency, carts, courses, null, coursePurchases, null, vouchers, null,
-                orders, clock, transactionManager, true);
+                orders, clock, transactionManager, true, null, null);
+    }
+
+    /**
+     * Course-only coordinator that also accepts Combo lines: one Order line per Combo, a claim per component Course.
+     * Combos carry no voucher eligibility and no Product/Inventory/Shipping participants.
+     */
+    public static CheckoutCoordinator courseOnlyWithCombos(CheckoutIdempotencyPort idempotency,
+            CheckoutCartPort carts, CourseCatalogPort courses, CoursePurchasePort coursePurchases,
+            ComboCatalogPort combos, ComboPurchasePort comboPurchases, VoucherReservationPort vouchers,
+            CheckoutOrderPort orders, Clock clock, PlatformTransactionManager transactionManager) {
+        return new CheckoutCoordinator(idempotency, carts, courses, null, coursePurchases, null, vouchers, null,
+                orders, clock, transactionManager, true, Objects.requireNonNull(combos, "combos"),
+                Objects.requireNonNull(comboPurchases, "comboPurchases"));
     }
 
     /** authenticatedUserId must be resolved from the verified principal at the application boundary. */
@@ -129,13 +150,21 @@ public final class CheckoutCoordinator {
             throw rejected(CheckoutRejectedException.Reason.CART_REVISION_MISMATCH, "Cart changed; reload before Checkout");
 
         List<SelectedLine> selected = selectedLines(cart, request);
-        if (courseOnly && selected.stream().anyMatch(line -> line.cartItem().itemType() != CartItemType.COURSE)) {
+        if (courseOnly && selected.stream().anyMatch(line -> line.cartItem().itemType() == CartItemType.PRODUCT)) {
             throw rejected(CheckoutRejectedException.Reason.UNSUPPORTED_ITEM_TYPE,
                     "Course-only Checkout does not support Product items");
+        }
+        // Combos are Course bundles: only the Course-only mode wired with Combo participants can sell them. A Combo ID
+        // must never fall through to the Product branch below.
+        if ((!courseOnly || combos == null)
+                && selected.stream().anyMatch(line -> line.cartItem().itemType() == CartItemType.COMBO)) {
+            throw rejected(CheckoutRejectedException.Reason.UNSUPPORTED_ITEM_TYPE,
+                    "This Checkout does not support Combo items");
         }
         Instant observedAt = clock.instant().truncatedTo(ChronoUnit.MICROS);
         var orderLines = new ArrayList<OrderLineSnapshot>(selected.size());
         var courseIds = new TreeSet<Integer>();
+        var comboOffers = new TreeMap<Integer, ComboCatalogPort.ComboOffer>();
         var productQuantities = new TreeMap<Integer, Integer>();
 
         for (SelectedLine selection : selected) {
@@ -151,6 +180,16 @@ public final class CheckoutCoordinator {
                 courseIds.add(item.itemId());
                 orderLines.add(new OrderLineSnapshot(OrderItemType.COURSE, item.itemId(), offer.name(),
                         item.quantity(), offer.unitPriceVnd(), true));
+            } else if (item.itemType() == CartItemType.COMBO) {
+                // One Order line per Combo at the Combo's own price. Not voucher-eligible (D's rule): the Combo price
+                // is already the discount. Read once; this offer is the immutable snapshot used for the claims below.
+                var offer = combos.findForCheckout(item.itemId()).orElseThrow(() -> rejected(
+                        CheckoutRejectedException.Reason.ITEM_UNAVAILABLE, "Combo is unavailable"));
+                if (!offer.purchasable() || !offer.comboId().equals(item.itemId()))
+                    throw rejected(CheckoutRejectedException.Reason.ITEM_UNAVAILABLE, "Combo is unavailable");
+                comboOffers.put(offer.comboId(), offer);
+                orderLines.add(new OrderLineSnapshot(OrderItemType.COMBO, offer.comboId(), offer.name(), 1,
+                        offer.unitPriceVnd(), false));
             } else {
                 if (courseOnly) throw rejected(CheckoutRejectedException.Reason.UNSUPPORTED_ITEM_TYPE,
                         "Course-only Checkout does not support Product items");
@@ -162,6 +201,8 @@ public final class CheckoutCoordinator {
                         item.quantity(), offer.unitPriceVnd(), true));
             }
         }
+
+        if (!comboOffers.isEmpty()) validateComboCoverage(userId, courseIds, comboOffers.values(), observedAt);
 
         long eligibleSubtotal = 0L;
         for (var line : orderLines) if (line.voucherEligible())
@@ -201,6 +242,7 @@ public final class CheckoutCoordinator {
             throw new IllegalStateException("Order persistence returned an invalid owner/reference");
 
         Map<Integer, Integer> courseOrderItemIds = persistedCourseOrderItems(stored, courseIds);
+        Map<Integer, Integer> comboOrderItemIds = persistedOrderItems(stored, OrderItemType.COMBO, comboOffers.keySet());
 
         // Providers acquire shared rows in deterministic ID order. All must join this transaction and perform
         // atomic write-side checks; the earlier ownership/pending/catalog reads are not concurrency protection.
@@ -211,11 +253,71 @@ public final class CheckoutCoordinator {
         for (Integer courseId : courseIds)
             coursePurchases.claimForOrder(userId, courseId, stored.id(), courseOrderItemIds.get(courseId),
                     observedAt, snapshot.getExpiresAt());
+        // Each Combo reserves all of its Courses atomically in this same transaction (all or nothing).
+        for (var combo : comboOffers.values())
+            comboPurchases.claimComboForOrder(userId, stored.id(), comboOrderItemIds.get(combo.comboId()),
+                    combo.components(), observedAt, snapshot.getExpiresAt());
         voucherQuote.ifPresent(quote -> vouchers.reserveForOrder(userId, stored, snapshot, quote,
                 clock.instant().truncatedTo(ChronoUnit.MICROS)));
 
         idempotency.complete(userId, requestId, stored.id());
         return new CheckoutResult(stored.id(), false);
+    }
+
+    /**
+     * Validates the whole selection as trusted facts through the pure {@link ComboCheckoutValidator}: no Course may be
+     * covered twice (standalone and in a Combo, or in two Combos), owned, or have an active pending purchase.
+     */
+    private void validateComboCoverage(Integer userId, Set<Integer> standaloneCourseIds,
+            Collection<ComboCatalogPort.ComboOffer> offers, Instant observedAt) {
+        var covered = new TreeSet<>(standaloneCourseIds);
+        var comboLines = new ArrayList<ComboCheckoutValidator.SelectedComboLine>();
+        for (var offer : offers) {
+            var ordered = offer.components().stream()
+                    .sorted(Comparator.comparingInt(ComboCatalogPort.Component::position))
+                    .map(ComboCatalogPort.Component::courseId).toList();
+            covered.addAll(ordered);
+            comboLines.add(new ComboCheckoutValidator.SelectedComboLine(new ComboCheckoutValidator.ComboDefinition(
+                    offer.comboId(), offer.definitionVersion(), offer.name(), offer.unitPriceVnd(), ordered), 1));
+        }
+        var owned = new TreeSet<Integer>();
+        var pending = new TreeSet<Integer>();
+        for (Integer courseId : covered) {
+            if (coursePurchases.isOwnedBy(userId, courseId)) owned.add(courseId);
+            if (coursePurchases.hasActivePendingPurchase(userId, courseId, observedAt)) pending.add(courseId);
+        }
+        var standalone = standaloneCourseIds.stream()
+                .map(id -> new ComboCheckoutValidator.SelectedStandaloneCourseLine(id, 1)).toList();
+        var result = ComboCheckoutValidator.validate(
+                new ComboCheckoutValidator.ValidationInput(standalone, comboLines, owned, pending));
+        if (result instanceof ComboCheckoutValidator.Invalid invalid) {
+            switch (invalid.failure().code()) {
+                case COURSE_ALREADY_OWNED -> throw rejected(CheckoutRejectedException.Reason.COURSE_ALREADY_OWNED,
+                        "A Course in this Combo is already owned");
+                case COURSE_PENDING_PURCHASE -> throw rejected(
+                        CheckoutRejectedException.Reason.COURSE_PENDING_PURCHASE,
+                        "A Course in this Combo has an active pending purchase");
+                case DUPLICATE_COURSE_COVERAGE, DUPLICATE_COMBO_COMPONENT -> throw rejected(
+                        CheckoutRejectedException.Reason.COMBO_COURSE_OVERLAP,
+                        "A Combo covers a Course that is already selected");
+                default -> throw rejected(CheckoutRejectedException.Reason.ITEM_UNAVAILABLE, "Combo is unavailable");
+            }
+        }
+    }
+
+    private static Map<Integer, Integer> persistedOrderItems(StoredOrder stored, OrderItemType type,
+                                                             Set<Integer> expectedItemIds) {
+        Map<Integer, Integer> itemIds = new TreeMap<>();
+        for (StoredOrder.ItemIdentity identity : stored.itemIdentities()) {
+            if (identity.itemType() != type) continue;
+            if (identity.id() == null || identity.id() <= 0 || identity.itemId() == null || identity.itemId() <= 0)
+                throw new IllegalStateException("Order persistence returned an invalid " + type + " OrderItem identity");
+            if (itemIds.putIfAbsent(identity.itemId(), identity.id()) != null)
+                throw new IllegalStateException("Order persistence returned duplicate " + type + " OrderItems");
+        }
+        if (!itemIds.keySet().equals(expectedItemIds))
+            throw new IllegalStateException("Persisted " + type + " OrderItems do not match Checkout selection");
+        return itemIds;
     }
 
     private static Map<Integer, Integer> persistedCourseOrderItems(StoredOrder stored, Set<Integer> courseIds) {

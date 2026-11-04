@@ -65,6 +65,26 @@ class MockCartRepository implements CartRepository {
   }
 
   @override
+  Future<CartSnapshot> addCombo(int comboId) async {
+    if (comboId <= 0) throw ArgumentError.value(comboId, 'comboId');
+    if (_items.any(
+      (item) => item.type == CartItemType.combo && item.itemId == comboId,
+    )) {
+      return _snapshot();
+    }
+    _items.add(
+      CartItem(
+        id: DateTime.now().microsecondsSinceEpoch,
+        itemId: comboId,
+        type: CartItemType.combo,
+        name: 'Combo $comboId',
+        unitPriceVnd: 0,
+      ),
+    );
+    return _snapshot();
+  }
+
+  @override
   Future<CartSnapshot> setQuantity(int cartItemId, int quantity) async {
     final index = _items.indexWhere((item) => item.id == cartItemId);
     if (index < 0) throw StateError('Cart item not found.');

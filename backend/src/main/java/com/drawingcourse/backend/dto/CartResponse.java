@@ -36,8 +36,8 @@ public record CartResponse(Integer cartId, long revision, List<Item> items, long
             if (cartItemId == null || cartItemId <= 0 || itemId == null || itemId <= 0 || quantity < 1) {
                 throw new IllegalArgumentException("Invalid Cart item identity or quantity");
             }
-            if (itemType == CartItemType.COURSE && quantity != 1) {
-                throw new IllegalArgumentException("Course quantity must be one");
+            if (itemType != CartItemType.PRODUCT && quantity != 1) {
+                throw new IllegalArgumentException("Course and combo quantity must be one");
             }
             if (unitPriceVnd != null && unitPriceVnd < 0 || lineTotalVnd != null && lineTotalVnd < 0) {
                 throw new IllegalArgumentException("Cart prices cannot be negative");

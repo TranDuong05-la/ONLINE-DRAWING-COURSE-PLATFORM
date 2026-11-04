@@ -38,10 +38,22 @@ class ApiCourseCartRepository implements CartRepository {
   }
 
   @override
+  Future<CartSnapshot> addCombo(int comboId) {
+    if (comboId <= 0) throw ArgumentError.value(comboId, 'comboId');
+    return _snapshot(
+      _api.post<dynamic>(
+        '${ApiConstants.cart}/items',
+        data: {'itemType': 'COMBO', 'itemId': comboId, 'quantity': 1},
+        fromJsonT: (json) => json,
+      ),
+    );
+  }
+
+  @override
   Future<CartSnapshot> setQuantity(int cartItemId, int quantity) {
     if (cartItemId <= 0 || quantity != 1) {
       throw ArgumentError(
-        'Course cart lines require a valid ID and quantity 1.',
+        'Course and combo cart lines require a valid ID and quantity 1.',
       );
     }
     return _snapshot(

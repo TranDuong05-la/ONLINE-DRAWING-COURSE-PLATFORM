@@ -324,11 +324,15 @@ public final class SettlementCoordinator {
         }
         var productIds = new TreeSet<Integer>();
         var courseItems = new java.util.TreeMap<Integer, Integer>();
+        var comboItems = new java.util.TreeMap<Integer, Integer>();
         for (var item : order.getItems()) {
             if (item.getItemType() == OrderItemType.PRODUCT) productIds.add(item.getItemId());
             else if (item.getItemType() == OrderItemType.COURSE) {
                 if (courseItems.put(item.getItemId(), item.getId()) != null)
                     throw new IllegalStateException("Order contains duplicate Course item identity");
+            } else if (item.getItemType() == OrderItemType.COMBO) {
+                if (comboItems.put(item.getItemId(), item.getId()) != null)
+                    throw new IllegalStateException("Order contains duplicate Combo item identity");
             }
         }
         for (Integer productId : productIds) {
@@ -337,6 +341,9 @@ public final class SettlementCoordinator {
         }
         for (var courseItem : courseItems.entrySet())
             courses.confirmCourseForOrder(order.getUserId(), courseItem.getKey(), order.getId(), courseItem.getValue(), now);
+        // A Combo grants all of its Courses together: confirm the full claim set recorded at Checkout for this OrderItem.
+        for (var comboItem : comboItems.entrySet())
+            courses.confirmComboForOrder(order.getUserId(), order.getId(), comboItem.getValue(), now);
 
         var saved = ledger.insert(order.getId(), attemptRow.getId(), eventRow.getId(), audit.event().occurredAt(), now);
         if (saved == null || saved.id() == null || !order.getId().equals(saved.orderId())

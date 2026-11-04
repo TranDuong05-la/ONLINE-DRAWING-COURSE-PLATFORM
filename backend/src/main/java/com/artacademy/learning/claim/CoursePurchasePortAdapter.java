@@ -5,6 +5,8 @@ import java.time.Instant;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
+import com.drawingcourse.backend.service.checkout.ComboCatalogPort;
+import com.drawingcourse.backend.service.checkout.ComboPurchasePort;
 import com.drawingcourse.backend.service.checkout.CoursePurchasePort;
 import com.drawingcourse.backend.integration.contract.CourseClaimContracts;
 
@@ -18,7 +20,7 @@ import com.drawingcourse.backend.integration.contract.CourseClaimContracts;
  */
 @Component
 @ConditionalOnProperty(name = "app.checkout.course-only.enabled", havingValue = "true")
-public class CoursePurchasePortAdapter implements CoursePurchasePort {
+public class CoursePurchasePortAdapter implements CoursePurchasePort, ComboPurchasePort {
 	private final CourseClaimService claims;
 
 	public CoursePurchasePortAdapter(CourseClaimService claims) {
@@ -41,6 +43,18 @@ public class CoursePurchasePortAdapter implements CoursePurchasePort {
 		claims.reserve(new CourseClaimContracts.ReservationCommand(authenticatedUserId, orderId,
 				java.util.List.of(new CourseClaimContracts.ClaimLine(orderItemId, courseId.longValue(),
 						CourseClaimContracts.ClaimSourceType.STANDALONE_COURSE, null)), observedAt, expiresAt));
+	}
+
+	/** Giữ chỗ tất cả khóa của một Combo cho OrderItem combo (mỗi khóa một claim COMBO_COMPONENT), hoặc không khóa nào. */
+	@Override
+	public void claimComboForOrder(Integer authenticatedUserId, Integer orderId, Integer orderItemId,
+			java.util.List<ComboCatalogPort.Component> components, Instant observedAt, Instant expiresAt) {
+		var lines = components.stream()
+				.map(c -> new CourseClaimContracts.ClaimLine(orderItemId, c.courseId().longValue(),
+						CourseClaimContracts.ClaimSourceType.COMBO_COMPONENT, c.position()))
+				.toList();
+		claims.reserve(new CourseClaimContracts.ReservationCommand(authenticatedUserId, orderId, lines, observedAt,
+				expiresAt));
 	}
 
 	@Override

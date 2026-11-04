@@ -66,7 +66,7 @@ public final class CartApplicationService {
     public CartState add(CartItemType type, Integer itemId, int quantity) {
         var preflightItem = new CartItem<>(type, itemId, quantity);
         Integer user = userId();
-        if (type == CartItemType.COURSE && contains(load(user), type, itemId)) {
+        if (type != CartItemType.PRODUCT && contains(load(user), type, itemId)) {
             try {
                 return existingCourseDuplicate(user, type, itemId);
             } catch (CourseRemovedDuringDuplicateCheck ignored) {

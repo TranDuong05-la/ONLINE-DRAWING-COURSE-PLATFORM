@@ -120,6 +120,10 @@ app:
     dir: ${UPLOAD_DIR:uploads}
     # C: ảnh bài nộp tối đa 5MB (JPEG/PNG)
     max-image-bytes: 5242880
+  # ---- B: quà tặng kèm của khóa học tra thẳng bảng products của E (SupplyProductCatalog).
+  # true = dùng bản tạm trong bộ nhớ của B (trống mỗi lần khởi động lại; chỉ để chạy thử riêng phần B).
+  products:
+    stand-in: ${PRODUCTS_STAND_IN:false}
   # ---- B: dữ liệu mẫu chỉ nạp khi bảng còn trống. Mặc định tắt; profile h2 bật (xem application-h2.yaml) ----
   # A (DataInitializer, 4 tài khoản test) dùng chung cờ app.seed.enabled này
   seed:

@@ -45,15 +45,16 @@ class DataSeederTest {
     @Test
     void seedData_hasExpectedCoursesProductsAndBundle() throws Exception {
         assertTrue(productCatalog.listActive().size() >= 3);
-        assertEquals(3, courseRepository.count());
+        assertEquals(4, courseRepository.count());
         assertEquals(1, courseRepository.findAll().stream().filter(c -> c.getStatus() == CourseStatus.DRAFT).count());
 
-        // học viên chỉ thấy 2 khóa đã xuất bản: 1 khóa có quà, 1 khóa có giá giảm
+        // học viên chỉ thấy 3 khóa đã xuất bản: 1 khóa không quà (rẻ nhất), 1 khóa có giá giảm, 1 khóa có quà
         mvc.perform(get("/api/courses?sort=price_asc"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalElements").value(2))
-                .andExpect(jsonPath("$.data.content[0].discountPrice").value(449_000))
-                .andExpect(jsonPath("$.data.content[1].hasKits").value(true));
+                .andExpect(jsonPath("$.data.totalElements").value(3))
+                .andExpect(jsonPath("$.data.content[0].hasKits").value(false))
+                .andExpect(jsonPath("$.data.content[1].discountPrice").value(449_000))
+                .andExpect(jsonPath("$.data.content[2].hasKits").value(true));
 
         // mỗi khóa đã xuất bản có bài học thử, và bài thường không lộ video
         mvc.perform(get("/api/courses/" + courseRepository.findAll().get(0).getId()))
@@ -61,7 +62,8 @@ class DataSeederTest {
                 .andExpect(jsonPath("$.data.modules[0].lessons[0].preview").value(true))
                 .andExpect(jsonPath("$.data.modules[0].lessons[0].previewVideoUrl").exists());
 
-        mvc.perform(get("/api/bundles")).andExpect(jsonPath("$.data.length()").value(1));
+        // 2 combo mẫu: một combo có khóa kèm quà, một combo gồm các khóa không quà
+        mvc.perform(get("/api/bundles")).andExpect(jsonPath("$.data.length()").value(2));
     }
 
     /** Tài khoản mẫu đăng nhập được bằng JWT thật của A, và quyền ADMIN được áp dụng cho /api/admin/**. */
@@ -73,7 +75,7 @@ class DataSeederTest {
         mvc.perform(get("/api/admin/courses").header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.totalElements").value(3));
+                .andExpect(jsonPath("$.data.totalElements").value(4));
         // học viên (USER) bị cấm, người chưa đăng nhập bị 401
         mvc.perform(get("/api/admin/courses").header("Authorization", "Bearer " + learnerToken))
                 .andExpect(status().isForbidden());

@@ -15,10 +15,13 @@ import com.artacademy.course.CourseModuleRepository;
 import com.artacademy.course.CourseRepository;
 import com.artacademy.course.CourseStatus;
 import com.artacademy.product.InMemoryProductCatalog;
+import com.artacademy.supply.catalog.SupplyProductRepository;
 import java.time.LocalDateTime;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,13 +31,17 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Component
 @ConditionalOnProperty(name = "app.seed.enabled", havingValue = "true")
+// Chạy sau SupplySeeder của E (Ordered.LOWEST_PRECEDENCE - 10) để quà mẫu tìm được sản phẩm thật theo SKU
+@Order(Ordered.LOWEST_PRECEDENCE)
 public class CourseDataSeeder implements CommandLineRunner {
 
     private static final String VIDEO_1 = "https://flutter.github.io/assets-for-api-docs/assets/videos/butterfly.mp4";
     private static final String VIDEO_2 = "https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4";
 
-    /** Danh mục sản phẩm tạm của B; vắng mặt khi E đã tích hợp (app.products.stand-in=false), lúc đó không nạp quà mẫu. */
+    /** Danh mục sản phẩm tạm của B; vắng mặt khi dùng sản phẩm thật của E (app.products.stand-in=false, mặc định). */
     private final ObjectProvider<InMemoryProductCatalog> standInCatalog;
+    /** Kho sản phẩm thật của E: quà mẫu gắn theo SKU khi không có danh mục tạm. */
+    private final SupplyProductRepository supplyProducts;
     private final CourseRepository courseRepository;
     private final CourseModuleRepository moduleRepository;
     private final CourseLessonRepository lessonRepository;
@@ -42,11 +49,13 @@ public class CourseDataSeeder implements CommandLineRunner {
     private final BundleRepository bundleRepository;
     private final BundleItemRepository bundleItemRepository;
 
-    public CourseDataSeeder(ObjectProvider<InMemoryProductCatalog> standInCatalog, CourseRepository courseRepository,
+    public CourseDataSeeder(ObjectProvider<InMemoryProductCatalog> standInCatalog,
+                      SupplyProductRepository supplyProducts, CourseRepository courseRepository,
                       CourseModuleRepository moduleRepository, CourseLessonRepository lessonRepository,
                       CourseKitRepository kitRepository, BundleRepository bundleRepository,
                       BundleItemRepository bundleItemRepository) {
         this.standInCatalog = standInCatalog;
+        this.supplyProducts = supplyProducts;
         this.courseRepository = courseRepository;
         this.moduleRepository = moduleRepository;
         this.lessonRepository = lessonRepository;
@@ -89,8 +98,9 @@ public class CourseDataSeeder implements CommandLineRunner {
         lesson(w1, "Các dụng cụ cần có", "Màu, cọ, giấy và palette.", VIDEO_2, 8, 2, false, true);
         CourseModule w2 = module(watercolor, "Kỹ thuật cơ bản", 2);
         lesson(w2, "Kỹ thuật loang màu", "Loang màu ướt trên ướt.", VIDEO_1, 7, 1, false, true);
-        kit(watercolor, "BM-WC12", 1);
-        kit(watercolor, "CO-SET3", 1);
+        // SKU của danh mục tạm (BM-WC12, CO-SET3) hoặc của E (WC-24-PAN, PAP-A4-300); chỉ cái nào có mới được gắn
+        kit(watercolor, "BM-WC12", "WC-24-PAN", 1);
+        kit(watercolor, "CO-SET3", "PAP-A4-300", 1);
 
         // Khóa 2: nâng cao, có giá giảm, không có quà
         Course portrait = newCourse("KH-PORTRAIT", "Phác thảo chân dung nâng cao",
@@ -109,6 +119,16 @@ public class CourseDataSeeder implements CommandLineRunner {
         CourseModule d1 = module(draft, "Giới thiệu", 1);
         lesson(d1, "Bài mở đầu", null, null, 0, 1, false, true);
 
+        // Khóa 4: cơ bản, không có quà tặng kèm (để thử mua combo trong luồng chỉ bán khóa học)
+        Course sketch = newCourse("KH-SKETCH", "Ký họa nhanh mỗi ngày",
+                "Luyện tay với những bài ký họa 10 phút: nét, khối và bố cục.",
+                "Mỗi ngày một bài ký họa ngắn giúp bạn quen tay, quen mắt: nét thẳng, nét cong, chia khối cơ bản "
+                        + "và bố cục một bức tranh nhỏ.",
+                300_000, null, CourseLevel.BASIC, CourseStatus.PUBLISHED);
+        CourseModule s1 = module(sketch, "Làm quen ký họa", 1);
+        lesson(s1, "Cầm bút và luyện nét", "Nét thẳng, nét cong.", VIDEO_1, 7, 1, true, true);
+        lesson(s1, "Chia khối cơ bản", "Hình khối từ hình đơn giản.", VIDEO_2, 8, 2, false, true);
+
         // Combo mẫu gồm 2 khóa đã xuất bản (tổng thực bán 899.000 > giá combo)
         CourseBundle bundle = new CourseBundle();
         bundle.setCode("CB-COMBO-1");
@@ -118,6 +138,17 @@ public class CourseDataSeeder implements CommandLineRunner {
         bundleRepository.save(bundle);
         bundleItemRepository.save(new BundleItem(bundle, watercolor, 1));
         bundleItemRepository.save(new BundleItem(bundle, portrait, 2));
+
+        // Combo mẫu 2: hai khóa không có quà tặng kèm nên mua được ngay trong luồng chỉ bán khóa học
+        // (tổng thực bán 749.000 > giá combo)
+        CourseBundle noKitBundle = new CourseBundle();
+        noKitBundle.setCode("CB-COMBO-2");
+        noKitBundle.setTitle("Combo Chân dung + Ký họa");
+        noKitBundle.setDescription("Luyện tay với ký họa rồi nâng lên chân dung, giá ưu đãi cho cả hai khóa.");
+        noKitBundle.setPrice(649_000);
+        bundleRepository.save(noKitBundle);
+        bundleItemRepository.save(new BundleItem(noKitBundle, portrait, 1));
+        bundleItemRepository.save(new BundleItem(noKitBundle, sketch, 2));
     }
 
     private Course newCourse(String code, String title, String shortDesc, String description, long price,
@@ -154,11 +185,15 @@ public class CourseDataSeeder implements CommandLineRunner {
         lessonRepository.save(l);
     }
 
-    private void kit(Course course, String sku, int quantity) {
-        // Quà mẫu chỉ có khi dùng danh mục tạm; khi E tích hợp thì admin tự chọn quà qua màn quản trị
-        standInCatalog.ifAvailable(catalog -> {
-            var product = catalog.findBySku(sku).orElseThrow();
+    private void kit(Course course, String standInSku, String supplySku, int quantity) {
+        InMemoryProductCatalog catalog = standInCatalog.getIfAvailable();
+        if (catalog != null) {
+            var product = catalog.findBySku(standInSku).orElseThrow();
             kitRepository.save(new CourseIncludedKit(course, product.id(), quantity));
-        });
+            return;
+        }
+        // Dùng sản phẩm thật của E: nếu E chưa nạp sản phẩm mẫu thì không gắn quà (admin tự chọn ở màn quản trị)
+        supplyProducts.findAll().stream().filter(p -> p.getSku().equalsIgnoreCase(supplySku)).findFirst()
+                .ifPresent(p -> kitRepository.save(new CourseIncludedKit(course, p.getId().intValue(), quantity)));
     }
 }

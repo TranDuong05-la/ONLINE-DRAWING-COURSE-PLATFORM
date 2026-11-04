@@ -217,6 +217,49 @@ public class CourseClaimService implements CourseClaimContracts.CourseClaims,
 	}
 
 	/**
+	 * Settlement của D cho một Combo: xác nhận TOÀN BỘ claim đã giữ cho OrderItem combo (một claim cho mỗi khóa) và cấp quyền
+	 * học từng khóa. Tập claim lưu lúc đặt hàng chính là bản chụp của combo; không đọc lại định nghĩa combo hiện tại.
+	 * Chạy trong transaction của D nên lỗi ở một khóa làm rollback cả combo (không cấp nửa chừng).
+	 */
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void confirmComboForOrder(Integer userId, Integer orderId, Integer orderItemId, Instant confirmedAt) {
+		requirePositive(userId, "userId");
+		requirePositive(orderId, "orderId");
+		requirePositive(orderItemId, "orderItemId");
+		for (CourseClaim c : comboClaims(orderId, orderItemId, true)) {
+			confirmOne(userId, c.getCourseId(), orderId, orderItemId, confirmedAt);
+		}
+	}
+
+	/** Nhả toàn bộ claim còn RESERVED của một Combo khi Order hết hạn. Idempotent; không nhả claim đã thanh toán. */
+	@Override
+	@Transactional(propagation = Propagation.MANDATORY)
+	public void releaseComboForExpiredOrder(Integer userId, Integer orderId, Integer orderItemId, Instant releasedAt) {
+		requirePositive(userId, "userId");
+		requirePositive(orderId, "orderId");
+		requirePositive(orderItemId, "orderItemId");
+		for (CourseClaim c : comboClaims(orderId, orderItemId, false)) {
+			releaseOne(userId, c.getCourseId(), orderId, "EXPIRED", releasedAt);
+		}
+	}
+
+	/** Claim của một OrderItem combo theo thứ tự khóa tăng dần (khóa dòng theo thứ tự cố định để tránh deadlock). */
+	private List<CourseClaim> comboClaims(Integer orderId, Integer orderItemId, boolean required) {
+		List<CourseClaim> items = claims.findByOrderItemForUpdate(orderItemId);
+		if (required && items.isEmpty()) {
+			throw new IllegalStateException("Không có claim cho OrderItem combo " + orderItemId);
+		}
+		for (CourseClaim c : items) {
+			if (!orderId.equals(c.getOrderId()) || c.getSourceType() != CourseClaim.SourceType.COMBO_COMPONENT) {
+				throw new IllegalStateException("Claim của OrderItem " + orderItemId + " không phải thành phần combo của Order "
+						+ orderId);
+			}
+		}
+		return items;
+	}
+
+	/**
 	 * Cấp quyền học theo yêu cầu của D sau khi thanh toán đã được xác minh. Idempotent.
 	 * {@code expectedOrderItemId} khác null thì claim phải thuộc đúng OrderItem đó.
 	 */
