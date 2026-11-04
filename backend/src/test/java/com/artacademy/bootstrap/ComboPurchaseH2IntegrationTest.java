@@ -234,7 +234,7 @@ class ComboPurchaseH2IntegrationTest {
     }
 
     @Test
-    void cartFlagsAComboThatOverlapsAnotherLine() throws Exception {
+    void courseInsideAComboInTheCart_isCoveredNotBlocking_andRemovalIsPerLine() throws Exception {
         Combo combo = combo(220_000);
         User buyer = user();
         String auth = bearer(buyer);
@@ -245,8 +245,51 @@ class ComboPurchaseH2IntegrationTest {
         JsonNode items = both.path("data").path("items");
         assertThat(items.get(0).path("itemType").asText()).isEqualTo("COMBO");
         assertThat(items.get(0).path("availabilityStatus").asText()).isEqualTo("AVAILABLE");
-        assertThat(items.get(1).path("availabilityStatus").asText()).isEqualTo("UNAVAILABLE");
-        assertThat(both.path("data").path("canCheckout").asBoolean()).isFalse();
+        // khóa lẻ nằm trong combo: được coi là đã bao gồm trong combo, không trừ tiền riêng và không chặn thanh toán
+        assertThat(items.get(1).path("availabilityStatus").asText()).isEqualTo("COVERED");
+        assertThat(items.get(1).path("availabilityMessage").asText()).contains("đã nằm trong combo");
+        assertThat(items.get(1).path("unitPriceVnd").isNull()).isTrue();
+        assertThat(both.path("data").path("canCheckout").asBoolean()).isTrue();
+        assertThat(both.path("data").path("hasUnavailableItems").asBoolean()).isFalse();
+        assertThat(both.path("data").path("subtotalVnd").asLong()).isEqualTo(220_000L);
+
+        // xóa combo: khóa lẻ vẫn còn và mua được riêng
+        int comboLine = items.get(0).path("cartItemId").asInt();
+        var afterComboRemoved = json.readTree(mvc.perform(delete("/api/cart/items/" + comboLine)
+                        .header("Authorization", auth)).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString()).path("data");
+        assertThat(afterComboRemoved.path("items")).hasSize(1);
+        assertThat(afterComboRemoved.path("items").get(0).path("itemType").asText()).isEqualTo("COURSE");
+        assertThat(afterComboRemoved.path("items").get(0).path("availabilityStatus").asText()).isEqualTo("AVAILABLE");
+        assertThat(afterComboRemoved.path("subtotalVnd").asLong()).isEqualTo(100_000L);
+
+        // thêm lại combo rồi xóa khóa lẻ: combo vẫn còn nguyên (các khóa trong combo không bị ảnh hưởng)
+        JsonNode again = addToCart(auth, "COMBO", combo.id, 200);
+        int courseLine = again.path("data").path("items").get(0).path("cartItemId").asInt();
+        assertThat(again.path("data").path("items").get(0).path("itemType").asText()).isEqualTo("COURSE");
+        var afterCourseRemoved = json.readTree(mvc.perform(delete("/api/cart/items/" + courseLine)
+                        .header("Authorization", auth)).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString()).path("data");
+        assertThat(afterCourseRemoved.path("items")).hasSize(1);
+        assertThat(afterCourseRemoved.path("items").get(0).path("itemType").asText()).isEqualTo("COMBO");
+        assertThat(afterCourseRemoved.path("items").get(0).path("availabilityStatus").asText()).isEqualTo("AVAILABLE");
+    }
+
+    @Test
+    void twoCombosSharingACourse_onlyTheFirstIsPayable_theOtherIsCoveredNotBlocking() throws Exception {
+        Combo first = combo(220_000);
+        Combo second = comboSharing(first.courseIds.getLast(), 180_000);
+        User buyer = user();
+        String auth = bearer(buyer);
+        addToCart(auth, "COMBO", first.id, 200);
+
+        JsonNode both = addToCart(auth, "COMBO", second.id, 200);
+
+        JsonNode items = both.path("data").path("items");
+        assertThat(items.get(0).path("availabilityStatus").asText()).isEqualTo("AVAILABLE");
+        assertThat(items.get(1).path("availabilityStatus").asText()).isEqualTo("COVERED");
+        assertThat(items.get(1).path("availabilityMessage").asText()).contains("trùng");
+        assertThat(both.path("data").path("canCheckout").asBoolean()).isTrue();
         assertThat(both.path("data").path("subtotalVnd").asLong()).isEqualTo(220_000L);
     }
 
@@ -259,7 +302,11 @@ class ComboPurchaseH2IntegrationTest {
         String auth = bearer(buyer);
         JsonNode cart = addToCart(auth, "COMBO", combo.id, 200);
         int cartItemId = cart.path("data").path("items").get(0).path("cartItemId").asInt();
-        long revision = cart.path("data").path("revision").asLong();
+        // khóa A lẻ cũng nằm trong giỏ: coi như đã bao gồm trong combo, chỉ cần thanh toán combo
+        JsonNode withCourse = addToCart(auth, "COURSE", combo.courseIds.getFirst(), 200);
+        assertThat(withCourse.path("data").path("items").get(1).path("availabilityStatus").asText()).isEqualTo("COVERED");
+        assertThat(withCourse.path("data").path("canCheckout").asBoolean()).isTrue();
+        long revision = withCourse.path("data").path("revision").asLong();
         String key = "combo-" + UUID.randomUUID();
 
         int orderId = checkout(auth, key, revision, List.of(cartItemId), 201);
@@ -301,9 +348,11 @@ class ComboPurchaseH2IntegrationTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM course_claims WHERE order_id=?", Integer.class, orderId))
                 .isEqualTo(2);
 
-        // đang chờ thanh toán: giỏ báo combo không khả dụng, và không thêm được từng khóa trong combo
+        // đang chờ thanh toán: giỏ báo combo không khả dụng, khóa A lẻ trong giỏ cũng đang chờ thanh toán (đã nằm trong
+        // combo vừa đặt) và không thêm được từng khóa trong combo
         assertThat(cartLine(auth, 0).path("availabilityStatus").asText()).isEqualTo("UNAVAILABLE");
-        addToCart(auth, "COURSE", combo.courseIds.getFirst(), 409);
+        assertThat(cartLine(auth, 1).path("availabilityMessage").asText()).contains("chờ thanh toán");
+        addToCart(auth, "COURSE", combo.courseIds.getLast(), 409);
 
         // thanh toán thành công (VNPay đã xác minh) -> cấp quyền học cho CẢ HAI khóa
         Order domain = new TransactionTemplate(transactions).execute(s ->
@@ -341,8 +390,10 @@ class ComboPurchaseH2IntegrationTest {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM user_course_enrollments WHERE source_order_id=?",
                 Integer.class, orderId)).isEqualTo(2);
 
-        // đã sở hữu: combo trong giỏ báo không khả dụng, từng khóa cũng không thêm lại được
+        // đã sở hữu: combo trong giỏ báo không khả dụng, khóa A lẻ trong giỏ coi như đã thanh toán trong combo
         assertThat(cartLine(auth, 0).path("availabilityStatus").asText()).isEqualTo("UNAVAILABLE");
+        assertThat(cartLine(auth, 1).path("availabilityStatus").asText()).isEqualTo("UNAVAILABLE");
+        assertThat(cartLine(auth, 1).path("availabilityMessage").asText()).isEqualTo("Bạn đã sở hữu khóa học này rồi.");
         assertThat(addToCart(auth, "COURSE", combo.courseIds.getLast(), 409).path("message").asText())
                 .isEqualTo("Bạn đã sở hữu khóa học này rồi.");
         Combo again = new Combo(combo.id, combo.title, combo.courseIds);
@@ -462,6 +513,21 @@ class ComboPurchaseH2IntegrationTest {
         bundleItems.saveAndFlush(new BundleItem(bundle, first, 1));
         bundleItems.saveAndFlush(new BundleItem(bundle, second, 2));
         return new Combo(bundle.getId(), bundle.getTitle(), List.of(first.getId(), second.getId()));
+    }
+
+    /** Combo thứ hai dùng chung một khóa với combo khác (khóa còn lại là khóa mới). */
+    private Combo comboSharing(Integer sharedCourseId, long price) {
+        Course shared = courses.findById(sharedCourseId).orElseThrow();
+        Course other = course("c", 90_000, null);
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 10);
+        CourseBundle bundle = new CourseBundle();
+        bundle.setCode("CBS-" + suffix);
+        bundle.setTitle("Combo shared " + suffix);
+        bundle.setPrice(price);
+        bundle = bundles.saveAndFlush(bundle);
+        bundleItems.saveAndFlush(new BundleItem(bundle, shared, 1));
+        bundleItems.saveAndFlush(new BundleItem(bundle, other, 2));
+        return new Combo(bundle.getId(), bundle.getTitle(), List.of(shared.getId(), other.getId()));
     }
 
     private Course course(String name, long price, Long discount) {

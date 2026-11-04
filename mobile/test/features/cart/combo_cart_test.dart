@@ -37,7 +37,12 @@ Map<String, dynamic> _cartJson(List<Map<String, dynamic>> items) {
     0,
     (sum, i) => sum + (i['lineTotalVnd'] as int),
   );
-  final unavailable = items.length != available.length;
+  // Một dòng COVERED (khóa đã nằm trong combo của giỏ) chỉ mang tính thông tin, không chặn thanh toán.
+  final unavailable = items.any(
+    (i) =>
+        i['availabilityStatus'] == 'UNAVAILABLE' ||
+        i['availabilityStatus'] == 'OUT_OF_STOCK',
+  );
   return {
     'cartId': 3,
     'revision': 5,
@@ -94,6 +99,29 @@ void main() {
       expect(cart.items.single.unitPriceVnd, isNull);
       expect(cart.hasUnavailableItems, isTrue);
       expect(cart.canCheckout, isFalse);
+    });
+
+    test('a Course already inside the Combo in the cart is covered and does not block checkout', () {
+      final course = {
+        'cartItemId': 42,
+        'itemType': 'COURSE',
+        'itemId': 3,
+        'quantity': 1,
+        'displayName': 'Watercolor basics',
+        'availabilityStatus': 'COVERED',
+        'unitPriceVnd': null,
+        'lineTotalVnd': null,
+        'availabilityMessage': 'Khóa học này đã nằm trong combo trong giỏ hàng nên sẽ không mua riêng.',
+      };
+      final cart = CartSnapshot.fromJson(_cartJson([_comboLine(), course]));
+
+      expect(cart.items[1].availability, CartItemAvailability.covered);
+      expect(cart.items[1].blocksCheckout, isFalse);
+      expect(cart.items[1].isPayable, isFalse);
+      expect(cart.hasUnavailableItems, isFalse);
+      expect(cart.canCheckout, isTrue);
+      expect(cart.subtotalVnd, 799000);
+      expect(cart.payableItems.map((i) => i.id), [41]);
     });
 
     test('products are still not Course-checkout items', () {
@@ -284,6 +312,34 @@ void main() {
       ]);
       expect(request.data['address']['recipient'], 'Buyer');
       expect((request.data as Map).containsKey('price'), isFalse);
+    });
+
+    test('checkout sends only the payable lines, leaving out a Course covered by the Combo', () async {
+      adapter.respond = (request) => {
+        'success': true,
+        'message': 'ok',
+        'data': {'orderId': 89, 'replayed': false},
+      };
+      final covered = {
+        'cartItemId': 42,
+        'itemType': 'COURSE',
+        'itemId': 3,
+        'quantity': 1,
+        'displayName': 'Watercolor basics',
+        'availabilityStatus': 'COVERED',
+        'unitPriceVnd': null,
+        'lineTotalVnd': null,
+        'availabilityMessage': 'Khóa học này đã nằm trong combo.',
+      };
+      final cart = CartSnapshot.fromJson(_cartJson([_comboLine(), covered]));
+
+      final orderId = await ApiCourseCheckoutRepository(apiClient: api)
+          .createOrder(cart: cart, idempotencyKey: 'covered-key');
+
+      expect(orderId, 89);
+      expect(adapter.requests.single.data['selections'], [
+        {'cartItemId': 41},
+      ]);
     });
 
     test('Course-only checkout still refuses a cart that has a Product', () async {

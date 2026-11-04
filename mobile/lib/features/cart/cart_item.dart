@@ -1,6 +1,8 @@
 enum CartItemType { course, product, combo }
 
-enum CartItemAvailability { available, unavailable, outOfStock }
+/// covered: not bought on its own because another line in the Cart (a Combo) already includes this Course;
+/// it never blocks checkout and is left out of the order.
+enum CartItemAvailability { available, unavailable, outOfStock, covered }
 
 class CartItem {
   CartItem({
@@ -38,6 +40,14 @@ class CartItem {
   final String? availabilityMessage;
   int get subtotalVnd => (unitPriceVnd ?? 0) * quantity;
 
+  /// Lines that are actually paid for in an order (covered lines are paid by the Combo that includes them).
+  bool get isPayable => availability == CartItemAvailability.available;
+
+  /// Only unavailable or out-of-stock lines block checkout; covered lines do not.
+  bool get blocksCheckout =>
+      availability == CartItemAvailability.unavailable ||
+      availability == CartItemAvailability.outOfStock;
+
   /// Course purchase flow sells Courses and Combos (a Combo is one line granting several Courses); never Products.
   bool get isCourseCheckoutItem =>
       type == CartItemType.course || type == CartItemType.combo;
@@ -71,6 +81,10 @@ class CartSnapshot {
   final bool canCheckout;
   final bool hasUnavailableItems;
 
+  /// The lines that go into an order; covered lines are left out because the Combo that includes them pays for them.
+  List<CartItem> get payableItems =>
+      items.where((item) => item.isPayable).toList(growable: false);
+
   factory CartSnapshot.fromJson(dynamic source) {
     if (source is! Map<String, dynamic>) {
       throw const FormatException('Cart data is not an object.');
@@ -94,6 +108,7 @@ class CartSnapshot {
             'AVAILABLE' => CartItemAvailability.available,
             'UNAVAILABLE' => CartItemAvailability.unavailable,
             'OUT_OF_STOCK' => CartItemAvailability.outOfStock,
+            'COVERED' => CartItemAvailability.covered,
             _ => throw const FormatException('Unsupported cart availability.'),
           };
           final quantity = _cartInt(raw['quantity'], 'quantity');
@@ -134,7 +149,7 @@ class CartSnapshot {
       (sum, item) => sum + item.subtotalVnd,
     );
     final actualUnavailable = items.any(
-      (item) => item.availability != CartItemAvailability.available,
+      (item) => item.blocksCheckout,
     );
     if (actualSubtotal != subtotal ||
         actualUnavailable != unavailable ||

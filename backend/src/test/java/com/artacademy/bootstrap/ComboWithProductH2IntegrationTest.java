@@ -167,12 +167,13 @@ class ComboWithProductH2IntegrationTest {
         // combo luôn một dòng số lượng 1
         addToCart(auth, "COMBO", combo.id, 2, 400);
 
-        // thêm một khóa nằm trong combo: dòng đến sau bị báo trùng
+        // thêm một khóa nằm trong combo: khóa lẻ được coi là đã bao gồm trong combo, không chặn thanh toán
         JsonNode overlap = addToCart(auth, "COURSE", combo.courseIds.getFirst(), 1, 200);
         JsonNode last = overlap.path("data").path("items").get(2);
         assertThat(last.path("itemType").asText()).isEqualTo("COURSE");
-        assertThat(last.path("availabilityStatus").asText()).isEqualTo("UNAVAILABLE");
-        assertThat(overlap.path("data").path("canCheckout").asBoolean()).isFalse();
+        assertThat(last.path("availabilityStatus").asText()).isEqualTo("COVERED");
+        assertThat(overlap.path("data").path("canCheckout").asBoolean()).isTrue();
+        assertThat(overlap.path("data").path("subtotalVnd").asLong()).isEqualTo(220_000L + 100_000L);
     }
 
     // ------------------------------------------------------------------ đặt hàng → thanh toán → cấp quyền + giao hàng

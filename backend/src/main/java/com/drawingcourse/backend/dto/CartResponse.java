@@ -46,7 +46,8 @@ public record CartResponse(Integer cartId, long revision, List<Item> items, long
                     && (unitPriceVnd == null || lineTotalVnd == null)) {
                 throw new IllegalArgumentException("Available Cart items require current prices");
             }
-            if (availabilityStatus == CartAvailabilityStatus.UNAVAILABLE
+            if ((availabilityStatus == CartAvailabilityStatus.UNAVAILABLE
+                    || availabilityStatus == CartAvailabilityStatus.COVERED)
                     && (unitPriceVnd != null || lineTotalVnd != null)) {
                 throw new IllegalArgumentException("Unavailable items cannot expose stale prices");
             }

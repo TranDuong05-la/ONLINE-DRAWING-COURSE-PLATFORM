@@ -265,9 +265,10 @@ class _CartScreenState extends State<CartScreen> {
   );
 
   bool _selectionSupported(CartSnapshot cart) {
-    if (cart.items.any((item) => item.availability != CartItemAvailability.available)) return false;
-    final hasCourse = cart.items.any((item) => item.isCourseCheckoutItem);
-    final hasProduct = cart.items.any((item) => item.type == CartItemType.product);
+    if (cart.items.any((item) => item.blocksCheckout)) return false;
+    // Covered lines (a Course already inside a Combo in the Cart) are not part of the order.
+    final hasCourse = cart.payableItems.any((item) => item.isCourseCheckoutItem);
+    final hasProduct = cart.payableItems.any((item) => item.type == CartItemType.product);
     if (hasCourse && !_courseEnabled) return false;
     if (hasProduct && (!productPurchaseUiEnabled || widget.repository is! ProductCartQuantityRepository)) return false;
     return hasProduct || (hasCourse && _courseEnabled);

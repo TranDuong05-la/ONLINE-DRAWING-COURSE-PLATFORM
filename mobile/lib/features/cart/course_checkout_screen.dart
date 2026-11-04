@@ -48,12 +48,10 @@ class _CourseCheckoutScreenState extends State<CourseCheckoutScreen>
   bool get _enabled => widget.purchaseEnabled ?? coursePurchaseUiEnabled;
   bool get _validCart =>
       widget.cart.canCheckout &&
-      widget.cart.items.isNotEmpty &&
-      widget.cart.items.every(
-        (item) =>
-            item.isCourseCheckoutItem &&
-            item.availability == CartItemAvailability.available &&
-            item.quantity == 1,
+      widget.cart.payableItems.isNotEmpty &&
+      !widget.cart.items.any((item) => item.blocksCheckout) &&
+      widget.cart.payableItems.every(
+        (item) => item.isCourseCheckoutItem && item.quantity == 1,
       );
 
   @override

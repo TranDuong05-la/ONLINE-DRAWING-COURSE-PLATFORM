@@ -17,6 +17,18 @@ public final class CartPolicyMessages {
     public static final String COMBO_PENDING = "Combo này có khóa học đang nằm trong một đơn hàng chờ thanh toán của bạn.";
     public static final String COMBO_GIFT = "Combo này có khóa học kèm quà tặng (học cụ) nên chưa mua được qua giỏ hàng này.";
 
+    /** Khóa lẻ nằm trong giỏ cùng một combo đã chứa khóa đó: mua combo là đã có khóa này. */
+    public static String courseCoveredByCombo(String comboName) {
+        return "Khóa học này đã nằm trong combo \"" + comboName
+                + "\" trong giỏ hàng nên sẽ không mua riêng. Mua combo là bạn có luôn khóa này.";
+    }
+
+    /** Hai combo trong giỏ có khóa trùng nhau: chỉ mua được một. */
+    public static String comboOverlapsCombo(String otherComboName) {
+        return "Combo này có khóa học trùng với combo \"" + otherComboName
+                + "\" trong giỏ hàng. Hãy chọn mua một trong hai.";
+    }
+
     public static final String PRODUCT_NOT_FOR_SALE = "Học cụ này hiện không bán được.";
     public static final String TYPE_NOT_SUPPORTED = "Giỏ hàng này không nhận loại sản phẩm này.";
 }

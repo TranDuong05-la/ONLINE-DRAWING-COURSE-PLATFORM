@@ -5,18 +5,12 @@ import com.drawingcourse.backend.dto.CartResponse;
 import com.drawingcourse.backend.entity.CartItemType;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 
 /** Display-only Course/Combo Cart projection; it performs trusted reads and no purchase-side writes. */
 public final class CourseOnlyCartProjector {
-    private static final String UNAVAILABLE = "Course is unavailable or not eligible for this account.";
-    private static final String COMBO_UNAVAILABLE = "Combo is unavailable or not eligible for this account.";
-    private static final String COMBO_OVERLAP =
-            "This item covers a Course that is already in your Cart. Remove one of them.";
     private final CourseCartCatalogProvider courses;
     private final CourseOwnershipProvider ownership;
     private final ActivePendingCoursePurchaseProvider pending;
@@ -44,62 +38,71 @@ public final class CourseOnlyCartProjector {
                 || item.itemType() == CartItemType.COMBO && combos == null)) {
             throw new CartItemTypeNotSupportedException("Course-only Cart cannot project Product items");
         }
+        // Courses already paid for by a Combo that is also in the Cart are "covered" (not bought separately).
+        CartComboCoverage coverage = CartComboCoverage.evaluate(cart.userId(), cart.items(), combos, ownership,
+                pending, clock);
         List<CartResponse.Item> lines = new ArrayList<>(cart.items().size());
         List<CartResponse.AvailabilityWarning> warnings = new ArrayList<>();
-        // Courses already covered by an earlier line (standalone or inside a Combo): a later line that covers the
-        // same Course cannot be bought together with it (checkout rejects duplicate coverage).
-        Set<Integer> covered = new HashSet<>();
         long subtotal = 0;
         for (CartState.Item item : cart.items()) {
             CartResponse.Item line = item.itemType() == CartItemType.COMBO
-                    ? projectCombo(cart, item, covered) : projectCourse(cart, item, covered);
+                    ? projectCombo(item, coverage) : projectCourse(cart, item, coverage);
             if (line.availabilityStatus() == CartAvailabilityStatus.AVAILABLE) {
                 subtotal = Math.addExact(subtotal, line.lineTotalVnd());
             }
             lines.add(line);
-            if (line.availabilityStatus() != CartAvailabilityStatus.AVAILABLE) {
+            // A covered line is informational: it never blocks Checkout.
+            if (line.availabilityStatus() != CartAvailabilityStatus.AVAILABLE
+                    && line.availabilityStatus() != CartAvailabilityStatus.COVERED) {
                 warnings.add(new CartResponse.AvailabilityWarning(item.cartItemId(), line.availabilityStatus(),
                         line.availabilityMessage()));
             }
         }
+        boolean anyPayable = lines.stream().anyMatch(l -> l.availabilityStatus() == CartAvailabilityStatus.AVAILABLE);
         return new CartResponse(cart.cartId(), cart.revision(), lines, subtotal, "VND", !warnings.isEmpty(),
-                !lines.isEmpty() && warnings.isEmpty(), warnings);
+                anyPayable && warnings.isEmpty(), warnings);
     }
 
-    private CartResponse.Item projectCourse(CartState cart, CartState.Item item, Set<Integer> covered) {
+    private CartResponse.Item projectCourse(CartState cart, CartState.Item item, CartComboCoverage coverage) {
         Optional<CourseCartCatalogProvider.CourseListing> found = courses.findCourse(item.itemId());
-        if (found.isEmpty()) return unavailable(item, null, UNAVAILABLE);
+        if (found.isEmpty()) {
+            return unavailable(item, null, courses.requiresGift(item.itemId())
+                    ? CartPolicyMessages.COURSE_GIFT : CartPolicyMessages.COURSE_NOT_FOR_SALE);
+        }
         var course = found.get();
-        boolean eligible = course.active() && !ownership.isOwnedBy(cart.userId(), item.itemId())
-                && !pending.hasActivePendingPurchase(cart.userId(), item.itemId(), clock.instant());
-        if (!eligible) return unavailable(item, course.name(), UNAVAILABLE);
-        if (!covered.add(item.itemId())) return unavailable(item, course.name(), COMBO_OVERLAP);
+        if (!course.active()) return unavailable(item, course.name(), CartPolicyMessages.COURSE_NOT_FOR_SALE);
+        if (ownership.isOwnedBy(cart.userId(), item.itemId()))
+            return unavailable(item, course.name(), CartPolicyMessages.COURSE_OWNED);
+        if (pending.hasActivePendingPurchase(cart.userId(), item.itemId(), clock.instant()))
+            return unavailable(item, course.name(), CartPolicyMessages.COURSE_PENDING);
+        String coveringCombo = coverage.coveringComboName(item.itemId());
+        if (coveringCombo != null) {
+            return line(item, course.name(), CartAvailabilityStatus.COVERED, null, null,
+                    CartPolicyMessages.courseCoveredByCombo(coveringCombo));
+        }
         long total = Math.multiplyExact(course.currentPriceVnd(), item.quantity());
-        return new CartResponse.Item(item.cartItemId(), item.itemType(), item.itemId(), item.quantity(),
-                course.name(), CartAvailabilityStatus.AVAILABLE, course.currentPriceVnd(), total, null);
+        return line(item, course.name(), CartAvailabilityStatus.AVAILABLE, course.currentPriceVnd(), total, null);
     }
 
-    private CartResponse.Item projectCombo(CartState cart, CartState.Item item, Set<Integer> covered) {
-        Optional<ComboCartCatalogProvider.ComboListing> found = combos.findCombo(item.itemId());
-        if (found.isEmpty()) return unavailable(item, null, COMBO_UNAVAILABLE);
-        var combo = found.get();
-        boolean eligible = combo.active();
-        for (Integer courseId : combo.courseIds()) {
-            if (!eligible) break;
-            eligible = !ownership.isOwnedBy(cart.userId(), courseId)
-                    && !pending.hasActivePendingPurchase(cart.userId(), courseId, clock.instant());
+    private CartResponse.Item projectCombo(CartState.Item item, CartComboCoverage coverage) {
+        CartComboCoverage.ComboLine evaluated = coverage.comboLine(item.cartItemId());
+        String name = evaluated.listing() == null ? null : evaluated.listing().name();
+        if (!evaluated.eligible()) return unavailable(item, name, evaluated.unavailableMessage());
+        if (evaluated.coveredByComboName() != null) {
+            return line(item, name, CartAvailabilityStatus.COVERED, null, null,
+                    CartPolicyMessages.comboOverlapsCombo(evaluated.coveredByComboName()));
         }
-        if (!eligible) return unavailable(item, combo.name(), COMBO_UNAVAILABLE);
-        if (combo.courseIds().stream().anyMatch(covered::contains))
-            return unavailable(item, combo.name(), COMBO_OVERLAP);
-        covered.addAll(combo.courseIds());
-        long total = Math.multiplyExact(combo.currentPriceVnd(), item.quantity());
-        return new CartResponse.Item(item.cartItemId(), item.itemType(), item.itemId(), item.quantity(),
-                combo.name(), CartAvailabilityStatus.AVAILABLE, combo.currentPriceVnd(), total, null);
+        long total = Math.multiplyExact(evaluated.listing().currentPriceVnd(), item.quantity());
+        return line(item, name, CartAvailabilityStatus.AVAILABLE, evaluated.listing().currentPriceVnd(), total, null);
     }
 
     private static CartResponse.Item unavailable(CartState.Item item, String name, String reason) {
-        return new CartResponse.Item(item.cartItemId(), item.itemType(), item.itemId(), item.quantity(), name,
-                CartAvailabilityStatus.UNAVAILABLE, null, null, reason);
+        return line(item, name, CartAvailabilityStatus.UNAVAILABLE, null, null, reason);
+    }
+
+    private static CartResponse.Item line(CartState.Item item, String name, CartAvailabilityStatus status,
+                                          Long unitPrice, Long total, String message) {
+        return new CartResponse.Item(item.cartItemId(), item.itemType(), item.itemId(), item.quantity(), name, status,
+                unitPrice, total, message);
     }
 }

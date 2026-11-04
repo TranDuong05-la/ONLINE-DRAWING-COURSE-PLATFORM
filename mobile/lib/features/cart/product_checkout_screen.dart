@@ -39,10 +39,10 @@ class _ProductCheckoutScreenState extends State<ProductCheckoutScreen> with Widg
   bool get _enabled => productPurchaseUiEnabled;
   bool get _confirmed => _order?.paymentStatus == OrderPaymentStatus.succeeded && _order?.status == OrderStatus.confirmed;
   bool get _validCart => widget.cart.canCheckout &&
-      widget.cart.items.any((item) => item.type == CartItemType.product) &&
-      widget.cart.items.every((item) => item.availability == CartItemAvailability.available &&
-          // Courses and Combos are always one line of quantity one; only Products can have a larger quantity.
-          (item.type == CartItemType.product || item.quantity == 1));
+      widget.cart.payableItems.any((item) => item.type == CartItemType.product) &&
+      !widget.cart.items.any((item) => item.blocksCheckout) &&
+      // Courses and Combos are always one line of quantity one; only Products can have a larger quantity.
+      widget.cart.payableItems.every((item) => item.type == CartItemType.product || item.quantity == 1);
 
   @override
   void initState() {

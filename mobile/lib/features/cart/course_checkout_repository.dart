@@ -110,13 +110,12 @@ class ApiCourseCheckoutRepository implements ProductCheckoutRepository {
     required String idempotencyKey,
     String? voucherCode,
   }) async {
+    final payable = cart.payableItems;
     if (!cart.canCheckout ||
-        cart.items.isEmpty ||
-        cart.items.any(
-          (item) =>
-              !item.isCourseCheckoutItem ||
-              item.availability != CartItemAvailability.available ||
-              item.quantity != 1,
+        payable.isEmpty ||
+        cart.items.any((item) => item.blocksCheckout) ||
+        payable.any(
+          (item) => !item.isCourseCheckoutItem || item.quantity != 1,
         )) {
       throw const FormatException(
         'Only available Course and Combo items can be checked out.',
@@ -127,7 +126,7 @@ class ApiCourseCheckoutRepository implements ProductCheckoutRepository {
       headers: {'Idempotency-Key': idempotencyKey},
       data: {
         'cartRevision': cart.revision,
-        'selections': cart.items
+        'selections': payable
             .map((item) => {'cartItemId': item.id})
             .toList(growable: false),
         if (voucherCode != null && voucherCode.trim().isNotEmpty)
@@ -156,9 +155,10 @@ class ApiCourseCheckoutRepository implements ProductCheckoutRepository {
     required ProductShippingAddress address,
     String? voucherCode,
   }) async {
-    if (!cart.canCheckout || cart.items.isEmpty ||
-        !cart.items.any((item) => item.type == CartItemType.product) ||
-        cart.items.any((item) => item.availability != CartItemAvailability.available)) {
+    final payable = cart.payableItems;
+    if (!cart.canCheckout || payable.isEmpty ||
+        !payable.any((item) => item.type == CartItemType.product) ||
+        cart.items.any((item) => item.blocksCheckout)) {
       throw const FormatException('Only available Product or mixed Cart items can be checked out here.');
     }
     final response = await _api.post<dynamic>(
@@ -166,7 +166,7 @@ class ApiCourseCheckoutRepository implements ProductCheckoutRepository {
       headers: {'Idempotency-Key': idempotencyKey},
       data: {
         'cartRevision': cart.revision,
-        'selections': cart.items.map((item) => {
+        'selections': payable.map((item) => {
           'cartItemId': item.id,
           'quantity': item.quantity,
         }).toList(growable: false),
