@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/staff_area.dart';
 import '../../../core/network/api_exceptions.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../course/models/course_models.dart';
@@ -106,12 +107,15 @@ class _AdminCourseListPageState extends State<AdminCourseListPage> with Automati
   Widget build(BuildContext context) {
     super.build(context);
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: null, // xem ghi chú ở admin_bundle_list_page.dart
-        onPressed: _create,
-        icon: const Icon(Icons.add),
-        label: const Text('Thêm khóa học'),
-      ),
+      // Giảng viên không tạo khóa học (chỉ ADMIN)
+      floatingActionButton: StaffArea.instructor
+          ? null
+          : FloatingActionButton.extended(
+              heroTag: null, // xem ghi chú ở admin_bundle_list_page.dart
+              onPressed: _create,
+              icon: const Icon(Icons.add),
+              label: const Text('Thêm khóa học'),
+            ),
       body: Column(
         children: [
           Padding(
@@ -185,7 +189,14 @@ class _AdminCourseListPageState extends State<AdminCourseListPage> with Automati
           builder: (context, c) => ListView(
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
-              SizedBox(height: c.maxHeight, child: const EmptyView(message: 'Chưa có khóa học nào')),
+              SizedBox(
+                height: c.maxHeight,
+                child: EmptyView(
+                  message: StaffArea.instructor
+                      ? 'Bạn chưa được phân công khóa học nào. Liên hệ ADMIN để được phân công.'
+                      : 'Chưa có khóa học nào',
+                ),
+              ),
             ],
           ),
         ),

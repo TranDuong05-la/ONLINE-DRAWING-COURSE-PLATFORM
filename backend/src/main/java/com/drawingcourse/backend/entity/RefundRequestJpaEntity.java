@@ -161,6 +161,44 @@ public class RefundRequestJpaEntity {
         financialStatus = FinancialStatus.READY;
     }
 
+    /** Ghi bằng chứng của C (tiến độ, bài nộp) đã được kiểm tra lại có khóa dòng ngay lúc admin duyệt. */
+    public void confirmCourseEligibility(String evidenceReference, String evidenceVersion, Instant observedAt,
+                                         String revalidationFence, Instant at) {
+        if (courseAccessStatus != CourseAccessStatus.UNCHANGED)
+            throw new IllegalStateException("Course access is not awaiting eligibility confirmation");
+        courseAccessStatus = CourseAccessStatus.ELIGIBILITY_CONFIRMED;
+        courseEvidenceReference = clip(evidenceReference, 255);
+        courseEvidenceVersion = clip(evidenceVersion, 128);
+        courseEvidenceObservedAt = Objects.requireNonNull(observedAt).truncatedTo(ChronoUnit.MICROS);
+        courseRevalidationFence = clip(revalidationFence, 255);
+        updatedAt = Objects.requireNonNull(at).truncatedTo(ChronoUnit.MICROS);
+    }
+
+    /** Cổng thanh toán từ chối hoàn tiền dứt khoát; số tiền vẫn được giữ chỗ để thử lại hoặc hoàn thủ công. */
+    public void markFinancialFailed(Instant at) {
+        if (financialStatus != FinancialStatus.PROCESSING && financialStatus != FinancialStatus.UNKNOWN)
+            throw new IllegalStateException("Refund is not awaiting provider evidence");
+        financialStatus = FinancialStatus.FAILED; updatedAt = Objects.requireNonNull(at).truncatedTo(ChronoUnit.MICROS);
+    }
+
+    /** Admin cho phép chạy lại bước trả tiền sau một lần thất bại dứt khoát. */
+    public void reopenFinancialForRetry(Instant at) {
+        if (financialStatus != FinancialStatus.FAILED) throw new IllegalStateException("Only a failed refund can be retried");
+        financialStatus = FinancialStatus.READY; updatedAt = Objects.requireNonNull(at).truncatedTo(ChronoUnit.MICROS);
+    }
+
+    /** C đã thu hồi quyền học của OrderItem này sau khi tiền đã được hoàn. */
+    public void markCourseAccessRevoked(Instant at) {
+        if (courseAccessStatus != CourseAccessStatus.REVOCATION_PENDING)
+            throw new IllegalStateException("Course access is not pending revocation");
+        courseAccessStatus = CourseAccessStatus.REVOKED; updatedAt = Objects.requireNonNull(at).truncatedTo(ChronoUnit.MICROS);
+    }
+
+    private static String clip(String value, int max) {
+        String v = Objects.requireNonNull(value).strip();
+        return v.length() <= max ? v : v.substring(0, max);
+    }
+
     /** Reject a non-physical request; physical requests require the authoritative Member E HOLD release first. */
     public void reject(Integer adminId, Instant at) {
         if (decisionStatus != DecisionStatus.REQUESTED) throw new IllegalStateException("Refund is already decided");

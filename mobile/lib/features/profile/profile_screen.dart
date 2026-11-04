@@ -172,6 +172,13 @@ class ProfileScreen extends StatelessWidget {
               ),
               const Divider(height: 1, indent: 56),
               _buildMenuItem(
+                icon: Icons.currency_exchange,
+                title: 'Yêu cầu hoàn tiền',
+                subtitle: 'Theo dõi các yêu cầu hoàn tiền khóa học',
+                onTap: () => context.push('/profile/refunds'),
+              ),
+              const Divider(height: 1, indent: 56),
+              _buildMenuItem(
                 icon: Icons.person_outline_rounded,
                 title: 'Chỉnh sửa hồ sơ',
                 subtitle: 'Cập nhật họ tên, số điện thoại, avatar',
@@ -256,6 +263,14 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const Divider(height: 1, indent: 56),
                 _commentInboxItem(context),
+                const Divider(height: 1, indent: 56),
+                _buildMenuItem(
+                  icon: Icons.currency_exchange,
+                  iconColor: AppColors.accentPeach,
+                  title: 'Duyệt hoàn tiền',
+                  subtitle: 'Duyệt / từ chối yêu cầu hoàn tiền khóa học, hoàn qua VNPay',
+                  onTap: () => context.push('/admin/refunds'),
+                ),
               ]),
               const SizedBox(height: 20),
             ],

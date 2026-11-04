@@ -2,10 +2,48 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/constants/staff_area.dart';
 import '../../providers/auth_provider.dart';
+import '../course_admin/ui/admin_course_list_page.dart';
+import '../learning_admin/learning_admin_home_page.dart';
 
-class InstructorDashboardScreen extends StatelessWidget {
+/// Khu vực giảng viên: dùng lại màn quản lý khóa học (B) và chấm bài (C) của admin, gọi /api/instructor/** nên chỉ
+/// thấy và sửa được khóa ADMIN phân công. Mở màn này thì bật [StaffArea.instructor], đóng thì tắt.
+class InstructorDashboardScreen extends StatefulWidget {
   const InstructorDashboardScreen({super.key});
+
+  @override
+  State<InstructorDashboardScreen> createState() => _InstructorDashboardScreenState();
+}
+
+class _InstructorDashboardScreenState extends State<InstructorDashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    StaffArea.instructor = true;
+  }
+
+  @override
+  void dispose() {
+    StaffArea.instructor = false;
+    super.dispose();
+  }
+
+  void _openCourses() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Khóa học của tôi')),
+          body: const AdminCourseListPage(),
+        ),
+      ),
+    );
+  }
+
+  void _openGrading() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const LearningAdminHomePage()));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +107,7 @@ class InstructorDashboardScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             Text(
-              'Quyền hạn Giảng viên (INSTRUCTOR)',
+              'Công việc',
               style: GoogleFonts.plusJakartaSans(
                 fontSize: 16,
                 fontWeight: FontWeight.w700,
@@ -77,9 +115,18 @@ class InstructorDashboardScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            _buildPermissionItem('Quản lý khóa học được phân công', 'Tạo mới, chỉnh sửa nội dung bài giảng & tài liệu mỹ thuật'),
-            _buildPermissionItem('Theo dõi tiến độ học viên', 'Xem danh sách học viên đăng ký và mức độ hoàn thành bài tập'),
-            _buildPermissionItem('Chấm điểm bài tập & Phản hồi', 'Nhận xét tác phẩm vẽ của học viên'),
+            _buildAction(
+              icon: Icons.menu_book_rounded,
+              title: 'Khóa học của tôi',
+              desc: 'Thêm, sửa, ẩn module và bài học; upload video, tài liệu',
+              onTap: _openCourses,
+            ),
+            _buildAction(
+              icon: Icons.rate_review_rounded,
+              title: 'Chấm bài, đề bài tập & học viên',
+              desc: 'Chấm bài nộp, soạn đề, xem học viên và tiến độ hoàn thành',
+              onTap: _openGrading,
+            ),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(16),
@@ -94,7 +141,8 @@ class InstructorDashboardScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Module Quản lý Khóa học của Giảng viên đang trong quá trình phát triển API backend.',
+                      'Bạn chỉ thấy các khóa ADMIN đã phân công. Tạo khóa, đổi giá, xuất bản và cấp quyền học '
+                      'do ADMIN thực hiện.',
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 13,
                         color: const Color(0xFF0369A1),
@@ -111,7 +159,12 @@ class InstructorDashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildPermissionItem(String title, String desc) {
+  Widget _buildAction({
+    required IconData icon,
+    required String title,
+    required String desc,
+    required VoidCallback onTap,
+  }) {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
@@ -120,9 +173,11 @@ class InstructorDashboardScreen extends StatelessWidget {
       ),
       elevation: 0,
       child: ListTile(
-        leading: const Icon(Icons.check_circle_rounded, color: Color(0xFF0284C7)),
+        onTap: onTap,
+        leading: Icon(icon, color: const Color(0xFF0284C7)),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
         subtitle: Text(desc, style: const TextStyle(fontSize: 12)),
+        trailing: const Icon(Icons.chevron_right),
       ),
     );
   }

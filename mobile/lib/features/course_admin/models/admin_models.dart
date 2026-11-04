@@ -129,3 +129,20 @@ class Product {
     );
   }
 }
+
+/// Giảng viên được phân công cho khóa (ADMIN quản lý ở màn chi tiết khóa).
+class CourseInstructor {
+  CourseInstructor({required this.userId, this.fullName, this.email});
+
+  final int userId;
+  final String? fullName;
+  final String? email;
+
+  factory CourseInstructor.fromJson(Map<String, dynamic> json) {
+    return CourseInstructor(
+      userId: _int(json['userId']),
+      fullName: json['fullName'] as String?,
+      email: json['email'] as String?,
+    );
+  }
+}

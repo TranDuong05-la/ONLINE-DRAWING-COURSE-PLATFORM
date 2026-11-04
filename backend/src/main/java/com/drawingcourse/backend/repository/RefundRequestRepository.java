@@ -25,4 +25,13 @@ public interface RefundRequestRepository extends Repository<RefundRequestJpaEnti
     List<RefundRequestJpaEntity> findObligationsForUpdate(@Param("settlementId") Integer settlementId,
                                                           @Param("statuses") Collection<AmountReservationStatus> statuses);
     <S extends RefundRequestJpaEntity> S saveAndFlush(S row);
+
+    /** Lịch sử yêu cầu hoàn tiền của học viên (mới nhất trước). */
+    List<RefundRequestJpaEntity> findAllByUserIdOrderByRequestedAtDescIdDesc(Integer userId);
+
+    /** Màn admin: mọi yêu cầu, mới nhất trước. */
+    List<RefundRequestJpaEntity> findAllByOrderByRequestedAtDescIdDesc();
+
+    /** Yêu cầu của một dòng đơn hàng, để biết đang có yêu cầu chưa kết thúc hay không. */
+    List<RefundRequestJpaEntity> findAllByOrderItemIdOrderByIdDesc(Integer orderItemId);
 }

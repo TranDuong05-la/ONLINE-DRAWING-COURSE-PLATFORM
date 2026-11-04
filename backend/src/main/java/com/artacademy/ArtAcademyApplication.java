@@ -16,15 +16,16 @@ import com.drawingcourse.backend.controller.CourseOnlyCheckoutExceptionHandler;
 import com.drawingcourse.backend.service.AuthenticatedCartCurrentUser;
 
 // Entity/repository của A, D (entity, repository, drawingcourse), B (course, bundle, product),
-// C (learning) và E (supply). @EnableAsync: email chứng nhận (C) gửi ở luồng nền sau khi DB commit.
+// C (learning), E (supply) và phân công giảng viên (instructor). @EnableAsync: email chứng nhận (C) gửi ở luồng nền
+// sau khi DB commit.
 @SpringBootApplication(scanBasePackages = "com.artacademy")
 @EnableAsync
 @EntityScan(basePackages = {"com.artacademy.entity", "com.drawingcourse.backend.entity",
         "com.artacademy.course", "com.artacademy.bundle", "com.artacademy.product", "com.artacademy.learning",
-        "com.artacademy.supply"})
+        "com.artacademy.supply", "com.artacademy.instructor"})
 @EnableJpaRepositories(basePackages = {"com.artacademy.repository", "com.drawingcourse.backend.repository",
         "com.artacademy.course", "com.artacademy.bundle", "com.artacademy.product", "com.artacademy.learning",
-        "com.artacademy.supply"})
+        "com.artacademy.supply", "com.artacademy.instructor"})
 // D (theo nhánh integration của Klosyus): giỏ hàng khóa học + thanh toán khóa lẻ. Mỗi phần còn có cờ bật/tắt riêng.
 @Import({CourseOnlyCheckoutConfiguration.class, CourseOnlyCartConfiguration.class,
         CartController.class, CourseOnlyCartController.class, CartApiExceptionHandler.class,
